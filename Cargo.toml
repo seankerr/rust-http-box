@@ -1,0 +1,18 @@
+[package]
+name        = "http-box"
+version     = "0.1.0"
+authors     = ["Sean Kerr <sean@code-box.org>"]
+license     = "Apache-2.0"
+description = "Zero-copy streaming HTTP parser, and URL parser"
+homepage    = "https://github.com/seankerr/rust-http-box"
+repository  = "https://github.com/seankerr/rust-http-box"
+readme      = "README.md"
+keywords    = ["http", "url", "parser", "encoder", "decoder"]
+exclude     = [".gitignore"]
+
+[dependencies]
+bitflags = "*"
+
+[dev-dependencies]
+bitflags = "*"
+clippy   = "*"
