@@ -61,23 +61,10 @@ impl fmt::Display for DecodingError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodingError::Hex(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             }
         }
     }
-}
-
-/// Encoding strictness level.
-///
-/// https://url.spec.whatwg.org/#percent-encoded-bytes
-#[derive(Clone,Copy,PartialEq)]
-pub enum EncodingLevel {
-    /// Encode all reserved characters according to RFC 3986, as with the addition of known risky
-    /// characters used by HTTP and HTML parsers, and websites that display URLs.
-    Default,
-
-    /// Encode all reserved characters according to RFC3986.
-    Loose
 }
 
 /// Query string parameter error messages.
@@ -94,10 +81,10 @@ impl fmt::Display for ParamError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParamError::Field(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             ParamError::Value(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             }
         }
     }
@@ -129,22 +116,22 @@ impl fmt::Display for UrlError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             UrlError::Fragment(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             UrlError::Host(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             UrlError::Path(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             UrlError::Port(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             UrlError::QueryString(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             },
             UrlError::Scheme(msg, byte) => {
-                write!(formatter, "{} at byte {}", msg, byte as char)
+                write!(formatter, "{} at byte '{}'", msg, byte as char)
             }
         }
     }
@@ -482,36 +469,22 @@ pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
         return None;
     }
 
-    if is_digit!(hex[1]) {
-        if is_digit!(hex[2]) {
-            Some(((hex[1] - b'0') << 4) + (hex[2] - b'0'))
-        } else if b'@' < hex[2] && hex[2] < b'G' {
-            Some(((hex[1] - b'0') << 4) + (hex[2] - 0x37))
-        } else if b'`' < hex[2] && hex[2] < b'g' {
-            Some(((hex[1] - b'0') << 4) + (hex[2] - 0x57))
-        } else {
-            None
-        }
+    let byte: u8 = if is_digit!(hex[1]) {
+        (hex[1] - b'0') << 4
     } else if b'@' < hex[1] && hex[1] < b'G' {
-        if is_digit!(hex[2]) {
-            Some(((hex[1] - 0x37) << 4) + (hex[2] - b'0'))
-        } else if b'@' < hex[2] && hex[2] < b'G' {
-            Some(((hex[1] - 0x37) << 4) + (hex[2] - 0x37))
-        } else if b'`' < hex[2] && hex[2] < b'g' {
-            Some(((hex[1] - 0x37) << 4) + (hex[2] - 0x57))
-        } else {
-            None
-        }
+        (hex[1] - 0x37) << 4
     } else if b'`' < hex[1] && hex[1] < b'g' {
-        if is_digit!(hex[2]) {
-            Some(((hex[1] - 0x57) << 4) + (hex[2] - b'0'))
-        } else if b'@' < hex[2] && hex[2] < b'G' {
-            Some(((hex[1] - 0x57) << 4) + (hex[2] - 0x37))
-        } else if b'`' < hex[2] && hex[2] < b'g' {
-            Some(((hex[1] - 0x57) << 4) + (hex[2] - 0x57))
-        } else {
-            None
-        }
+        (hex[1] - 0x57) << 4
+    } else {
+        return None;
+    };
+
+    if is_digit!(hex[2]) {
+        Some(byte + (hex[2] - b'0'))
+    } else if b'@' < hex[2] && hex[2] < b'G' {
+        Some(byte + (hex[2] - 0x37))
+    } else if b'`' < hex[2] && hex[2] < b'g' {
+        Some(byte + (hex[2] - 0x57))
     } else {
         None
     }
@@ -531,12 +504,12 @@ pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
 ///
 /// impl ParamHandler for Param {
 ///     fn on_param_field(&mut self, data: &[u8]) -> bool {
-///         self.field.extend(data);
+///         self.field.extend_from_slice(data);
 ///         true
 ///     }
 ///
 ///     fn on_param_value(&mut self, data: &[u8]) -> bool {
-///         self.value.extend(data);
+///         self.value.extend_from_slice(data);
 ///         true
 ///     }
 /// }
@@ -817,17 +790,17 @@ pub fn parse_query_string(handler: &mut ParamHandler,
 ///
 /// impl UrlHandler for Url {
 ///     fn on_url_fragment(&mut self, data: &[u8]) -> bool {
-///         self.fragment.extend(data);
+///         self.fragment.extend_from_slice(data);
 ///         true
 ///     }
 ///
 ///     fn on_url_host(&mut self, data: &[u8]) -> bool {
-///         self.host.extend(data);
+///         self.host.extend_from_slice(data);
 ///         true
 ///     }
 ///
 ///     fn on_url_path(&mut self, data: &[u8]) -> bool {
-///         self.path.extend(data);
+///         self.path.extend_from_slice(data);
 ///         true
 ///     }
 ///
@@ -837,12 +810,12 @@ pub fn parse_query_string(handler: &mut ParamHandler,
 ///     }
 ///
 ///     fn on_url_query_string(&mut self, data: &[u8]) -> bool {
-///         self.query_string.extend(data);
+///         self.query_string.extend_from_slice(data);
 ///         true
 ///     }
 ///
 ///     fn on_url_scheme(&mut self, data: &[u8]) -> bool {
-///         self.scheme.extend(data);
+///         self.scheme.extend_from_slice(data);
 ///         true
 ///     }
 /// }
@@ -857,30 +830,15 @@ pub fn parse_query_string(handler: &mut ParamHandler,
 ///
 ///     match parse_url(&mut url, b"http://www.host.com:80/path?query_string#fragment") {
 ///         Ok(_) => {
-///             println!("Scheme:       {:?}", str::from_utf8(url.scheme.as_slice()).unwrap());
-///             println!("Host:         {:?}", str::from_utf8(url.host.as_slice()).unwrap());
+///             println!("Scheme:       {:?}", str::from_utf8(&url.scheme[..]).unwrap());
+///             println!("Host:         {:?}", str::from_utf8(&url.host[..]).unwrap());
 ///             println!("Port:         {}", url.port);
-///             println!("Path:         {:?}", str::from_utf8(url.path.as_slice()).unwrap());
-///             println!("Query String: {:?}", str::from_utf8(url.query_string.as_slice()).unwrap());
-///             println!("Fragment:     {:?}", str::from_utf8(url.fragment.as_slice()).unwrap());
+///             println!("Path:         {:?}", str::from_utf8(&url.path[..]).unwrap());
+///             println!("Query String: {:?}", str::from_utf8(&url.query_string[..]).unwrap());
+///             println!("Fragment:     {:?}", str::from_utf8(&url.fragment[..]).unwrap());
 ///         },
-///         Err(UrlError::Scheme(msg, byte)) => {
-///             println!("Scheme error at byte '{}': {}", byte as char, msg);
-///         },
-///         Err(UrlError::Host(msg, byte)) => {
-///             println!("Host error at byte '{}': {}", byte as char, msg);
-///         },
-///         Err(UrlError::Port(msg, byte)) => {
-///             println!("Port error at byte '{}': {}", byte as char, msg);
-///         },
-///         Err(UrlError::Path(msg, byte)) => {
-///             println!("Path error at byte '{}': {}", byte as char, msg);
-///         },
-///         Err(UrlError::QueryString(msg, byte)) => {
-///             println!("Query String error at byte '{}': {}", byte as char, msg);
-///         },
-///         Err(UrlError::Fragment(msg, byte)) => {
-///             println!("Fragment error at byte '{}': {}", byte as char, msg);
+///         Err(error) => {
+///             println!("{}", error);
 ///         }
 ///     }
 /// }
