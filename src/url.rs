@@ -67,6 +67,8 @@ impl fmt::Display for DecodingError {
     }
 }
 
+// -------------------------------------------------------------------------------------------------
+
 /// Query string parameter error messages.
 #[derive(Clone,Copy,PartialEq)]
 pub enum ParamError {
@@ -89,6 +91,8 @@ impl fmt::Display for ParamError {
         }
     }
 }
+
+// -------------------------------------------------------------------------------------------------
 
 /// URL error messages.
 #[derive(Clone,Copy,PartialEq)]
@@ -389,10 +393,13 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
 ///
 /// ```
 /// use http_box::url::encode;
+/// use std::str;
 ///
 /// let mut encoded = vec![];
 ///
 /// encode(b"Hello, world!", &mut encoded);
+///
+/// println!("Encoded: {:?}", str::from_utf8(&encoded[..]).unwrap());
 /// ```
 #[inline]
 pub fn encode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> &'a mut Vec<u8> {
@@ -402,48 +409,21 @@ pub fn encode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> &'a mut Vec<u8> {
     // byte index we're processing
     let mut byte_index: usize = 0;
 
-    // eof byte index
-    let eof_index = bytes.len();
-
     // byte index for the start of the mark
     let mut mark_index: usize = 0;
 
-    // ---------------------------------------------------------------------------------------------
+    while byte_index < bytes.len() {
+        if is_encoded(bytes[byte_index]) {
+            into.extend_from_slice(&bytes[mark_index..byte_index]);
+            into.extend_from_slice(&byte_to_hex(bytes[byte_index]));
 
-    // mark the current byte as the first mark byte
-    macro_rules! mark_byte {
-        () => (
-            mark_index = byte_index;
-        );
-    }
-
-    // skip to the next byte
-    macro_rules! next_byte {
-        () => ({
-            if eof_index == byte_index {
-                into.extend_from_slice(&bytes[mark_index..byte_index]);
-
-                return into;
-            }
-
-            byte        = bytes[byte_index];
-            byte_index += 1;
-
-            true
-        });
-    }
-
-    // ---------------------------------------------------------------------------------------------
-
-    while next_byte!() {
-        if is_encoded(byte) {
-            into.extend_from_slice(&bytes[mark_index..byte_index - 1]);
-            into.extend_from_slice(&byte_to_hex(byte));
-
-            mark_byte!();
+            mark_index = byte_index + 1;
         }
+
+        byte_index += 1;
     }
 
+    into.extend_from_slice(&bytes[mark_index..byte_index]);
     into
 }
 
