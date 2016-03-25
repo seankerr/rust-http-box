@@ -434,9 +434,6 @@ impl<T: HttpHandler> Parser<T> {
             Callback::None     => Callback::None
         };
 
-        // eof byte index
-        let eof_index = stream.len();
-
         // message flags
         let mut flags = self.flags;
 
@@ -453,16 +450,13 @@ impl<T: HttpHandler> Parser<T> {
                                               } as usize;
 
         // old state
-        let mut old_state: State = self.state;
+        let mut old_state = self.state;
 
         // current state
-        let mut state: State = self.state;
+        let mut state = self.state;
 
         // stream index we're processing
         let mut stream_index: usize = 0;
-
-        // stream length
-        let stream_length = stream.len();
 
         if state == State::Dead {
             return Err(ParserError::Dead(ERR_DEAD))
@@ -475,24 +469,6 @@ impl<T: HttpHandler> Parser<T> {
             () => (
                 if stream_index == max_headers_length_index
                 && flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits {
-                    error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
-                                                         self.max_headers_length));
-                }
-            );
-        }
-
-        // collect a specific number of bytes
-        macro_rules! collect {
-            // collect an exact amount
-            ($count:expr) => (
-                stream_index += $count;
-                byte          = stream[stream_index-1];
-
-                // check max headers length
-                // we're incrementing the stream index by an arbitrary amount of bytes, so we cannot
-                // check max_headers_length_index == stream_index
-                if flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits
-                && stream_index > max_headers_length_index {
                     error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
                                                          self.max_headers_length));
                 }
@@ -582,7 +558,7 @@ impl<T: HttpHandler> Parser<T> {
                 collect_base!({
                     if $byte1 == byte || $byte2 == byte {
                         true
-                    } else if is_control!(byte) {
+                    } else if !is_ascii!(byte) || is_control!(byte) {
                         error!($error($error_msg, byte));
                     } else {
                         false
@@ -594,7 +570,7 @@ impl<T: HttpHandler> Parser<T> {
                 collect_base!({
                     if $byte == byte {
                         true
-                    } else if is_control!(byte) {
+                    } else if !is_ascii!(byte) || is_control!(byte) {
                         error!($error($error_msg, byte));
                     } else {
                         false
@@ -674,49 +650,41 @@ impl<T: HttpHandler> Parser<T> {
             );
         }
 
-        // fast forward and try to handle as many bytes as possible until the state changes,
-        // or the stream is eof
-        macro_rules! fast_forward {
-            ($block:block) => ({
-                loop {
-                    state = $block;
-
-                    if state != old_state {
-                        break;
-                    }
-
-                    top_of_loop!();
-                }
-
-                state
-            });
-        }
-
         // forget one byte
-        macro_rules! forget_byte {
+        macro_rules! forget {
             () => (
                 byte_flags.insert(B_FORGET);
-            );
-        }
-
-        // get the marked bytes
-        macro_rules! get_marked_bytes {
-            () => (
-                &stream[mark_index..stream_index - (byte_flags.bits & B_FORGET.bits) as usize]
             );
         }
 
         // indicates that we have enough bytes in the stream to extract them
         macro_rules! has_bytes {
             ($count:expr) => (
-                stream_index + $count - 1 < stream_length
+                stream_index + $count - 1 < stream.len()
             );
         }
 
         // check end of stream
         macro_rules! is_eof {
             () => (
-                eof_index == stream_index
+                stream_index == stream.len()
+            );
+        }
+
+        // jump a specific number of bytes
+        macro_rules! jump {
+            ($count:expr) => (
+                stream_index += $count;
+                byte          = stream[stream_index-1];
+
+                // check max headers length
+                // we're incrementing the stream index by an arbitrary amount of bytes, so we cannot
+                // check max_headers_length_index == stream_index
+                if flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits
+                && stream_index > max_headers_length_index {
+                    error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
+                                                         self.max_headers_length));
+                }
             );
         }
 
@@ -734,14 +702,21 @@ impl<T: HttpHandler> Parser<T> {
         }
 
         // mark the current byte as the first mark byte
-        macro_rules! mark_byte {
+        macro_rules! mark {
             () => (
                 mark_index = stream_index - 1;
             );
         }
 
+        // get the marked bytes
+        macro_rules! marked_bytes {
+            () => (
+                &stream[mark_index..stream_index - (byte_flags.bits & B_FORGET.bits) as usize]
+            );
+        }
+
         // skip to the next byte
-        macro_rules! next_byte {
+        macro_rules! next {
             () => (
                 if is_eof!() {
                     exit_eof!();
@@ -804,7 +779,7 @@ impl<T: HttpHandler> Parser<T> {
                         Callback::Data(x) => {
                             callback = Callback::None;
 
-                            if !x(handler, get_marked_bytes!()) {
+                            if !x(handler, marked_bytes!()) {
                                 exit_ok!();
                             }
                         },
@@ -821,7 +796,7 @@ impl<T: HttpHandler> Parser<T> {
                         Callback::None => {
                         },
                         Callback::Data(x) => {
-                            if !x(handler, get_marked_bytes!()) {
+                            if !x(handler, marked_bytes!()) {
                                 exit_ok!();
                             }
                         },
@@ -836,11 +811,11 @@ impl<T: HttpHandler> Parser<T> {
                 if byte_flags.contains(B_REPLAY) {
                     byte_flags = B_NONE;
                 } else {
-                    next_byte!();
+                    next!();
                 }
 
                 if state != old_state {
-                    mark_byte!();
+                    mark!();
                 }
 
                 old_state = state;
@@ -857,7 +832,7 @@ impl<T: HttpHandler> Parser<T> {
                 lazy_callback!(on_method, true);
 
                 if collect_token_until!(b' ', ParserError::Method, ERR_METHOD) {
-                    forget_byte!();
+                    forget!();
 
                     skip_to_state!(State::RequestUrl);
                     state_RequestUrl!()
@@ -882,35 +857,35 @@ impl<T: HttpHandler> Parser<T> {
             () => (
                 if has_bytes!(7) {
                     if b"GET " == peek_chunk!(4) {
-                        collect!(3);
+                        jump!(3);
 
                         request_method_handler!(b"GET")
                     } else if b"POST " == peek_chunk!(5) {
-                        collect!(4);
+                        jump!(4);
 
                         request_method_handler!(b"POST")
                     } else if b"PUT " == peek_chunk!(4) {
-                        collect!(3);
+                        jump!(3);
 
                         request_method_handler!(b"PUT")
                     } else if b"DELETE " == peek_chunk!(7) {
-                        collect!(6);
+                        jump!(6);
 
                         request_method_handler!(b"DELETE")
                     } else if b"CONNECT " == peek_chunk!(8) {
-                        collect!(7);
+                        jump!(7);
 
                         request_method_handler!(b"CONNECT")
                     } else if b"OPTIONS " == peek_chunk!(8) {
-                        collect!(7);
+                        jump!(7);
 
                         request_method_handler!(b"OPTIONS")
                     } else if b"HEAD " == peek_chunk!(5) {
-                        collect!(4);
+                        jump!(4);
 
                         request_method_handler!(b"HEAD")
                     } else if b"TRACE " == peek_chunk!(6) {
-                        collect!(5);
+                        jump!(5);
 
                         request_method_handler!(b"TRACE")
                     } else {
@@ -927,7 +902,7 @@ impl<T: HttpHandler> Parser<T> {
                 lazy_callback!(on_url, true);
 
                 if collect_until!(b' ', ParserError::Url, ERR_URL) {
-                    forget_byte!();
+                    forget!();
 
 
                     skip_to_state!(State::RequestHttp1);
@@ -943,7 +918,7 @@ impl<T: HttpHandler> Parser<T> {
                 if has_bytes!(4)
                 && (   b"HTTP/" == peek_chunk!(5)
                     || b"http/" == peek_chunk!(5)) {
-                    collect!(4);
+                    jump!(4);
 
                     skip_to_state!(State::RequestVersionMajor);
                     state_RequestVersionMajor!()
@@ -1033,7 +1008,7 @@ impl<T: HttpHandler> Parser<T> {
                 if has_bytes!(4)
                 && (   b"HTTP/" == peek_chunk!(5)
                     || b"http/" == peek_chunk!(5)) {
-                    collect!(4);
+                    jump!(4);
 
                     skip_to_state!(State::ResponseVersionMajor);
                     state_ResponseVersionMajor!()
@@ -1139,7 +1114,7 @@ impl<T: HttpHandler> Parser<T> {
                 lazy_callback!(on_status, true);
 
                 if collect_token_space_tab_until!(b'\r', ParserError::Status, ERR_STATUS) {
-                    forget_byte!();
+                    forget!();
 
                     skip_to_state!(State::PreHeaders1);
                     state_PreHeaders1!()
@@ -1186,7 +1161,7 @@ impl<T: HttpHandler> Parser<T> {
                 lazy_callback!(on_header_field, true);
 
                 if collect_token_until!(b':', ParserError::HeaderField, ERR_HEADER_FIELD) {
-                    forget_byte!();
+                    forget!();
 
                     skip_to_state!(State::StripHeaderValue);
                     state_StripHeaderValue!()
@@ -1219,7 +1194,7 @@ impl<T: HttpHandler> Parser<T> {
                 lazy_callback!(on_header_value, true);
 
                 if collect_non_control!() {
-                    forget_byte!();
+                    forget!();
                     replay!();
 
                     State::Newline1
@@ -1237,23 +1212,23 @@ impl<T: HttpHandler> Parser<T> {
                     if flags.contains(F_QUOTE_ESCAPED) {
                         flags.remove(F_QUOTE_ESCAPED);
 
-                        mark_byte!();
+                        mark!();
 
                         State::QuotedHeaderValue
                     } else if byte == b'\\' {
                         flags.insert(F_QUOTE_ESCAPED);
 
                         if mark_index < stream_index - 1 {
-                            forget_byte!();
+                            forget!();
 
-                            if !handler.on_header_value(get_marked_bytes!()) {
+                            if !handler.on_header_value(marked_bytes!()) {
                                 exit_ok!(State::QuotedHeaderValue);
                             }
                         }
 
                         State::QuotedHeaderValue
                     } else {
-                        forget_byte!();
+                        forget!();
 
                         State::Newline1
                     }
@@ -1266,7 +1241,7 @@ impl<T: HttpHandler> Parser<T> {
         macro_rules! state_Newline1 {
             () => ({
                 if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
-                    collect!(1);
+                    jump!(1);
 
                     skip_to_state!(State::Newline3);
                     state_Newline3!()
