@@ -21,7 +21,6 @@
 use byte::is_token;
 
 /// Maximum headers byte count to process before returning `ParserError::MaxHeadersLength`.
-/// ```Default: 1024 * 80```
 pub const CFG_MAX_HEADERS_LENGTH: u32 = 1024 * 80;
 
 // -------------------------------------------------------------------------------------------------
@@ -141,7 +140,7 @@ pub enum State {
     // RESPONSE
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing response version
+    /// Parsing response HTTP version.
     ResponseHttp1,
     ResponseHttp2,
     ResponseHttp3,
@@ -323,25 +322,25 @@ bitflags! {
         const F_NONE = 0,
 
         // Parsing initial.
-        const F_IN_INITIAL = 1 << 1,
+        const F_IN_INITIAL = 1 << 0,
 
         // Parsing headers.
-        const F_IN_HEADERS = 1 << 2,
+        const F_IN_HEADERS = 1 << 1,
 
         // Transfer encoding is chunked.
-        const F_CHUNKED = 1 << 3,
+        const F_CHUNKED = 1 << 2,
 
         // Content length has been sent.
-        const F_CONTENT_LENGTH = 1 << 4,
+        const F_CONTENT_LENGTH = 1 << 3,
 
         // Finished parsing headers.
-        const F_HEADERS_FINISHED = 1 << 5,
+        const F_HEADERS_FINISHED = 1 << 4,
 
         // Quoted header value has an escape character.
-        const F_QUOTE_ESCAPED = 1 << 6,
+        const F_QUOTE_ESCAPED = 1 << 5,
 
         // Indicates the stream contains request data rather than response.
-        const F_REQUEST = 1 << 7
+        const F_REQUEST = 1 << 6
     }
 }
 
@@ -420,7 +419,7 @@ impl<T: HttpHandler> Parser<T> {
 
     /// Parse HTTP data.
     #[cfg_attr(test, allow(cyclomatic_complexity))]
-    pub fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<bool, ParserError> {
+    pub fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<usize, ParserError> {
         // current byte
         let mut byte: u8 = 0;
 
@@ -637,7 +636,7 @@ impl<T: HttpHandler> Parser<T> {
                 self.flags       = flags;
                 self.state       = state;
 
-                return Ok(false);
+                return Ok(stream_index);
             );
 
             ($state:expr) => (
@@ -646,7 +645,7 @@ impl<T: HttpHandler> Parser<T> {
                 self.flags       = flags;
                 self.state       = $state;
 
-                return Ok(false);
+                return Ok(stream_index);
             );
         }
 
@@ -858,35 +857,27 @@ impl<T: HttpHandler> Parser<T> {
                 if has_bytes!(7) {
                     if b"GET " == peek_chunk!(4) {
                         jump!(3);
-
                         request_method_handler!(b"GET")
                     } else if b"POST " == peek_chunk!(5) {
                         jump!(4);
-
                         request_method_handler!(b"POST")
                     } else if b"PUT " == peek_chunk!(4) {
                         jump!(3);
-
                         request_method_handler!(b"PUT")
                     } else if b"DELETE " == peek_chunk!(7) {
                         jump!(6);
-
                         request_method_handler!(b"DELETE")
                     } else if b"CONNECT " == peek_chunk!(8) {
                         jump!(7);
-
                         request_method_handler!(b"CONNECT")
                     } else if b"OPTIONS " == peek_chunk!(8) {
                         jump!(7);
-
                         request_method_handler!(b"OPTIONS")
                     } else if b"HEAD " == peek_chunk!(5) {
                         jump!(4);
-
                         request_method_handler!(b"HEAD")
                     } else if b"TRACE " == peek_chunk!(6) {
                         jump!(5);
-
                         request_method_handler!(b"TRACE")
                     } else {
                         request_method!()
@@ -903,8 +894,6 @@ impl<T: HttpHandler> Parser<T> {
 
                 if collect_until!(b' ', ParserError::Url, ERR_URL) {
                     forget!();
-
-
                     skip_to_state!(State::RequestHttp1);
                     state_RequestHttp1!()
                 } else {
@@ -915,11 +904,8 @@ impl<T: HttpHandler> Parser<T> {
 
         macro_rules! state_RequestHttp1 {
             () => (
-                if has_bytes!(4)
-                && (   b"HTTP/" == peek_chunk!(5)
-                    || b"http/" == peek_chunk!(5)) {
+                if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
                     jump!(4);
-
                     skip_to_state!(State::RequestVersionMajor);
                     state_RequestVersionMajor!()
                 } else if byte == b'H' || byte == b'h' {
@@ -1005,11 +991,8 @@ impl<T: HttpHandler> Parser<T> {
 
         macro_rules! state_ResponseHttp1 {
             () => (
-                if has_bytes!(4)
-                && (   b"HTTP/" == peek_chunk!(5)
-                    || b"http/" == peek_chunk!(5)) {
+                if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
                     jump!(4);
-
                     skip_to_state!(State::ResponseVersionMajor);
                     state_ResponseVersionMajor!()
                 } else if byte == b'H' || byte == b'h' {
@@ -1115,7 +1098,6 @@ impl<T: HttpHandler> Parser<T> {
 
                 if collect_token_space_tab_until!(b'\r', ParserError::Status, ERR_STATUS) {
                     forget!();
-
                     skip_to_state!(State::PreHeaders1);
                     state_PreHeaders1!()
                 } else {
@@ -1162,7 +1144,6 @@ impl<T: HttpHandler> Parser<T> {
 
                 if collect_token_until!(b':', ParserError::HeaderField, ERR_HEADER_FIELD) {
                     forget!();
-
                     skip_to_state!(State::StripHeaderValue);
                     state_StripHeaderValue!()
                 } else {
@@ -1179,7 +1160,6 @@ impl<T: HttpHandler> Parser<T> {
                         state_QuotedHeaderValue!()
                     } else {
                         replay!();
-
                         skip_to_state!(State::HeaderValue);
                         state_HeaderValue!()
                     }
@@ -1242,7 +1222,6 @@ impl<T: HttpHandler> Parser<T> {
             () => ({
                 if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
                     jump!(1);
-
                     skip_to_state!(State::Newline3);
                     state_Newline3!()
                 } else if byte == b'\r' {
@@ -1284,7 +1263,6 @@ impl<T: HttpHandler> Parser<T> {
                     }
                 } else {
                     replay!();
-
                     skip_to_state!(State::HeaderField);
                     state_HeaderField!()
                 }
