@@ -72,8 +72,8 @@ fn parse_url_full() {
                   query_string: Vec::new(), scheme: Vec::new()};
 
     assert!(match parse_url(&mut h, b"http://www.host.com:8080/just/a/path?query_string#fragment") {
-        Ok(true) => true,
-        _        => false
+        Ok(58) => true,
+        _      => false
     });
 
     assert_eq!(h.scheme, b"http");
@@ -90,8 +90,8 @@ fn parse_url_full_no_port() {
                   query_string: Vec::new(), scheme: Vec::new()};
 
     assert!(match parse_url(&mut h, b"http://www.host.com/just/a/path?query_string#fragment") {
-        Ok(true) => true,
-        _        => false
+        Ok(53) => true,
+        _      => false
     });
 
     assert_eq!(h.scheme, b"http");
@@ -107,8 +107,8 @@ fn parse_url_partial() {
                   query_string: Vec::new(), scheme: Vec::new()};
 
     assert!(match parse_url(&mut h, b"/just/a/path?query_string#fragment") {
-        Ok(true) => true,
-        _        => false
+        Ok(34) => true,
+        _      => false
     });
 
     assert_eq!(h.path, b"/just/a/path");

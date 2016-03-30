@@ -232,7 +232,9 @@ pub trait UrlHandler {
 /// ```
 #[inline]
 pub fn byte_to_hex(byte: u8) -> [u8; 3] {
-    [b'%', b"0123456789ABCDEF"[(byte >> 4) as usize], b"0123456789ABCDEF"[(byte & 0x0F) as usize]]
+    [b'%',
+     b"0123456789ABCDEF"[(byte >> 4) as usize],
+     b"0123456789ABCDEF"[(byte & 0x0F) as usize]]
 }
 
 /// URL decode an array of bytes.
@@ -497,7 +499,7 @@ pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
 #[cfg_attr(test, allow(collapsible_if, cyclomatic_complexity))]
 #[allow(unused_assignments)]
 pub fn parse_query_string(handler: &mut ParamHandler,
-                          bytes: &[u8]) -> Result<bool, ParamError> {
+                          bytes: &[u8]) -> Result<usize, ParamError> {
     // current byte
     let mut byte: u8;
 
@@ -616,7 +618,7 @@ pub fn parse_query_string(handler: &mut ParamHandler,
     macro_rules! next {
         () => ({
             if is_eof!() {
-                return Ok(true);
+                return Ok(byte_index);
             }
 
             byte        = peek!();
@@ -675,7 +677,7 @@ pub fn parse_query_string(handler: &mut ParamHandler,
                             match hex_to_byte(marked_bytes!()) {
                                 Some(byte) => {
                                     if !handler.on_param_value(&[byte]) {
-                                        return Ok(false);
+                                        return Ok(byte_index);
                                     }
                                 },
                                 _ => {
@@ -685,18 +687,18 @@ pub fn parse_query_string(handler: &mut ParamHandler,
                         } else if byte == b'+' {
                             if !handler.on_param_value(marked_bytes!(1))
                             || !handler.on_param_value(b" ") {
-                                return Ok(false);
+                                return Ok(byte_index);
                             }
                         } else {
                             if !handler.on_param_value(marked_bytes!(1)) {
-                                return Ok(false);
+                                return Ok(byte_index);
                             }
 
                             break;
                         }
                     } else {
                         if !handler.on_param_value(marked_bytes!()) {
-                            return Ok(false);
+                            return Ok(byte_index);
                         }
 
                         break;
@@ -718,7 +720,7 @@ pub fn parse_query_string(handler: &mut ParamHandler,
                 match hex_to_byte(marked_bytes!()) {
                     Some(byte) => {
                         if !handler.on_param_field(&[byte]) {
-                            return Ok(false);
+                            return Ok(byte_index);
                         }
                     },
                     _ => {
@@ -728,13 +730,13 @@ pub fn parse_query_string(handler: &mut ParamHandler,
             } else if byte == b'+' {
                 if !handler.on_param_field(marked_bytes!(1))
                 || !handler.on_param_field(b" ") {
-                    return Ok(false);
+                    return Ok(byte_index);
                 }
             }
         }
     }
 
-    Ok(true)
+    Ok(byte_index)
 }
 
 /// Parse a URL.
@@ -818,7 +820,7 @@ pub fn parse_query_string(handler: &mut ParamHandler,
 /// ```
 #[cfg_attr(test, allow(cyclomatic_complexity))]
 #[allow(unused_assignments)]
-pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlError> {
+pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<usize, UrlError> {
     // current byte
     let mut byte: u8;
 
@@ -969,7 +971,7 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
     macro_rules! next {
         () => ({
             if is_eof!() {
-                return Ok(true);
+                return Ok(byte_index);
             }
 
             byte        = peek!();
@@ -1014,7 +1016,7 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
 
         if collect_until!(b':', UrlError::Scheme, ERR_URL_SCHEME) {
             if !handler.on_url_scheme(marked_bytes!(1)) {
-                return Ok(false);
+                return Ok(byte_index);
             }
         } else {
             error!(UrlError::Scheme(ERR_URL_SCHEME, byte));
@@ -1033,7 +1035,7 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
 
         if collect_until!(b'/', b':', UrlError::Host, ERR_URL_HOST) {
             if !handler.on_url_host(marked_bytes!(1)) {
-                return Ok(false);
+                return Ok(byte_index);
             }
 
             if byte == b':' {
@@ -1043,7 +1045,7 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
 
                 if collect_digit!(b'/', port, 65535, UrlError::Port, ERR_URL_PORT) {
                     if !handler.on_url_port(port as u16) {
-                        return Ok(false);
+                        return Ok(byte_index);
                     }
                 } else {
                     error!(UrlError::Port(ERR_URL_PORT, byte));
@@ -1062,14 +1064,14 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
 
         if collect_until!(b'?', b'#', UrlError::Path, ERR_URL_PATH) {
             if !handler.on_url_path(marked_bytes!(1)) {
-                return Ok(false);
+                return Ok(byte_index);
             }
 
             break;
         } else {
             handler.on_url_path(marked_bytes!());
 
-            return Ok(true);
+            return Ok(byte_index);
         }
     }
 
@@ -1080,12 +1082,12 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
 
         if collect_until!(b'#', UrlError::QueryString, ERR_URL_QUERY_STRING) {
             if !handler.on_url_query_string(marked_bytes!(1)) {
-                return Ok(false);
+                return Ok(byte_index);
             }
         } else {
             handler.on_url_query_string(marked_bytes!());
 
-            return Ok(true);
+            return Ok(byte_index);
         }
     }
 
@@ -1099,5 +1101,5 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<bool, UrlErro
         handler.on_url_fragment(marked_bytes!());
     }
 
-    Ok(true)
+    Ok(byte_index)
 }
