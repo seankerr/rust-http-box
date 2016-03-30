@@ -773,8 +773,6 @@ impl<T: HttpHandler> Parser<T> {
             () => (
                 if state != old_state {
                     match callback {
-                        Callback::None => {
-                        },
                         Callback::Data(x) => {
                             callback = Callback::None;
 
@@ -788,12 +786,12 @@ impl<T: HttpHandler> Parser<T> {
                             if !x(handler) {
                                 exit_ok!();
                             }
+                        },
+                        Callback::None => {
                         }
                     }
                 } else if is_eof!() {
                     match callback {
-                        Callback::None => {
-                        },
                         Callback::Data(x) => {
                             if !x(handler, marked_bytes!()) {
                                 exit_ok!();
@@ -803,6 +801,8 @@ impl<T: HttpHandler> Parser<T> {
                             if !x(handler) {
                                 exit_ok!();
                             }
+                        },
+                        Callback::None => {
                         }
                     }
                 }
