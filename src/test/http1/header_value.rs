@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
 use std::str;
 
 struct H {
@@ -24,106 +24,79 @@ struct H {
 }
 
 impl HttpHandler for H {
-    fn on_status(&mut self, data: &[u8]) -> bool {
-        println!("on_status: {:?}", str::from_utf8(data).unwrap());
+    fn on_header_value(&mut self, data: &[u8]) -> bool {
+        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
         self.data.extend_from_slice(data);
         true
     }
 }
 
 #[test]
-fn response_status_single() {
+fn header_value_eof() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"OK");
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(h.data, b"value");
+    assert_eq!(p.get_state(), State::HeaderValue);
 }
 
 #[test]
-fn response_status_multiple() {
+fn header_value_complete() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT FOUND") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"NOT FOUND");
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(h.data, b"value");
+    assert_eq!(p.get_state(), State::Newline2);
 }
 
 #[test]
-fn response_status_invalid_byte() {
+fn header_value_multiline() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT@FOUND") {
-        Err(ParserError::Status(_,_)) => true,
-        _                             => false
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value1\r\n value2\r") {
+        Err(ParserError::Eof) => true,
+        _                     => false
     });
 
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eq!(h.data, b"value1 value2");
+    assert_eq!(p.get_state(), State::Newline2);
 }
 
 #[test]
-fn response_status_to_body() {
+fn header_value_white_space() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \t \t \t \t value\r") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::PreHeaders1);
+    assert_eq!(h.data, b"value");
+    assert_eq!(p.get_state(), State::Newline2);
+}
 
-    assert!(match p.parse(&mut h, b"\n") {
+#[test]
+fn header_value_to_body() {
+    let mut h = H{data: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r\n\r\n") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::PreHeaders2);
-
-    assert!(match p.parse(&mut h, b"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::Newline4);
-
-    assert!(match p.parse(&mut h, b"\n") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
+    assert_eq!(h.data, b"value");
     assert_eq!(p.get_state(), State::Body);
-}
-
-#[test]
-fn response_status_invalid_crlf() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\r") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\n") {
-        Err(ParserError::Status(_,_)) => true,
-        _                             => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
 }

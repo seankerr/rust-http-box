@@ -16,87 +16,64 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
-use std::str;
+use http1::parser::*;
 
 struct H {
-    data: Vec<u8>
+    data: bool
 }
 
 impl HttpHandler for H {
-    fn on_header_value(&mut self, data: &[u8]) -> bool {
-        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
+    fn on_headers_finished(&mut self) -> bool {
+        println!("on_headers_finished");
+        self.data = true;
         true
     }
 }
 
 #[test]
-fn header_value_eof() {
-    let mut h = H{data: Vec::new()};
+fn headers_finished_success() {
+    let mut h = H{data: false};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n\r\n") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::HeaderValue);
-}
-
-#[test]
-fn header_value_complete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_value_multiline() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value1\r\n value2\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(h.data, b"value1 value2");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_value_white_space() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \t \t \t \t value\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_value_to_body() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r\n\r\n") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(h.data, b"value");
+    assert!(h.data);
     assert_eq!(p.get_state(), State::Body);
+}
+
+#[test]
+fn headers_finished_fail() {
+    let mut h = H{data: false};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert!(!h.data);
+    assert_eq!(p.get_state(), State::Newline2);
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert!(!h.data);
+    assert_eq!(p.get_state(), State::Newline3);
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\n") {
+        Err(ParserError::CrlfSequence(_)) => true,
+        _                                 => false
+    });
+
+    assert!(!h.data);
+    assert_eq!(p.get_state(), State::Dead);
 }

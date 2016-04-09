@@ -16,67 +16,36 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
-use std::str;
+use http1::parser::*;
 
 struct H {
     data: Vec<u8>
 }
 
 impl HttpHandler for H {
-    fn on_header_field(&mut self, data: &[u8]) -> bool {
-        println!("on_header_field: {:?}", str::from_utf8(data).unwrap());
+    fn on_url(&mut self, data: &[u8]) -> bool {
         self.data.extend_from_slice(data);
         true
     }
 }
 
 #[test]
-fn header_field_eof() {
+fn request_uri_eof() {
     let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length") {
+    assert!(match p.parse(&mut h, b"GET /path") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::HeaderField);
-}
+    assert_eq!(h.data, b"/path");
+    assert_eq!(p.get_state(), State::RequestUrl);
 
-#[test]
-fn header_field_complete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length:") {
+    assert!(match p.parse(&mut h, b" ") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::StripHeaderValue);
-}
-
-#[test]
-fn header_field_invalid_byte() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent@") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _                                  => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCont\r") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _                                  => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eq!(p.get_state(), State::RequestHttp1);
 }

@@ -16,98 +16,100 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
 
 struct H {}
 
 impl HttpHandler for H {}
 
 #[test]
-fn header_max_length() {
+fn request_http_eof() {
     let mut h = H{};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    p.set_max_headers_length(1);
-
-    assert!(match p.parse(&mut h, b"H") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseHttp2);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::MaxHeadersLength(_,x)) => { assert_eq!(x, 1); true },
-        _                                       => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HT") {
-        Err(ParserError::MaxHeadersLength(_,x)) => { assert_eq!(x, 1); true },
-        _                                       => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eq!(p.get_state(), State::RequestHttp5);
 }
 
 #[test]
-fn header_max_length_multiple_stream() {
+fn request_http_upper() {
     let mut h = H{};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    p.set_max_headers_length(3);
-
-    assert!(match p.parse(&mut h, b"H") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseHttp2);
+    assert_eq!(p.get_state(), State::RequestVersionMajor);
+}
+
+#[test]
+fn request_http_lower() {
+    let mut h = H{};
+    let mut p = Parser::new(StreamType::Request);
+
+    assert!(match p.parse(&mut h, b"GET /path http/") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::RequestVersionMajor);
+}
+
+#[test]
+fn request_http_multiple_streams() {
+    let mut h = H{};
+    let mut p = Parser::new(StreamType::Request);
+
+    assert!(match p.parse(&mut h, b"GET /path H") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::RequestHttp2);
 
     assert!(match p.parse(&mut h, b"T") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseHttp3);
+    assert_eq!(p.get_state(), State::RequestHttp3);
 
     assert!(match p.parse(&mut h, b"T") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseHttp4);
+    assert_eq!(p.get_state(), State::RequestHttp4);
 
     assert!(match p.parse(&mut h, b"P") {
-        Err(ParserError::MaxHeadersLength(_,_)) => true,
-        _                                       => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-}
-
-#[test]
-fn header_max_length_advance_byte() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Response);
-
-    p.set_max_headers_length(5);
-
-    assert!(match p.parse(&mut h, b"HTTP/") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseVersionMajor);
+    assert_eq!(p.get_state(), State::RequestHttp5);
 
-    p.reset();
+    assert!(match p.parse(&mut h, b"/") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
 
-    assert!(match p.parse(&mut h, b"HTTP/1") {
-        Err(ParserError::MaxHeadersLength(_,_)) => true,
-        _                                       => false
+    assert_eq!(p.get_state(), State::RequestVersionMajor);
+}
+
+#[test]
+fn request_http_invalid_byte() {
+    let mut h = H{};
+    let mut p = Parser::new(StreamType::Request);
+
+    assert!(match p.parse(&mut h, b"GET /path HTT@/") {
+        Err(ParserError::Version(_)) => true,
+        _                            => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

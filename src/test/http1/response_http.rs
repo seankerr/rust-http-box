@@ -16,81 +16,100 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
 
-struct H {
-    data: u16
-}
+struct H {}
 
-impl HttpHandler for H {
-    fn on_status_code(&mut self, data: u16) -> bool {
-        self.data = data;
-        true
-    }
-}
+impl HttpHandler for H {}
 
 #[test]
-fn response_status_code_eof() {
-    let mut h = H{data: 0};
+fn response_http_eof() {
+    let mut h = H{};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 0") {
+    assert!(match p.parse(&mut h, b"HTTP") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::ResponseHttp5);
 }
 
 #[test]
-fn response_status_code_0() {
-    let mut h = H{data: 0};
+fn response_http_upper() {
+    let mut h = H{};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 0 ") {
+    assert!(match p.parse(&mut h, b"HTTP/") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, 0);
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(p.get_state(), State::ResponseVersionMajor);
 }
 
 #[test]
-fn response_status_code_999() {
-    let mut h = H{data: 0};
+fn response_http_lower() {
+    let mut h = H{};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 999 ") {
+    assert!(match p.parse(&mut h, b"http/") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, 999);
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(p.get_state(), State::ResponseVersionMajor);
 }
 
 #[test]
-fn response_status_code_invalid() {
-    let mut h = H{data: 0};
+fn response_http_multiple_streams() {
+    let mut h = H{};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 1000") {
-        Err(ParserError::StatusCode(_)) => true,
-        _                               => false
+    assert!(match p.parse(&mut h, b"H") {
+        Err(ParserError::Eof) => true,
+        _                     => false
     });
 
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eq!(p.get_state(), State::ResponseHttp2);
+
+    assert!(match p.parse(&mut h, b"T") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::ResponseHttp3);
+
+    assert!(match p.parse(&mut h, b"T") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::ResponseHttp4);
+
+    assert!(match p.parse(&mut h, b"P") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::ResponseHttp5);
+
+    assert!(match p.parse(&mut h, b"/") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::ResponseVersionMajor);
 }
 
 #[test]
-fn response_status_code_invalid_byte() {
-    let mut h = H{data: 0};
+fn response_http_invalid_byte() {
+    let mut h = H{};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 a") {
-        Err(ParserError::StatusCode(_)) => true,
-        _                               => false
+    assert!(match p.parse(&mut h, b"HTT@/") {
+        Err(ParserError::Version(_)) => true,
+        _                            => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

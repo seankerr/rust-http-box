@@ -16,36 +16,16 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
-
-struct H {
-    data: Vec<u8>
-}
-
-impl HttpHandler for H {
-    fn on_url(&mut self, data: &[u8]) -> bool {
-        self.data.extend_from_slice(data);
-        true
-    }
-}
-
-#[test]
-fn request_uri_eof() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(h.data, b"/path");
-    assert_eq!(p.get_state(), State::RequestUrl);
-
-    assert!(match p.parse(&mut h, b" ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp1);
-}
+mod header_field;
+mod header_max_length;
+mod header_quoted_value;
+mod header_value;
+mod headers_finished;
+mod request_http;
+mod request_method;
+mod request_url;
+mod request_version;
+mod response_http;
+mod response_status;
+mod response_status_code;
+mod response_version;

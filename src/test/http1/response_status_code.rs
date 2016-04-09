@@ -16,100 +16,81 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
 
-struct H {}
+struct H {
+    data: u16
+}
 
-impl HttpHandler for H {}
-
-#[test]
-fn request_http_eof() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp5);
+impl HttpHandler for H {
+    fn on_status_code(&mut self, data: u16) -> bool {
+        self.data = data;
+        true
+    }
 }
 
 #[test]
-fn request_http_upper() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn response_status_code_eof() {
+    let mut h = H{data: 0};
+    let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"GET /path HTTP/") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 0") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    assert_eq!(p.get_state(), State::ResponseStatusCode);
 }
 
 #[test]
-fn request_http_lower() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn response_status_code_0() {
+    let mut h = H{data: 0};
+    let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"GET /path http/") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 0 ") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    assert_eq!(h.data, 0);
+    assert_eq!(p.get_state(), State::ResponseStatus);
 }
 
 #[test]
-fn request_http_multiple_streams() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn response_status_code_999() {
+    let mut h = H{data: 0};
+    let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"GET /path H") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 999 ") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::RequestHttp2);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp3);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp4);
-
-    assert!(match p.parse(&mut h, b"P") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp5);
-
-    assert!(match p.parse(&mut h, b"/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    assert_eq!(h.data, 999);
+    assert_eq!(p.get_state(), State::ResponseStatus);
 }
 
 #[test]
-fn request_http_invalid_byte() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn response_status_code_invalid() {
+    let mut h = H{data: 0};
+    let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"GET /path HTT@/") {
-        Err(ParserError::Version(_)) => true,
-        _                            => false
+    assert!(match p.parse(&mut h, b"HTTP/1.1 1000") {
+        Err(ParserError::StatusCode(_)) => true,
+        _                               => false
+    });
+
+    assert_eq!(p.get_state(), State::Dead);
+}
+
+#[test]
+fn response_status_code_invalid_byte() {
+    let mut h = H{data: 0};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 a") {
+        Err(ParserError::StatusCode(_)) => true,
+        _                               => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

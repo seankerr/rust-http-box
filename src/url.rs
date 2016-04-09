@@ -223,7 +223,7 @@ pub trait UrlHandler {
 /// # Example
 ///
 /// ```
-/// use http_box::url::byte_to_hex;
+/// # use http_box::url::byte_to_hex;
 /// use std::str;
 ///
 /// let hex = byte_to_hex(b'\r');
@@ -242,7 +242,7 @@ pub fn byte_to_hex(byte: u8) -> [u8; 3] {
 /// # Example
 ///
 /// ```
-/// use http_box::url::{decode, DecodingError};
+/// # use http_box::url::{decode, DecodingError};
 ///
 /// match decode(b"Hello,%20world", &mut vec![]) {
 ///     Ok(ref decoded) => {
@@ -393,7 +393,7 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
 /// # Example
 ///
 /// ```
-/// use http_box::url::encode;
+/// # use http_box::url::encode;
 /// use std::str;
 ///
 /// let mut encoded = vec![];
@@ -434,7 +434,7 @@ pub fn encode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> &'a mut Vec<u8> {
 /// # Example
 ///
 /// ```
-/// use http_box::url::hex_to_byte;
+/// # use http_box::url::hex_to_byte;
 ///
 /// match hex_to_byte(b"%20") {
 ///     Some(_) => { println!("Decoded a space"); }
@@ -473,7 +473,7 @@ pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
 /// # Example
 ///
 /// ```
-/// use http_box::url::{parse_query_string, ParamError, ParamHandler};
+/// # use http_box::url::{parse_query_string, ParamError, ParamHandler};
 ///
 /// struct Param {
 ///     field: Vec<u8>,
@@ -751,7 +751,7 @@ pub fn parse_query_string(handler: &mut ParamHandler,
 /// # Example
 ///
 /// ```
-/// use http_box::url::{parse_url, UrlError, UrlHandler};
+/// # use http_box::url::{parse_url, UrlError, UrlHandler};
 /// use std::str;
 ///
 /// struct Url {

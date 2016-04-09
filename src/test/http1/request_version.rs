@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
 
 struct H {
     major: u16,
@@ -33,78 +33,78 @@ impl HttpHandler for H {
 }
 
 #[test]
-fn response_version_eof() {
+fn request_version_eof() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/1") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseVersionMajor);
+    assert_eq!(p.get_state(), State::RequestVersionMajor);
 
     p.reset();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseVersionMinor);
+    assert_eq!(p.get_state(), State::RequestVersionMinor);
 }
 
 #[test]
-fn response_version_0_0() {
+fn request_version_0_0() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/0.0 ") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/0.0\r") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
     assert_eq!(h.major, 0);
     assert_eq!(h.minor, 0);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::PreHeaders1);
 }
 
 #[test]
-fn response_version_1_1() {
+fn request_version_1_1() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 ") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1\r") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
     assert_eq!(h.major, 1);
     assert_eq!(h.minor, 1);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::PreHeaders1);
 }
 
 #[test]
-fn response_version_999_999() {
+fn request_version_999_999() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/999.999 ") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/999.999\r") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
     assert_eq!(h.major, 999);
     assert_eq!(h.minor, 999);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::PreHeaders1);
 }
 
 #[test]
-fn response_version_invalid() {
+fn request_version_invalid() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/1000") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1000") {
         Err(ParserError::Version(_)) => true,
         _                            => false
     });
@@ -113,7 +113,7 @@ fn response_version_invalid() {
 
     p.reset();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1000") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1000") {
         Err(ParserError::Version(_)) => true,
         _                            => false
     });
@@ -122,11 +122,11 @@ fn response_version_invalid() {
 }
 
 #[test]
-fn response_version_invalid_byte() {
+fn request_version_invalid_byte() {
     let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"HTTP/@") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/@") {
         Err(ParserError::Version(_)) => true,
         _                            => false
     });
@@ -135,7 +135,7 @@ fn response_version_invalid_byte() {
 
     p.reset();
 
-    assert!(match p.parse(&mut h, b"HTTP/1@") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1@") {
         Err(ParserError::Version(_)) => true,
         _                            => false
     });
@@ -144,7 +144,7 @@ fn response_version_invalid_byte() {
 
     p.reset();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.@") {
+    assert!(match p.parse(&mut h, b"GET /path HTTP/1.@") {
         Err(ParserError::Version(_)) => true,
         _                            => false
     });

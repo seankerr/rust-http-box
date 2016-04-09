@@ -16,100 +16,113 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use parser::*;
+use http1::parser::*;
+use std::str;
 
-struct H {}
+struct H {
+    data: Vec<u8>
+}
 
-impl HttpHandler for H {}
-
-#[test]
-fn response_http_eof() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::ResponseHttp5);
+impl HttpHandler for H {
+    fn on_status(&mut self, data: &[u8]) -> bool {
+        println!("on_status: {:?}", str::from_utf8(data).unwrap());
+        self.data.extend_from_slice(data);
+        true
+    }
 }
 
 #[test]
-fn response_http_upper() {
-    let mut h = H{};
+fn response_status_single() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseVersionMajor);
+    assert_eq!(h.data, b"OK");
+    assert_eq!(p.get_state(), State::ResponseStatus);
 }
 
 #[test]
-fn response_http_lower() {
-    let mut h = H{};
+fn response_status_multiple() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"http/") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT FOUND") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseVersionMajor);
+    assert_eq!(h.data, b"NOT FOUND");
+    assert_eq!(p.get_state(), State::ResponseStatus);
 }
 
 #[test]
-fn response_http_multiple_streams() {
-    let mut h = H{};
+fn response_status_invalid_byte() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"H") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT@FOUND") {
+        Err(ParserError::Status(_,_)) => true,
+        _                             => false
     });
 
-    assert_eq!(p.get_state(), State::ResponseHttp2);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::ResponseHttp3);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::ResponseHttp4);
-
-    assert!(match p.parse(&mut h, b"P") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::ResponseHttp5);
-
-    assert!(match p.parse(&mut h, b"/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
-    });
-
-    assert_eq!(p.get_state(), State::ResponseVersionMajor);
+    assert_eq!(p.get_state(), State::Dead);
 }
 
 #[test]
-fn response_http_invalid_byte() {
-    let mut h = H{};
+fn response_status_to_body() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTT@/") {
-        Err(ParserError::Version(_)) => true,
-        _                            => false
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::PreHeaders1);
+
+    assert!(match p.parse(&mut h, b"\n") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::PreHeaders2);
+
+    assert!(match p.parse(&mut h, b"\r") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::Newline4);
+
+    assert!(match p.parse(&mut h, b"\n") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(p.get_state(), State::Body);
+}
+
+#[test]
+fn response_status_invalid_crlf() {
+    let mut h = H{data: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\r") {
+        Err(ParserError::CrlfSequence(_)) => true,
+        _                                 => false
+    });
+
+    assert_eq!(p.get_state(), State::Dead);
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\n") {
+        Err(ParserError::Status(_,_)) => true,
+        _                             => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
