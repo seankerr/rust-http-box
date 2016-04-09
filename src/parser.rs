@@ -21,7 +21,7 @@
 use byte::is_token;
 
 /// Maximum headers byte count to process before returning `ParserError::MaxHeadersLength`.
-pub const CFG_MAX_HEADERS_LENGTH: u32 = 1024 * 80;
+pub const CFG_MAX_HEADERS_LENGTH: u32 = 80 * 1024;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -65,6 +65,23 @@ enum Callback<T> {
     None,
     Data(fn(&mut T, &[u8]) -> bool),
     Empty(fn(&mut T,) -> bool),
+}
+
+/// Connection.
+#[derive(Clone,Copy,PartialEq)]
+#[repr(u8)]
+pub enum Connection {
+    None,
+    Close,
+    Upgrade
+}
+
+/// Content type.
+pub enum ContentType {
+    None,
+    Binary,
+    Multipart(Vec<u8>),
+    Text
 }
 
 /// Parser error messages.
@@ -198,6 +215,29 @@ pub enum State {
     /// Parsing body.
     Body,
 
+    /// Parsing chunked transfer encoded body.
+    ChunkSize1,
+    ChunkSize2,
+
+    /// CRLF after chunk size.
+    ChunkNewline1,
+    ChunkNewline2,
+
+    /// Parsing chunk data.
+    ChunkData,
+
+    /// Parsing multipart starting boundary.
+    MultipartStartingBoundary,
+
+    /// Parsing multipart data.
+    MultipartData,
+
+    /// Parsing multipart ending boundary.
+    MultipartEndingBoundary,
+
+    /// Parsing multipart finished.
+    MultipartFinished,
+
     // ---------------------------------------------------------------------------------------------
 
     /// Parser finished successfully.
@@ -209,10 +249,18 @@ pub enum State {
 #[repr(u8)]
 pub enum StreamType {
     /// Request stream type.
-    Request = 1,
+    Request,
 
     /// Response stream type.
     Response
+}
+
+/// Transfer encoding.
+#[derive(Clone,Copy,PartialEq)]
+#[repr(u8)]
+pub enum TransferEncoding {
+    None,
+    Chunked
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -220,11 +268,39 @@ pub enum StreamType {
 /// Type that handles HTTP parser events.
 #[allow(unused_variables)]
 pub trait HttpHandler {
+    /// Retrieve the most recent Connection header value.
+    fn get_connection(&mut self) -> Connection {
+        Connection::None
+    }
 
-    /// Callback that is executed when parsing Content-Length header has completed.
+    /// Retrieve the most recent Content-Length header value in numeric representation.
+    ///
+    /// Returns the content length when one was provided. Otherwise `0`.
+    fn get_content_length(&mut self) -> u64 {
+        !0u64
+    }
+
+    /// Retrieve the most recent Content-Type header value.
+    fn get_content_type(&mut self) -> ContentType {
+        ContentType::None
+    }
+
+    /// Retrieve the most recent Transfer-Encoding header value.
+    fn get_transfer_encoding(&mut self) -> TransferEncoding {
+        TransferEncoding::None
+    }
+
+    /// Callback that is executed when a chunk of data has been parsed.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_content_length(&mut self, usize) -> bool {
+    fn on_chunk_data(&[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when a chunk has been located.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_chunk_start(&[u8]) -> bool {
         true
     }
 
@@ -251,8 +327,6 @@ pub trait HttpHandler {
     }
 
     /// Callback that is executed when header parsing has completed successfully.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
     fn on_headers_finished(&mut self) -> bool {
         true
     }
@@ -353,6 +427,9 @@ pub struct Parser<T: HttpHandler> {
     // Current lazy callback that is handled at the top of each byte loop.
     callback: Callback<T>,
 
+    // Count of bytes left to read for the current chunk.
+    chunk_byte_count: usize,
+
     // The content length for the current request/response message.
     content_length: usize,
 
@@ -378,9 +455,11 @@ pub struct Parser<T: HttpHandler> {
 // -------------------------------------------------------------------------------------------------
 
 impl<T: HttpHandler> Parser<T> {
+    /// Create a new `Parser` with a maximum headers length of `80 * 1024`.
     pub fn new(stream_type: StreamType) -> Parser<T> {
         Parser{ byte_count:         0,
                 callback:           Callback::None,
+                chunk_byte_count:   0,
                 content_length:     !0,
                 flags:              if stream_type == StreamType::Request {
                                         F_IN_INITIAL | F_REQUEST
@@ -398,7 +477,29 @@ impl<T: HttpHandler> Parser<T> {
                 version_minor:      0 }
     }
 
-    /// Retrieve the processed byte count.
+    /// Create a new `Parser` with specified settings.
+    pub fn with_settings(stream_type: StreamType, max_headers_length: u32) -> Parser<T> {
+        Parser{ byte_count:         0,
+                callback:           Callback::None,
+                chunk_byte_count:   0,
+                content_length:     !0,
+                flags:              if stream_type == StreamType::Request {
+                                        F_IN_INITIAL | F_REQUEST
+                                    } else {
+                                        F_IN_INITIAL
+                                    },
+                max_headers_length: max_headers_length,
+                state:              if stream_type == StreamType::Request {
+                                        State::RequestMethod
+                                    } else {
+                                        State::ResponseHttp1
+                                    },
+                status_code:        0,
+                version_major:      0,
+                version_minor:      0 }
+    }
+
+    /// Retrieve the processed byte count since the start of the message.
     pub fn get_byte_count(&self) -> usize {
         self.byte_count
     }
@@ -418,6 +519,15 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     /// Parse HTTP data.
+    ///
+    /// If `Ok()` is returned, one of two things have happened: parsing has finished, or
+    /// a callback function has preemptively stopped parsing. In either of these events, it
+    /// is ok to call `parse()` again with a new slice of data to continue where the parser
+    /// left off. `ParserError::Eof` is the only `ParserError` that allows `parse()` to
+    /// continue parsing. Any other `ParserError` is a protocol error.
+    ///
+    /// Returns the parsed byte count of the current slice when parsing completes, or when
+    /// a callback function preemptively stops parsing. Otherwise `ParserError`.
     #[cfg_attr(test, allow(cyclomatic_complexity))]
     pub fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<usize, ParserError> {
         // current byte
@@ -1293,6 +1403,60 @@ impl<T: HttpHandler> Parser<T> {
             );
         }
 
+        macro_rules! state_ChunkSize1 {
+            () => (
+                State::ChunkSize1
+            );
+        }
+
+        macro_rules! state_ChunkSize2 {
+            () => (
+                State::ChunkSize2
+            );
+        }
+
+        macro_rules! state_ChunkNewline1 {
+            () => (
+                State::ChunkNewline1
+            );
+        }
+
+        macro_rules! state_ChunkNewline2 {
+            () => (
+                State::ChunkNewline2
+            );
+        }
+
+        macro_rules! state_ChunkData {
+            () => (
+                State::ChunkData
+            );
+        }
+
+        macro_rules! state_MultipartStartingBoundary {
+            () => (
+                State::MultipartStartingBoundary
+            );
+        }
+
+        macro_rules! state_MultipartData {
+            () => (
+                State::MultipartData
+            );
+        }
+
+        macro_rules! state_MultipartEndingBoundary {
+            () => (
+                State::MultipartEndingBoundary
+            );
+        }
+
+        macro_rules! state_MultipartFinished {
+            () => (
+                State::MultipartFinished
+            );
+        }
+
         // -----------------------------------------------------------------------------------------
 
         if flags.contains(F_REQUEST) {
@@ -1411,10 +1575,5 @@ impl<T: HttpHandler> Parser<T> {
         } else {
             State::ResponseHttp1
         }
-    }
-
-    // Set the maximum headers length.
-    pub fn set_max_headers_length(&mut self, length: u32) {
-        self.max_headers_length = length;
     }
 }
