@@ -16,29 +16,5 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-#![crate_name = "http_box"]
-
-#![cfg_attr(test, feature(plugin))]
-#![cfg_attr(test, plugin(clippy))]
-
-#[macro_use]
-extern crate bitflags;
-
-#[macro_use]
-pub mod byte;
-pub mod http1;
-pub mod url;
-
-#[cfg(test)]
-mod test;
-
-// -------------------------------------------------------------------------------------------------
-
-/// Crate major version.
-pub const VERSION_MAJOR: &'static str = env!("CARGO_PKG_VERSION_MAJOR");
-
-/// Crate minor version.
-pub const VERSION_MINOR: &'static str = env!("CARGO_PKG_VERSION_MINOR");
-
-/// Crate patch version.
-pub const VERSION_PATCH: &'static str = env!("CARGO_PKG_VERSION_PATCH");
+mod byte_to_hex;
+mod hex_to_byte;
