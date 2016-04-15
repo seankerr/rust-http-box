@@ -60,6 +60,16 @@ macro_rules! is_digit {
     );
 }
 
+/// Indicates that a byte is a hex character.
+#[macro_export]
+macro_rules! is_hex {
+    ($byte:expr) => (
+           is_digit!($byte)
+        || (b'@' < $byte && $byte < b'G')
+        || (b'`' < $byte && $byte < b'g')
+    );
+}
+
 /// Indicates that a byte is a lowercase letter.
 #[macro_export]
 macro_rules! is_lower {

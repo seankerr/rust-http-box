@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+mod chunk_extension;
+mod chunk_size;
 mod header_field;
 mod header_max_length;
 mod header_quoted_value;
