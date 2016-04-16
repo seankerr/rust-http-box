@@ -88,3 +88,16 @@ fn trailer_multiple() {
     assert_eq!(h.value, b"Value1Value2");
     assert_eq!(p.get_state(), State::Finished);
 }
+
+#[test]
+fn trailer_no_trailers() {
+    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\n\r\n") {
+        Ok(_) => true,
+        _     => false
+    });
+
+    assert_eq!(p.get_state(), State::Finished);
+}
