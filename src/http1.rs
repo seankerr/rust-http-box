@@ -96,6 +96,7 @@ enum Callback<T> {
 pub enum Connection {
     None,
     Close,
+    KeepAlive,
     Upgrade
 }
 
@@ -260,8 +261,8 @@ pub enum State {
     /// Parsing body.
     Body,
 
-    /// Binary or text body content.
-    BodyContent,
+    /// Unparsable content.
+    Content,
 
     /// Parsing chunk size.
     ChunkSize,
@@ -315,9 +316,13 @@ pub enum StreamType {
 /// Transfer encoding.
 #[derive(Clone,Copy,PartialEq)]
 #[repr(u8)]
-pub enum TransferEncoding {
+pub enum TransferEncoding<'a> {
     None,
-    Chunked
+    Chunked,
+    Compress,
+    Deflate,
+    Gzip,
+    Other(&'a str)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1582,14 +1587,22 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 replay!();
 
                 match handler.get_transfer_encoding() {
-                    TransferEncoding::None => {
+                    TransferEncoding::Chunked => {
+                        reset_overflow!();
+                        reset_remaining!();
+
+                        flags.insert(F_CHUNK_DATA);
+
+                        State::ChunkSize
+                    },
+                    _ => {
                         match handler.get_content_type() {
                             ContentType::None | ContentType::Other(_) => {
                                 if let ContentLength::Specified(length) = handler.get_content_length() {
                                     remaining_byte_count = length;
 
-                                    skip_to_state!(State::BodyContent);
-                                    state_BodyContent!()
+                                    skip_to_state!(State::Content);
+                                    state_Content!()
                                 } else {
                                     error!(ParserError::MissingContentLength(ERR_MISSING_CONTENT_LENGTH));
                                 }
@@ -1603,22 +1616,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                 state_UrlEncoded!()
                             }
                         }
-                    },
-                    TransferEncoding::Chunked => {
-                        reset_overflow!();
-                        reset_remaining!();
-
-                        flags.insert(F_CHUNK_DATA);
-
-                        State::ChunkSize
                     }
                 }
             });
         }
 
-        macro_rules! state_BodyContent {
+        macro_rules! state_Content {
             () => (
-                State::BodyContent
+                State::Content
             );
         }
 
@@ -1817,7 +1822,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 } else {
                     match state {
                         State::Body                      => state_Body!(),
-                        State::BodyContent               => state_BodyContent!(),
+                        State::Content                   => state_Content!(),
                         State::ChunkSize                 => state_ChunkSize!(),
                         State::ChunkExtension            => state_ChunkExtension!(),
                         State::ChunkSizeNewline1         => state_ChunkSizeNewline1!(),
@@ -1877,7 +1882,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 } else {
                     match state {
                         State::Body                      => state_Body!(),
-                        State::BodyContent               => state_BodyContent!(),
+                        State::Content                   => state_Content!(),
                         State::ChunkSize                 => state_ChunkSize!(),
                         State::ChunkExtension            => state_ChunkExtension!(),
                         State::ChunkSizeNewline1         => state_ChunkSizeNewline1!(),

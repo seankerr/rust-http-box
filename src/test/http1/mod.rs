@@ -20,7 +20,6 @@ mod chunk_data;
 mod chunk_extension;
 mod chunk_size;
 mod chunk_trailer;
-/*
 mod header_field;
 mod header_max_length;
 mod header_quoted_value;
@@ -34,4 +33,3 @@ mod response_http;
 mod response_status;
 mod response_status_code;
 mod response_version;
-*/
