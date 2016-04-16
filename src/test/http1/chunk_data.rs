@@ -20,8 +20,7 @@ use http1::*;
 use std::str;
 
 struct H {
-    data: Vec<u8>,
-    size: u64
+    data: Vec<u8>
 }
 
 impl HttpHandler for H {
@@ -30,66 +29,62 @@ impl HttpHandler for H {
         TransferEncoding::Chunked
     }
 
-    fn on_chunk_extension(&mut self, extension: &[u8]) -> bool {
-        println!("on_chunk_extension: {:?}", str::from_utf8(extension).unwrap());
-        self.data.extend_from_slice(extension);
-        true
-    }
-
-    fn on_chunk_size(&mut self, size: u64) -> bool {
-        println!("on_chunk_size: {}", size);
-        self.size = size;
+    fn on_chunk_data(&mut self, data: &[u8]) -> bool {
+        println!("on_chunk_data: {:?}", str::from_utf8(data).unwrap());
+        self.data.extend_from_slice(data);
         true
     }
 }
 
 #[test]
-fn chunk_extension_valid() {
-    let mut h = H{data: Vec::new(), size: 0};
+fn chunk_data_valid() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extension\r") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"neat-extension");
-    assert_eq!(h.size, 0xFF);
-    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
+    assert_eq!(h.data, b"Hello, world!");
+    assert_eq!(p.get_state(), State::ChunkDataNewline1);
 }
 
 #[test]
-fn chunk_extension_maximum() {
-    let mut h = H{data: Vec::new(), size: 0};
+fn chunk_data_multiple_pieces() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionnea\r") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello,") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data.len(), 255);
-    assert_eq!(h.size, 0xFF);
-    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
-}
+    assert_eq!(h.data, b"Hello,");
+    assert_eq!(p.get_state(), State::ChunkData);
 
-#[test]
-fn chunk_extension_too_long() {
-    let mut h = H{data: Vec::new(), size: 0};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat\r") {
-        Err(ParserError::MaxChunkExtensionLength(_,_)) => true,
-        _                                              => false
+    assert!(match p.parse(&mut h, b" world!") {
+        Err(ParserError::Eof) => true,
+        _                     => false
     });
+
+    assert_eq!(h.data, b"Hello, world!");
+    assert_eq!(p.get_state(), State::ChunkDataNewline1);
 }
 
 #[test]
-fn chunk_extension_illegal() {
-    let mut h = H{data: Vec::new(), size: 0};
+fn chunk_data_crlf() {
+    let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0;neat-extension") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!x") {
+        Err(ParserError::CrlfSequence(_)) => true,
+        _                                 => false
+    });
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\rx") {
         Err(ParserError::CrlfSequence(_)) => true,
         _                                 => false
     });

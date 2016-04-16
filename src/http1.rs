@@ -234,7 +234,6 @@ pub enum State {
     //       support for now: https://tools.ietf.org/html/rfc7230#section-3.2.4
     PreHeaders1,
     PreHeaders2,
-    PreHeaders3,
 
     /// Parsing header field.
     HeaderField,
@@ -271,10 +270,15 @@ pub enum State {
     ChunkExtension,
 
     /// CRLF after chunk size.
-    ChunkNewline,
+    ChunkSizeNewline1,
+    ChunkSizeNewline2,
 
     /// Parsing chunk data.
     ChunkData,
+
+    /// CRLF after chunk data.
+    ChunkDataNewline1,
+    ChunkDataNewline2,
 
     /// Parsing multipart starting boundary.
     MultipartStartingBoundary,
@@ -466,20 +470,23 @@ bitflags! {
         // No flags.
         const F_NONE = 0,
 
+        // Parsing chunk data.
+        const F_CHUNK_DATA = 1 << 0,
+
         // Parsing initial.
-        const F_IN_INITIAL = 1 << 0,
+        const F_IN_INITIAL = 1 << 1,
 
         // Parsing headers.
-        const F_IN_HEADERS = 1 << 1,
+        const F_IN_HEADERS = 1 << 2,
 
         // Finished parsing headers.
-        const F_HEADERS_FINISHED = 1 << 2,
+        const F_HEADERS_FINISHED = 1 << 3,
 
         // Quoted header value has an escape character.
-        const F_QUOTE_ESCAPED = 1 << 3,
+        const F_QUOTE_ESCAPED = 1 << 4,
 
         // Indicates the stream contains request data rather than response.
-        const F_REQUEST = 1 << 4
+        const F_REQUEST = 1 << 5
     }
 }
 
@@ -504,7 +511,7 @@ pub struct Parser<'a, T: HttpHandler> {
     // Index used for overflow detection.
     overflow_index: u8,
 
-    // Count of remaining bytes to read.
+    // Count of remaining bytes to process.
     // This is used when reading chunks, or when reading content with a set length.
     remaining_byte_count: u64,
 
@@ -703,20 +710,21 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         // collect a hex digit
         macro_rules! collect_hex_digit {
-            ($byte1:expr, $byte2:expr, $max:expr, $overflow_error:path, $overflow_error_msg:expr,
-             $error:path, $error_msg:expr) => (
+            ($byte1:expr, $byte2:expr, $digit:expr, $max:expr, $overflow_error:path,
+             $overflow_error_msg:expr, $error:path, $error_msg:expr) => (
                 collect_base!({
                     if is_hex!(byte) {
                         if $max == overflow_index {
                             error!($overflow_error($overflow_error_msg, byte));
                         }
 
-                        overflow_index        += 1;
-                        remaining_byte_count <<= 4;
+                        inc_overflow!();
+
+                        $digit <<= 4;
 
                         match hex_to_byte(&[byte]) {
                             Some(byte) => {
-                                remaining_byte_count += byte as u64;
+                                $digit += byte as u64;
                             },
                             None => {
                                 error!($error($error_msg, byte));
@@ -759,6 +767,24 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                     !($byte1 == byte || $byte2 == byte)
                 })
             );
+        }
+
+        // collect remaining byte count
+        macro_rules! collect_remaining {
+            () => ({
+                stream_index -= 1;
+
+                let slice = if remaining_byte_count <= (stream.len() - stream_index) as u64 {
+                    &stream[stream_index..stream_index + remaining_byte_count as usize]
+                } else {
+                    &stream[stream_index..stream.len()]
+                };
+
+                remaining_byte_count -= slice.len() as u64;
+                stream_index         += slice.len();
+
+                remaining_byte_count == 0
+            });
         }
 
         // collect non-control characters until a certain byte is found
@@ -901,6 +927,13 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             );
         }
 
+        // increment overflow index
+        macro_rules! inc_overflow {
+            () => (
+                overflow_index += 1
+            );
+        }
+
         // check end of stream
         macro_rules! is_eof {
             () => (
@@ -994,6 +1027,20 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         macro_rules! replay {
             () => (
                 byte_flags.insert(B_REPLAY);
+            );
+        }
+
+        // reset overflow index
+        macro_rules! reset_overflow {
+            () => (
+                overflow_index = 0
+            );
+        }
+
+        // reset remaining byte count
+        macro_rules! reset_remaining {
+            () => (
+                remaining_byte_count = 0
             );
         }
 
@@ -1421,7 +1468,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 lazy_callback!(on_header_value, true);
 
                 if collect_until!(b'"', b'\\', ParserError::HeaderValue, ERR_HEADER_VALUE) {
-                    if flags.contains(F_QUOTE_ESCAPED) {
+                    if flags.bits & F_QUOTE_ESCAPED.bits == F_QUOTE_ESCAPED.bits {
                         flags.remove(F_QUOTE_ESCAPED);
 
                         mark!();
@@ -1508,10 +1555,21 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                     flags.remove(F_IN_HEADERS);
 
                     if handler.on_headers_finished() {
+                        if flags.bits & F_CHUNK_DATA.bits == F_CHUNK_DATA.bits {
+
+                            exit_ok!(State::Finished);
+                        }
+
                         skip_to_state!(State::Body);
                         state_Body!()
                     } else {
-                        exit_ok!(State::Body);
+                        exit_ok!(
+                            if flags.bits & F_CHUNK_DATA.bits == F_CHUNK_DATA.bits {
+                                State::Finished
+                            } else {
+                                State::Body
+                            }
+                        );
                     }
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
@@ -1547,11 +1605,12 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                         }
                     },
                     TransferEncoding::Chunked => {
-                        overflow_index       = 0;
-                        remaining_byte_count = 0;
+                        reset_overflow!();
+                        reset_remaining!();
 
-                        skip_to_state!(State::ChunkSize);
-                        state_ChunkSize!()
+                        flags.insert(F_CHUNK_DATA);
+
+                        State::ChunkSize
                     }
                 }
             });
@@ -1565,24 +1624,37 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         macro_rules! state_ChunkSize {
             () => ({
-                if collect_hex_digit!(b'\r', b';', CFG_MAX_CHUNK_SIZE_LENGTH,
+                if collect_hex_digit!(b'\r', b';', remaining_byte_count, CFG_MAX_CHUNK_SIZE_LENGTH,
                                       ParserError::MaxChunkSizeLength, ERR_MAX_CHUNK_SIZE_LENGTH,
                                       ParserError::ChunkSize, ERR_CHUNK_SIZE) {
-                    if byte == b'\r' {
+                    if remaining_byte_count == 0 {
+                        flags.insert(F_IN_HEADERS);
+                        flags.remove(F_HEADERS_FINISHED);
+
                         if handler.on_chunk_size(remaining_byte_count) {
-                            skip_to_state!(State::ChunkNewline);
-                            state_ChunkNewline!()
+                            replay!();
+
+                            State::Newline1
                         } else {
-                            State::ChunkNewline
+                            exit_ok!(State::Newline2);
+                        }
+                    } else if byte == b'\r' {
+                        if handler.on_chunk_size(remaining_byte_count) {
+                            replay!();
+
+                            skip_to_state!(State::ChunkSizeNewline1);
+                            state_ChunkSizeNewline1!()
+                        } else {
+                            exit_ok!(State::ChunkSizeNewline2);
                         }
                     } else {
-                        overflow_index = 0;
+                        reset_overflow!();
 
                         if handler.on_chunk_size(remaining_byte_count) {
                             skip_to_state!(State::ChunkExtension);
                             state_ChunkExtension!()
                         } else {
-                            State::ChunkExtension
+                            exit_ok!(State::ChunkExtension);
                         }
                     }
                 } else {
@@ -1600,16 +1672,32 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                                  ERR_MAX_CHUNK_EXTENSION_LENGTH,
                                                  ParserError::ChunkExtension, ERR_CHUNK_EXTENSION) {
                     forget!();
+                    replay!();
 
-                    skip_to_state!(State::ChunkNewline);
-                    state_ChunkNewline!()
+                    skip_to_state!(State::ChunkSizeNewline1);
+                    state_ChunkSizeNewline1!()
                 } else {
                     State::ChunkExtension
                 }
             });
         }
 
-        macro_rules! state_ChunkNewline {
+        macro_rules! state_ChunkSizeNewline1 {
+            () => (
+                if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
+                    jump!(1);
+                    skip_to_state!(State::ChunkData);
+                    state_ChunkData!()
+                } else if byte == b'\r' {
+                    skip_to_state!(State::ChunkSizeNewline2);
+                    state_ChunkSizeNewline2!()
+                } else {
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                }
+            );
+        }
+
+        macro_rules! state_ChunkSizeNewline2 {
             () => (
                 if byte == b'\n' {
                     skip_to_state!(State::ChunkData);
@@ -1621,8 +1709,39 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
 
         macro_rules! state_ChunkData {
+            () => ({
+                lazy_callback!(on_chunk_data, true);
+
+                if collect_remaining!() {
+                    skip_to_state!(State::ChunkDataNewline1);
+                    state_ChunkDataNewline1!()
+                } else {
+                    State::ChunkData
+                }
+            });
+        }
+
+        macro_rules! state_ChunkDataNewline1 {
             () => (
-                State::ChunkData
+                if byte == b'\r' {
+                    skip_to_state!(State::ChunkDataNewline2);
+                    state_ChunkDataNewline2!()
+                } else {
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                }
+            );
+        }
+
+        macro_rules! state_ChunkDataNewline2 {
+            () => (
+                if byte == b'\n' {
+                    reset_overflow!();
+                    reset_remaining!();
+
+                    State::ChunkSize
+                } else {
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                }
             );
         }
 
@@ -1701,8 +1820,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                         State::BodyContent               => state_BodyContent!(),
                         State::ChunkSize                 => state_ChunkSize!(),
                         State::ChunkExtension            => state_ChunkExtension!(),
-                        State::ChunkNewline              => state_ChunkNewline!(),
+                        State::ChunkSizeNewline1         => state_ChunkSizeNewline1!(),
+                        State::ChunkSizeNewline2         => state_ChunkSizeNewline2!(),
                         State::ChunkData                 => state_ChunkData!(),
+                        State::ChunkDataNewline1         => state_ChunkDataNewline1!(),
+                        State::ChunkDataNewline2         => state_ChunkDataNewline2!(),
                         State::MultipartStartingBoundary => state_MultipartStartingBoundary!(),
                         State::MultipartData             => state_MultipartData!(),
                         State::MultipartEndingBoundary   => state_MultipartEndingBoundary!(),
@@ -1758,8 +1880,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                         State::BodyContent               => state_BodyContent!(),
                         State::ChunkSize                 => state_ChunkSize!(),
                         State::ChunkExtension            => state_ChunkExtension!(),
-                        State::ChunkNewline              => state_ChunkNewline!(),
+                        State::ChunkSizeNewline1         => state_ChunkSizeNewline1!(),
+                        State::ChunkSizeNewline2         => state_ChunkSizeNewline2!(),
                         State::ChunkData                 => state_ChunkData!(),
+                        State::ChunkDataNewline1         => state_ChunkDataNewline1!(),
+                        State::ChunkDataNewline2         => state_ChunkDataNewline2!(),
                         State::MultipartStartingBoundary => state_MultipartStartingBoundary!(),
                         State::MultipartData             => state_MultipartData!(),
                         State::MultipartEndingBoundary   => state_MultipartEndingBoundary!(),

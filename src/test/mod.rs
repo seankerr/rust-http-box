@@ -16,6 +16,6 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-mod byte;
+//mod byte;
 mod http1;
-mod url;
+//mod url;

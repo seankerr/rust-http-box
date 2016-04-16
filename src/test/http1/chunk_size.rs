@@ -47,7 +47,7 @@ fn chunk_size_valid() {
     });
 
     assert_eq!(h.size, 0xFF);
-    assert_eq!(p.get_state(), State::ChunkNewline);
+    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn chunk_size_maximum() {
     });
 
     assert_eq!(h.size, 0xFFFFFFFFFFFFFFFF);
-    assert_eq!(p.get_state(), State::ChunkNewline);
+    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
 }
 
 #[test]

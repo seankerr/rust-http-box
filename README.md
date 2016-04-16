@@ -21,4 +21,4 @@ planned.
 - [x] Query String Parsing
 - [x] URL Component Decoding and Encoding
 - [ ] Multipart Parsing
-- [ ] Chunked Decoding
+- [x] Chunked Decoding

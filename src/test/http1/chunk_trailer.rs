@@ -20,8 +20,9 @@ use http1::*;
 use std::str;
 
 struct H {
-    data: Vec<u8>,
-    size: u64
+    field: Vec<u8>,
+    size:  u64,
+    value: Vec<u8>
 }
 
 impl HttpHandler for H {
@@ -30,67 +31,60 @@ impl HttpHandler for H {
         TransferEncoding::Chunked
     }
 
-    fn on_chunk_extension(&mut self, extension: &[u8]) -> bool {
-        println!("on_chunk_extension: {:?}", str::from_utf8(extension).unwrap());
-        self.data.extend_from_slice(extension);
-        true
-    }
-
     fn on_chunk_size(&mut self, size: u64) -> bool {
         println!("on_chunk_size: {}", size);
         self.size = size;
         true
     }
+
+    fn on_header_field(&mut self, data: &[u8]) -> bool {
+        println!("on_header_field: {:?}", str::from_utf8(data).unwrap());
+        self.field.extend_from_slice(data);
+        true
+    }
+
+    fn on_header_value(&mut self, data: &[u8]) -> bool {
+        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
+        self.value.extend_from_slice(data);
+        true
+    }
 }
 
 #[test]
-fn chunk_extension_valid() {
-    let mut h = H{data: Vec::new(), size: 0};
+fn trailer_single() {
+    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extension\r") {
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\nTrailer: Value\r\n\r\n") {
+        Ok(_) => true,
+        _     => false
+    });
+
+    assert_eq!(h.field, b"Trailer");
+    assert_eq!(h.value, b"Value");
+    assert_eq!(p.get_state(), State::Finished);
+}
+
+#[test]
+fn trailer_multiple() {
+    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\nTrailer1: Value1\r\n") {
         Err(ParserError::Eof) => true,
         _                     => false
     });
 
-    assert_eq!(h.data, b"neat-extension");
-    assert_eq!(h.size, 0xFF);
-    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
-}
+    assert_eq!(h.field, b"Trailer1");
+    assert_eq!(h.value, b"Value1");
+    assert_eq!(p.get_state(), State::Newline3);
 
-#[test]
-fn chunk_extension_maximum() {
-    let mut h = H{data: Vec::new(), size: 0};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionnea\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+    assert!(match p.parse(&mut h, b"Trailer2: Value2\r\n\r\n") {
+        Ok(_) => true,
+        _     => false
     });
 
-    assert_eq!(h.data.len(), 255);
-    assert_eq!(h.size, 0xFF);
-    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
-}
-
-#[test]
-fn chunk_extension_too_long() {
-    let mut h = H{data: Vec::new(), size: 0};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat\r") {
-        Err(ParserError::MaxChunkExtensionLength(_,_)) => true,
-        _                                              => false
-    });
-}
-
-#[test]
-fn chunk_extension_illegal() {
-    let mut h = H{data: Vec::new(), size: 0};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0;neat-extension") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
-    });
+    assert_eq!(h.field, b"Trailer1Trailer2");
+    assert_eq!(h.value, b"Value1Value2");
+    assert_eq!(p.get_state(), State::Finished);
 }
