@@ -37,7 +37,21 @@ impl HttpHandler for H {
 }
 
 #[test]
-fn chunk_size_valid() {
+fn chunk_size_single_hex() {
+    let mut h = H{size: 0};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nF\r") {
+        Err(ParserError::Eof) => true,
+        _                     => false
+    });
+
+    assert_eq!(h.size, 0xF);
+    assert_eq!(p.get_state(), State::ChunkSizeNewline2);
+}
+
+#[test]
+fn chunk_size_multiple_hex() {
     let mut h = H{size: 0};
     let mut p = Parser::new(StreamType::Response);
 
@@ -80,7 +94,28 @@ fn chunk_size_invalid() {
     let mut h = H{size: 0};
     let mut p = Parser::new(StreamType::Response);
 
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\n@") {
+        Err(ParserError::ChunkSize(_,_)) => true,
+        _                                => false
+    });
+
+    p.reset();
+
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nG") {
+        Err(ParserError::ChunkSize(_,_)) => true,
+        _                                => false
+    });
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\n`") {
+        Err(ParserError::ChunkSize(_,_)) => true,
+        _                                => false
+    });
+
+    p.reset();
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\ng") {
         Err(ParserError::ChunkSize(_,_)) => true,
         _                                => false
     });
