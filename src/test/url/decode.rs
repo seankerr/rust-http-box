@@ -20,9 +20,12 @@ use url::*;
 
 #[test]
 fn decode_without_hex() {
-    assert!(match decode(b"justsomedata", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"justsomedata", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"justsomedata", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"justsomedata", vec.as_slice());
+            assert_eq!(12, byte_count);
             true
         },
         _ => false
@@ -31,9 +34,12 @@ fn decode_without_hex() {
 
 #[test]
 fn decode_with_hex() {
-    assert!(match decode(b"just%20some%20data", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"just some data", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"just%20some%20data", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"just some data", vec.as_slice());
+            assert_eq!(18, byte_count);
             true
         },
         _ => false
@@ -42,9 +48,12 @@ fn decode_with_hex() {
 
 #[test]
 fn decode_starting_hex() {
-    assert!(match decode(b"%20just%20some%20data", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b" just some data", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"%20just%20some%20data", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b" just some data", vec.as_slice());
+            assert_eq!(21, byte_count);
             true
         },
         _ => false
@@ -53,9 +62,12 @@ fn decode_starting_hex() {
 
 #[test]
 fn decode_ending_hex() {
-    assert!(match decode(b"just%20some%20data%20", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"just some data ", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"just%20some%20data%20", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"just some data ", vec.as_slice());
+            assert_eq!(21, byte_count);
             true
         },
         _ => false
@@ -64,17 +76,23 @@ fn decode_ending_hex() {
 
 #[test]
 fn decode_sequence() {
-    assert!(match decode(b"%20%20just%20some%20data%20%20", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"  just some data  ", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"%20%20just%20some%20data%20%20", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"  just some data  ", vec.as_slice());
+            assert_eq!(30, byte_count);
             true
         },
         _ => false
     });
 
-    assert!(match decode(b"just%20%20%20some%20%20%20data", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"just   some   data", &x[..]);
+    vec.clear();
+
+    assert!(match decode(b"just%20%20%20some%20%20%20data", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"just   some   data", vec.as_slice());
+            assert_eq!(30, byte_count);
             true
         },
         _ => false
@@ -83,9 +101,12 @@ fn decode_sequence() {
 
 #[test]
 fn decode_empty() {
-    assert!(match decode(b"", &mut vec![]) {
-        Ok(ref x) => {
-            assert_eq!(b"", &x[..]);
+    let mut vec = vec![];
+
+    assert!(match decode(b"", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"", vec.as_slice());
+            assert_eq!(0, byte_count);
             true
         },
         _ => false
@@ -94,17 +115,23 @@ fn decode_empty() {
 
 #[test]
 fn decode_invalid_hex_sequence() {
-    assert!(match decode(b"%zrjust%20some%20data", &mut vec![]) {
+    let mut vec = vec![];
+
+    assert!(match decode(b"%zrjust%20some%20data", &mut vec) {
         Err(DecodingError::Hex(_,_)) => true,
         _                            => false
     });
 
-    assert!(match decode(b"just%20so%3qme%20data", &mut vec![]) {
+    vec.clear();
+
+    assert!(match decode(b"just%20so%3qme%20data", &mut vec) {
         Err(DecodingError::Hex(_,_)) => true,
         _                            => false
     });
 
-    assert!(match decode(b"just%20some%20data%ag", &mut vec![]) {
+    vec.clear();
+
+    assert!(match decode(b"just%20some%20data%ag", &mut vec) {
         Err(DecodingError::Hex(_,_)) => true,
         _                            => false
     });
@@ -112,23 +139,46 @@ fn decode_invalid_hex_sequence() {
 
 #[test]
 fn decode_short_hex_sequence() {
-    assert!(match decode(b"%", &mut vec![]) {
-        Err(DecodingError::Hex(_,_)) => true,
-        _                            => false
+    let mut vec = vec![];
+
+    assert!(match decode(b"%", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(0, byte_count);
+            true
+        },
+        _ => false
     });
 
-    assert!(match decode(b"ab%", &mut vec![]) {
-        Err(DecodingError::Hex(_,_)) => true,
-        _                            => false
+    vec.clear();
+
+    assert!(match decode(b"ab%", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"ab", vec.as_slice());
+            assert_eq!(2, byte_count);
+            true
+        },
+        _ => false
     });
 
-    assert!(match decode(b"%f", &mut vec![]) {
-        Err(DecodingError::Hex(_,_)) => true,
-        _                            => false
+    vec.clear();
+
+    assert!(match decode(b"%f", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"", vec.as_slice());
+            assert_eq!(0, byte_count);
+            true
+        },
+        _ => false
     });
 
-    assert!(match decode(b"ab%f", &mut vec![]) {
-        Err(DecodingError::Hex(_,_)) => true,
-        _                            => false
+    vec.clear();
+
+    assert!(match decode(b"ab%f", &mut vec) {
+        Ok(byte_count) => {
+            assert_eq!(b"ab", vec.as_slice());
+            assert_eq!(2, byte_count);
+            true
+        },
+        _ => false
     });
 }

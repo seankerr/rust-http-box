@@ -20,34 +20,60 @@ use url::*;
 
 #[test]
 fn encode_without_hex() {
-    assert_eq!(b"justsomedata", &encode(b"justsomedata", &mut vec![])[..]);
+    let mut vec = vec![];
+
+    encode(b"justsomedata", &mut vec);
+
+    assert_eq!(b"justsomedata", vec.as_slice());
 }
 
 #[test]
 fn encode_with_hex() {
-    assert_eq!(b"just%20some%20data", &encode(b"just some data", &mut vec![])[..]);
+    let mut vec = vec![];
+
+    encode(b"just some data", &mut vec);
+
+    assert_eq!(b"just%20some%20data", vec.as_slice());
 }
 
 #[test]
 fn encode_starting_hex() {
-    assert_eq!(b"%20just%20some%20data", &encode(b" just some data", &mut vec![])[..]);
+    let mut vec = vec![];
+
+    encode(b" just some data", &mut vec);
+
+    assert_eq!(b"%20just%20some%20data", vec.as_slice());
 }
 
 #[test]
 fn encode_ending_hex() {
-    assert_eq!(b"just%20some%20data%20", &encode(b"just some data ", &mut vec![])[..]);
+    let mut vec = vec![];
+
+    encode(b"just some data ", &mut vec);
+
+    assert_eq!(b"just%20some%20data%20", vec.as_slice());
 }
 
 #[test]
 fn encode_sequence() {
-    assert_eq!(b"%20%20just%20some%20data%20%20",
-               &encode(b"  just some data  ", &mut vec![])[..]);
+    let mut vec = vec![];
 
-    assert_eq!(b"just%20%20%20some%20%20%20data",
-               &encode(b"just   some   data", &mut vec![])[..]);
+    encode(b"  just some data  ", &mut vec);
+
+    assert_eq!(b"%20%20just%20some%20data%20%20", vec.as_slice());
+
+    vec.clear();
+
+    encode(b"just   some   data", &mut vec);
+
+    assert_eq!(b"just%20%20%20some%20%20%20data", vec.as_slice());
 }
 
 #[test]
 fn encode_empty() {
-    assert_eq!(b"", &encode(b"", &mut vec![])[..]);
+    let mut vec = vec![];
+
+    encode(b"", &mut vec);
+
+    assert_eq!(b"", vec.as_slice());
 }

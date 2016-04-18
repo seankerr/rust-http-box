@@ -244,16 +244,18 @@ pub fn byte_to_hex(byte: u8) -> [u8; 3] {
 /// ```
 /// # use http_box::url::{decode, DecodingError};
 ///
-/// match decode(b"Hello,%20world", &mut vec![]) {
-///     Ok(ref decoded) => {
-///         // decoded is a Vec<u8> of decoded bytes
+/// let mut vec = vec![];
+///
+/// match decode(b"Hello,%20world", &mut vec) {
+///     Ok(byte_count) => {
+///         println!("Decoded {} bytes, stored into vec", byte_count);
 ///     },
 ///     Err(error) => println!("{}", error)
 /// }
 /// ```
 #[allow(unused_assignments)]
 #[inline]
-pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>, DecodingError> {
+pub fn decode(bytes: &[u8], into: &mut Vec<u8>) -> Result<usize, DecodingError> {
     // current byte
     let mut byte: u8;
 
@@ -341,7 +343,7 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
     macro_rules! next {
         () => ({
             if byte_index == bytes.len() {
-                return Ok(into);
+                return Ok(byte_index);
             }
 
             byte        = bytes[byte_index];
@@ -361,7 +363,9 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
                 into.extend_from_slice(marked_bytes!(1));
 
                 if !has_bytes!(2) {
-                    error!(DecodingError::Hex(ERR_DECODING_HEX, byte));
+                    // found start of hex sequence, but not enough bytes to decode, so rewind one
+                    // byte, allow the user to gather more data and call decode() again
+                    return Ok(byte_index - 1);
                 }
 
                 mark!();
@@ -385,7 +389,7 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
         }
     }
 
-    Ok(into)
+    Ok(byte_index)
 }
 
 /// URL encode an array of bytes.
@@ -403,7 +407,7 @@ pub fn decode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> Result<&'a mut Vec<u8>
 /// println!("Encoded: {:?}", str::from_utf8(&encoded[..]).unwrap());
 /// ```
 #[inline]
-pub fn encode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> &'a mut Vec<u8> {
+pub fn encode(bytes: &[u8], into: &mut Vec<u8>) {
     // byte index we're processing
     let mut byte_index: usize = 0;
 
@@ -422,7 +426,6 @@ pub fn encode<'a>(bytes: &[u8], into: &'a mut Vec<u8>) -> &'a mut Vec<u8> {
     }
 
     into.extend_from_slice(&bytes[mark_index..byte_index]);
-    into
 }
 
 /// Decode a single 3 byte URL encoded hex sequence *%XX* into a single byte.
