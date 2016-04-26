@@ -24,7 +24,7 @@ fn encode_without_hex() {
 
     encode(b"justsomedata", &mut vec);
 
-    assert_eq!(b"justsomedata", vec.as_slice());
+    assert_eq!(vec, b"justsomedata");
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn encode_with_hex() {
 
     encode(b"just some data", &mut vec);
 
-    assert_eq!(b"just%20some%20data", vec.as_slice());
+    assert_eq!(vec, b"just%20some%20data");
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn encode_starting_hex() {
 
     encode(b" just some data", &mut vec);
 
-    assert_eq!(b"%20just%20some%20data", vec.as_slice());
+    assert_eq!(vec, b"%20just%20some%20data");
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn encode_ending_hex() {
 
     encode(b"just some data ", &mut vec);
 
-    assert_eq!(b"just%20some%20data%20", vec.as_slice());
+    assert_eq!(vec, b"just%20some%20data%20");
 }
 
 #[test]
@@ -60,13 +60,13 @@ fn encode_sequence() {
 
     encode(b"  just some data  ", &mut vec);
 
-    assert_eq!(b"%20%20just%20some%20data%20%20", vec.as_slice());
+    assert_eq!(vec, b"%20%20just%20some%20data%20%20");
 
     vec.clear();
 
     encode(b"just   some   data", &mut vec);
 
-    assert_eq!(b"just%20%20%20some%20%20%20data", vec.as_slice());
+    assert_eq!(vec, b"just%20%20%20some%20%20%20data");
 }
 
 #[test]
@@ -75,5 +75,5 @@ fn encode_empty() {
 
     encode(b"", &mut vec);
 
-    assert_eq!(b"", vec.as_slice());
+    assert_eq!(vec, b"");
 }

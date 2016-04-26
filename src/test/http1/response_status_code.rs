@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {
     data: u16
@@ -29,14 +31,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn response_status_code_eof() {
     let mut h = H{data: 0};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 0") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseStatusCode);
@@ -48,8 +52,8 @@ fn response_status_code_0() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 0 ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, 0);
@@ -62,8 +66,8 @@ fn response_status_code_999() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 999 ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, 999);
@@ -77,7 +81,7 @@ fn response_status_code_invalid() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 1000") {
         Err(ParserError::StatusCode(_)) => true,
-        _                               => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -90,7 +94,7 @@ fn response_status_code_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 a") {
         Err(ParserError::StatusCode(_)) => true,
-        _                               => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

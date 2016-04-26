@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 use std::str;
 
 struct H {
@@ -36,14 +38,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn chunk_size_single_hex() {
     let mut h = H{size: 0};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nF\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.size, 0xF);
@@ -56,8 +60,8 @@ fn chunk_size_multiple_hex() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.size, 0xFF);
@@ -70,8 +74,8 @@ fn chunk_size_maximum() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFFFFFFFFFFFFFFFF\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.size, 0xFFFFFFFFFFFFFFFF);

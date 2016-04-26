@@ -16,13 +16,16 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 use std::str;
 
 struct H {
-    field: Vec<u8>,
-    size:  u64,
-    value: Vec<u8>
+    field:    Vec<u8>,
+    finished: bool,
+    size:     u64,
+    value:    Vec<u8>
 }
 
 impl HttpHandler for H {
@@ -48,56 +51,75 @@ impl HttpHandler for H {
         self.value.extend_from_slice(data);
         true
     }
+
+    fn on_headers_finished(&mut self) -> bool {
+        println!("on_headers_finished");
+        self.finished = true;
+        true
+    }
 }
+
+impl ParamHandler for H {}
 
 #[test]
 fn trailer_single() {
-    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
+    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\nTrailer: Value\r\n\r\n") {
         Ok(_) => true,
-        _     => false
+        _ => false
     });
 
+    assert!(h.finished);
     assert_eq!(h.field, b"Trailer");
     assert_eq!(h.value, b"Value");
-    assert_eq!(p.get_state(), State::Finished);
+    assert_eq!(p.get_state(), State::Done);
 }
 
 #[test]
 fn trailer_multiple() {
-    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
+    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\nTrailer1: Value1\r\n") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\n") {
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
+    h.finished = false;
+
+    assert!(match p.parse(&mut h, b"D\r\nHello, world!\r\n0\r\nTrailer1: Value1\r\n") {
+        Ok(Success::Eof(_)) => true,
+        _ => false
+    });
+
+    assert!(!h.finished);
     assert_eq!(h.field, b"Trailer1");
     assert_eq!(h.value, b"Value1");
     assert_eq!(p.get_state(), State::Newline3);
 
     assert!(match p.parse(&mut h, b"Trailer2: Value2\r\n\r\n") {
         Ok(_) => true,
-        _     => false
+        _ => false
     });
 
+    assert!(h.finished);
     assert_eq!(h.field, b"Trailer1Trailer2");
     assert_eq!(h.value, b"Value1Value2");
-    assert_eq!(p.get_state(), State::Finished);
+    assert_eq!(p.get_state(), State::Done);
 }
 
 #[test]
 fn trailer_no_trailers() {
-    let mut h = H{field: Vec::new(), size: 0, value: Vec::new()};
+    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\n\r\n") {
         Ok(_) => true,
-        _     => false
+        _ => false
     });
 
-    assert_eq!(p.get_state(), State::Finished);
+    assert!(h.finished);
+    assert_eq!(p.get_state(), State::Done);
 }

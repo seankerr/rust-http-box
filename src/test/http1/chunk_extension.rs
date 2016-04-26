@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 use std::str;
 
 struct H {
@@ -43,14 +45,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn chunk_extension_valid() {
     let mut h = H{data: Vec::new(), size: 0};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extension\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"neat-extension");
@@ -64,8 +68,8 @@ fn chunk_extension_maximum() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nFF;neat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionneat-extensionnea\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data.len(), 255);

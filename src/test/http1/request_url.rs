@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {
     data: Vec<u8>
@@ -29,22 +31,24 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn request_uri_eof() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET /path") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"/path");
     assert_eq!(p.get_state(), State::RequestUrl);
 
     assert!(match p.parse(&mut h, b" ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp1);

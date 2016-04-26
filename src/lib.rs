@@ -42,3 +42,18 @@ pub const VERSION_MINOR: &'static str = env!("CARGO_PKG_VERSION_MINOR");
 
 /// Crate patch version.
 pub const VERSION_PATCH: &'static str = env!("CARGO_PKG_VERSION_PATCH");
+
+// -------------------------------------------------------------------------------------------------
+
+/// Success response types.
+#[derive(Clone,Copy,PartialEq)]
+pub enum Success {
+    /// Callback returned false.
+    Callback(usize),
+
+    /// Additional data expected.
+    Eof(usize),
+
+    /// Finished successfully.
+    Finished(usize)
+}

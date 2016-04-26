@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 use std::str;
 
 struct H {
@@ -31,14 +33,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn header_quoted_value_escape() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple \\\"word\\\" value\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"multiple \"word\" value");
@@ -51,8 +55,8 @@ fn header_quoted_value_no_escape() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple word value\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"multiple word value");
@@ -65,8 +69,8 @@ fn header_quoted_value_starting_escape() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"\\\"word\\\" value\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"\"word\" value");
@@ -79,8 +83,8 @@ fn header_quoted_value_ending_escape() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"word \\\"value\\\"\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"word \"value\"");
@@ -93,8 +97,8 @@ fn header_quoted_value_multiline() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \"value1\"\r\n \"value2\"\r\n \"value3\"\r\n \"value4\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"value1 value2 value3 value4");
@@ -107,8 +111,8 @@ fn header_quoted_value_white_space() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \t \t \t \t \"value\"\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"value");
@@ -122,7 +126,7 @@ fn header_quoted_value_incomplete() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple word\r") {
         Err(ParserError::HeaderValue(_,_)) => true,
-        _                                  => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -135,7 +139,7 @@ fn header_quoted_value_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"\0value\"\r") {
         Err(ParserError::HeaderValue(_,_)) => true,
-        _                                  => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

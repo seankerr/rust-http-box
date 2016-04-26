@@ -16,6 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use url::*;
 use std::str;
 
@@ -43,8 +44,8 @@ fn parse_query_string_single() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param1=value1") {
-        Ok(13) => true,
-        _      => false
+        Ok(Success::Finished(13)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1");
@@ -56,8 +57,8 @@ fn parse_query_string_plus_sign() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param+1=value+1") {
-        Ok(15) => true,
-        _      => false
+        Ok(Success::Finished(15)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param 1");
@@ -69,8 +70,8 @@ fn parse_query_string_single_hex() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param%201=value%201") {
-        Ok(19) => true,
-        _      => false
+        Ok(Success::Finished(19)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param 1");
@@ -82,8 +83,8 @@ fn parse_query_string_multiple() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param1=value1&param2=value2&param3=value3") {
-        Ok(41) => true,
-        _      => false
+        Ok(Success::Finished(41)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1param2param3");
@@ -95,8 +96,8 @@ fn parse_query_string_multiple_hex() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param%201=value%201&param%202=value%202&param%203=value%203") {
-        Ok(59) => true,
-        _      => false
+        Ok(Success::Finished(59)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param 1param 2param 3");
@@ -108,8 +109,8 @@ fn parse_query_string_starting_hex() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"%20param1=%20value1") {
-        Ok(19) => true,
-        _      => false
+        Ok(Success::Finished(19)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b" param1");
@@ -120,9 +121,9 @@ fn parse_query_string_starting_hex() {
 fn parse_query_string_starting_question() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
-    assert!(match parse_query_string(&mut h, b"?param1=value1") {
-        Ok(14) => true,
-        _      => false
+    assert!(match parse_query_string(&mut h, b"param1=value1") {
+        Ok(Success::Finished(13)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1");
@@ -134,8 +135,8 @@ fn parse_query_string_starting_ampersand() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"&param1=value1") {
-        Ok(14) => true,
-        _      => false
+        Ok(Success::Finished(14)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1");
@@ -146,9 +147,9 @@ fn parse_query_string_starting_ampersand() {
 fn parse_query_string_ending_ampersand() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
-    assert!(match parse_query_string(&mut h, b"?param1=value1&") {
-        Ok(15) => true,
-        _      => false
+    assert!(match parse_query_string(&mut h, b"param1=value1&") {
+        Ok(Success::Finished(14)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1");
@@ -156,9 +157,9 @@ fn parse_query_string_ending_ampersand() {
 
     h = H{field: Vec::new(), value: Vec::new()};
 
-    assert!(match parse_query_string(&mut h, b"?param1=value1&param2=&") {
-        Ok(23) => true,
-        _      => false
+    assert!(match parse_query_string(&mut h, b"param1=value1&param2=&") {
+        Ok(Success::Finished(22)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1param2");
@@ -169,9 +170,9 @@ fn parse_query_string_ending_ampersand() {
 fn parse_query_string_ending_equal() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
-    assert!(match parse_query_string(&mut h, b"?param1=value1&param2=") {
-        Ok(22) => true,
-        _      => false
+    assert!(match parse_query_string(&mut h, b"param1=value1&param2=") {
+        Ok(Success::Finished(21)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1param2");
@@ -183,8 +184,8 @@ fn parse_query_string_ending_hex() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param1%20=value1%20") {
-        Ok(19) => true,
-        _      => false
+        Ok(Success::Finished(19)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1 ");
@@ -196,8 +197,8 @@ fn parse_query_string_hex_control_character() {
     let mut h = H{field: Vec::new(), value: Vec::new()};
 
     assert!(match parse_query_string(&mut h, b"param1%0A=value1%0A") {
-        Ok(19) => true,
-        _      => false
+        Ok(Success::Finished(19)) => true,
+        _ => false
     });
 
     assert_eq!(h.field, b"param1\n");

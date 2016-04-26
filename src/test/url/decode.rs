@@ -16,6 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use url::*;
 
 #[test]
@@ -23,9 +24,8 @@ fn decode_without_hex() {
     let mut vec = vec![];
 
     assert!(match decode(b"justsomedata", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"justsomedata", vec.as_slice());
-            assert_eq!(12, byte_count);
+        Ok(Success::Finished(12)) => {
+            assert_eq!(vec, b"justsomedata");
             true
         },
         _ => false
@@ -37,9 +37,8 @@ fn decode_with_hex() {
     let mut vec = vec![];
 
     assert!(match decode(b"just%20some%20data", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"just some data", vec.as_slice());
-            assert_eq!(18, byte_count);
+        Ok(Success::Finished(18)) => {
+            assert_eq!(vec, b"just some data");
             true
         },
         _ => false
@@ -51,9 +50,8 @@ fn decode_starting_hex() {
     let mut vec = vec![];
 
     assert!(match decode(b"%20just%20some%20data", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b" just some data", vec.as_slice());
-            assert_eq!(21, byte_count);
+        Ok(Success::Finished(21)) => {
+            assert_eq!(vec, b" just some data");
             true
         },
         _ => false
@@ -65,9 +63,8 @@ fn decode_ending_hex() {
     let mut vec = vec![];
 
     assert!(match decode(b"just%20some%20data%20", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"just some data ", vec.as_slice());
-            assert_eq!(21, byte_count);
+        Ok(Success::Finished(21)) => {
+            assert_eq!(vec, b"just some data ");
             true
         },
         _ => false
@@ -79,9 +76,8 @@ fn decode_sequence() {
     let mut vec = vec![];
 
     assert!(match decode(b"%20%20just%20some%20data%20%20", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"  just some data  ", vec.as_slice());
-            assert_eq!(30, byte_count);
+        Ok(Success::Finished(30)) => {
+            assert_eq!(vec, b"  just some data  ");
             true
         },
         _ => false
@@ -90,9 +86,8 @@ fn decode_sequence() {
     vec.clear();
 
     assert!(match decode(b"just%20%20%20some%20%20%20data", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"just   some   data", vec.as_slice());
-            assert_eq!(30, byte_count);
+        Ok(Success::Finished(30)) => {
+            assert_eq!(vec, b"just   some   data");
             true
         },
         _ => false
@@ -104,9 +99,8 @@ fn decode_empty() {
     let mut vec = vec![];
 
     assert!(match decode(b"", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"", vec.as_slice());
-            assert_eq!(0, byte_count);
+        Ok(Success::Finished(0)) => {
+            assert_eq!(vec, b"");
             true
         },
         _ => false
@@ -142,19 +136,15 @@ fn decode_short_hex_sequence() {
     let mut vec = vec![];
 
     assert!(match decode(b"%", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(0, byte_count);
-            true
-        },
+        Ok(Success::Eof(0)) => true,
         _ => false
     });
 
     vec.clear();
 
     assert!(match decode(b"ab%", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"ab", vec.as_slice());
-            assert_eq!(2, byte_count);
+        Ok(Success::Eof(2)) => {
+            assert_eq!(vec, b"ab");
             true
         },
         _ => false
@@ -163,9 +153,8 @@ fn decode_short_hex_sequence() {
     vec.clear();
 
     assert!(match decode(b"%f", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"", vec.as_slice());
-            assert_eq!(0, byte_count);
+        Ok(Success::Eof(0)) => {
+            assert_eq!(vec, b"");
             true
         },
         _ => false
@@ -174,9 +163,8 @@ fn decode_short_hex_sequence() {
     vec.clear();
 
     assert!(match decode(b"ab%f", &mut vec) {
-        Ok(byte_count) => {
-            assert_eq!(b"ab", vec.as_slice());
-            assert_eq!(2, byte_count);
+        Ok(Success::Eof(2)) => {
+            assert_eq!(vec, b"ab");
             true
         },
         _ => false

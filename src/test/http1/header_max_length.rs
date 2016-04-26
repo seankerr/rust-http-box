@@ -16,11 +16,15 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {}
 
 impl HttpHandler for H {}
+
+impl ParamHandler for H {}
 
 #[test]
 fn header_max_length() {
@@ -28,15 +32,15 @@ fn header_max_length() {
     let mut p = Parser::with_settings(StreamType::Response, 1);
 
     assert!(match p.parse(&mut h, b"H") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseHttp2);
 
     assert!(match p.parse(&mut h, b"T") {
         Err(ParserError::MaxHeadersLength(_,x)) => { assert_eq!(x, 1); true },
-        _                                       => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -45,7 +49,7 @@ fn header_max_length() {
 
     assert!(match p.parse(&mut h, b"HT") {
         Err(ParserError::MaxHeadersLength(_,x)) => { assert_eq!(x, 1); true },
-        _                                       => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -57,29 +61,29 @@ fn header_max_length_multiple_stream() {
     let mut p = Parser::with_settings(StreamType::Response, 3);
 
     assert!(match p.parse(&mut h, b"H") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseHttp2);
 
     assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseHttp3);
 
     assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseHttp4);
 
     assert!(match p.parse(&mut h, b"P") {
         Err(ParserError::MaxHeadersLength(_,_)) => true,
-        _                                       => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -91,8 +95,8 @@ fn header_max_length_advance_byte() {
     let mut p = Parser::with_settings(StreamType::Response, 5);
 
     assert!(match p.parse(&mut h, b"HTTP/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseVersionMajor);
@@ -101,7 +105,7 @@ fn header_max_length_advance_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/1") {
         Err(ParserError::MaxHeadersLength(_,_)) => true,
-        _                                       => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

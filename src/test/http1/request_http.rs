@@ -16,11 +16,15 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {}
 
 impl HttpHandler for H {}
+
+impl ParamHandler for H {}
 
 #[test]
 fn request_http_eof() {
@@ -28,8 +32,8 @@ fn request_http_eof() {
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET /path HTTP") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp5);
@@ -41,8 +45,8 @@ fn request_http_upper() {
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET /path HTTP/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestVersionMajor);
@@ -54,8 +58,8 @@ fn request_http_lower() {
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET /path http/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestVersionMajor);
@@ -67,36 +71,36 @@ fn request_http_multiple_streams() {
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET /path H") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp2);
 
     assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp3);
 
     assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp4);
 
     assert!(match p.parse(&mut h, b"P") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestHttp5);
 
     assert!(match p.parse(&mut h, b"/") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::RequestVersionMajor);
@@ -109,7 +113,7 @@ fn request_http_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"GET /path HTT@/") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

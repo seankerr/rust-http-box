@@ -22,65 +22,67 @@ use url::*;
 use std::str;
 
 struct H {
-    data: Vec<u8>
+    content_length: ContentLength,
+    field:          Vec<u8>,
+    finished:       bool,
+    value:          Vec<u8>
 }
 
 impl HttpHandler for H {
-    fn on_header_field(&mut self, data: &[u8]) -> bool {
-        println!("on_header_field: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
+    fn get_content_length(&mut self) -> ContentLength {
+        match self.content_length {
+            ContentLength::None => {
+                println!("get_content_length: none");
+            },
+            ContentLength::Specified(length) => {
+                println!("get_content_length: {}", length);
+            }
+        }
+
+        self.content_length
+    }
+
+    fn get_content_type(&mut self) -> ContentType {
+        println!("get_content_type: urlencoded");
+        ContentType::UrlEncoded
+    }
+
+    fn get_transfer_encoding(&mut self) -> TransferEncoding {
+        println!("get_transfer_encoding: none");
+        TransferEncoding::None
+    }
+
+    fn on_finished(&mut self) {
+        self.finished = true;
+    }
+}
+
+impl ParamHandler for H {
+    fn on_param_field(&mut self, data: &[u8]) -> bool {
+        println!("on_param_field: {:?}", str::from_utf8(data).unwrap());
+        self.field.extend_from_slice(data);
+        true
+    }
+
+    fn on_param_value(&mut self, data: &[u8]) -> bool {
+        println!("on_param_value: {:?}", str::from_utf8(data).unwrap());
+        self.value.extend_from_slice(data);
         true
     }
 }
 
-impl ParamHandler for H {}
-
 #[test]
-fn header_field_eof() {
-    let mut h = H{data: Vec::new()};
+fn urlencoded_field_basic() {
+    let mut h = H{content_length: ContentLength::Specified(5), field: Vec::new(),
+                  finished: false, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length") {
-        Ok(Success::Eof(_)) => true,
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam") {
+        Ok(Success::Eof(_)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
         _ => false
     });
-
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::HeaderField);
-}
-
-#[test]
-fn header_field_complete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length:") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::StripHeaderValue);
-}
-
-#[test]
-fn header_field_invalid_byte() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent@") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCont\r") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
 }

@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {
     data: Vec<u8>
@@ -29,14 +31,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn request_method_eof() {
     let mut h = H{data: Vec::new()};
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"GET") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GET");
@@ -50,16 +54,16 @@ fn request_method_connect() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"CO") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"CO");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"NNECT ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"CONNECT");
@@ -70,8 +74,8 @@ fn request_method_connect() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"CONNECT ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"CONNECT");
@@ -85,16 +89,16 @@ fn request_method_delete() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"DE") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"DE");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"LETE ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"DELETE");
@@ -105,8 +109,8 @@ fn request_method_delete() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"DELETE ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"DELETE");
@@ -120,16 +124,16 @@ fn request_method_get() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"GE") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GE");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"T ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GET");
@@ -140,8 +144,8 @@ fn request_method_get() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"GET ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GET");
@@ -155,16 +159,16 @@ fn request_method_head() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"HE") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"HE");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"AD ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"HEAD");
@@ -175,8 +179,8 @@ fn request_method_head() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"HEAD ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"HEAD");
@@ -190,16 +194,16 @@ fn request_method_options() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"OP") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"OP");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"TIONS ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"OPTIONS");
@@ -210,8 +214,8 @@ fn request_method_options() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"OPTIONS ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"OPTIONS");
@@ -225,16 +229,16 @@ fn request_method_post() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"PO") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"PO");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"ST ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"POST");
@@ -245,8 +249,8 @@ fn request_method_post() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"POST ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"POST");
@@ -260,16 +264,16 @@ fn request_method_put() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"PU") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"PU");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"T ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"PUT");
@@ -280,8 +284,8 @@ fn request_method_put() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"PUT ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"PUT");
@@ -295,16 +299,16 @@ fn request_method_trace() {
 
     // slow individual bytes
     assert!(match p.parse(&mut h, b"TR") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"TR");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"ACE ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"TRACE");
@@ -315,8 +319,8 @@ fn request_method_trace() {
     h.data = Vec::new();
 
     assert!(match p.parse(&mut h, b"TRACE ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"TRACE");
@@ -329,32 +333,32 @@ fn request_method_multiple_streams() {
     let mut p = Parser::new(StreamType::Request);
 
     assert!(match p.parse(&mut h, b"G") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"G");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"E") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GE");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b"T") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GET");
     assert_eq!(p.get_state(), State::RequestMethod);
 
     assert!(match p.parse(&mut h, b" ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.data, b"GET");
@@ -368,7 +372,7 @@ fn request_method_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"G@T") {
         Err(ParserError::Method(_,_)) => true,
-        _                             => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

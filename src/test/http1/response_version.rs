@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {
     major: u16,
@@ -32,14 +34,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn response_version_eof() {
     let mut h = H{major: 0, minor: 0};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseVersionMajor);
@@ -47,8 +51,8 @@ fn response_version_eof() {
     p.reset();
 
     assert!(match p.parse(&mut h, b"HTTP/1.1") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::ResponseVersionMinor);
@@ -60,8 +64,8 @@ fn response_version_0_0() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/0.0 ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.major, 0);
@@ -75,8 +79,8 @@ fn response_version_1_1() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.major, 1);
@@ -90,8 +94,8 @@ fn response_version_999_999() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/999.999 ") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert_eq!(h.major, 999);
@@ -106,7 +110,7 @@ fn response_version_invalid() {
 
     assert!(match p.parse(&mut h, b"HTTP/1000") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -115,7 +119,7 @@ fn response_version_invalid() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1000") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -128,7 +132,7 @@ fn response_version_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/@") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -137,7 +141,7 @@ fn response_version_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/1@") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);
@@ -146,7 +150,7 @@ fn response_version_invalid_byte() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.@") {
         Err(ParserError::Version(_)) => true,
-        _                            => false
+        _ => false
     });
 
     assert_eq!(p.get_state(), State::Dead);

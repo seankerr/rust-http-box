@@ -16,7 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use Success;
 use http1::*;
+use url::*;
 
 struct H {
     data: bool
@@ -30,14 +32,16 @@ impl HttpHandler for H {
     }
 }
 
+impl ParamHandler for H {}
+
 #[test]
 fn headers_finished_success() {
     let mut h = H{data: false};
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n\r\n") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert!(h.data);
@@ -50,8 +54,8 @@ fn headers_finished_fail() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert!(!h.data);
@@ -60,8 +64,8 @@ fn headers_finished_fail() {
     p.reset();
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n") {
-        Err(ParserError::Eof) => true,
-        _                     => false
+        Ok(Success::Eof(_)) => true,
+        _ => false
     });
 
     assert!(!h.data);
@@ -71,7 +75,7 @@ fn headers_finished_fail() {
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\n") {
         Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
+        _ => false
     });
 
     assert!(!h.data);
