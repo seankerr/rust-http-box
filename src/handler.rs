@@ -1,0 +1,263 @@
+// +-----------------------------------------------------------------------------------------------+
+// | Copyright 2016 Sean Kerr                                                                      |
+// |                                                                                               |
+// | Licensed under the Apache License, Version 2.0 (the "License");                               |
+// | you may not use this file except in compliance with the License.                              |
+// | You may obtain a copy of the License at                                                       |
+// |                                                                                               |
+// |  http://www.apache.org/licenses/LICENSE-2.0                                                   |
+// |                                                                                               |
+// | Unless required by applicable law or agreed to in writing, software                           |
+// | distributed under the License is distributed on an "AS IS" BASIS,                             |
+// | WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.                      |
+// | See the License for the specific language governing permissions and                           |
+// | limitations under the License.                                                                |
+// +-----------------------------------------------------------------------------------------------+
+// | Author: Sean Kerr <sean@code-box.org>                                                         |
+// +-----------------------------------------------------------------------------------------------+
+
+//! Handler implementations.
+
+use http1::{ Connection,
+             ContentLength,
+             ContentType,
+             HttpHandler,
+             TransferEncoding };
+use url::{ ParamHandler,
+           UrlHandler };
+use std::str;
+
+pub struct DebugHandler {
+    pub body:             Vec<u8>,
+    pub chunk_data:       Vec<u8>,
+    pub chunk_extension:  Vec<u8>,
+    pub chunk_size:       u64,
+    pub finished:         bool,
+    pub header_field:     Vec<u8>,
+    pub header_value:     Vec<u8>,
+    pub headers_finished: bool,
+    pub method:           Vec<u8>,
+    pub multipart_data:   Vec<u8>,
+    pub param_field:      Vec<u8>,
+    pub param_value:      Vec<u8>,
+    pub status:           Vec<u8>,
+    pub status_code:      u16,
+    pub url:              Vec<u8>,
+    pub url_fragment:     Vec<u8>,
+    pub url_host:         Vec<u8>,
+    pub url_path:         Vec<u8>,
+    pub url_port:         u16,
+    pub url_query_string: Vec<u8>,
+    pub url_scheme:       Vec<u8>,
+    pub version_major:    u16,
+    pub version_minor:    u16
+}
+
+impl DebugHandler {
+    pub fn new() -> DebugHandler {
+        DebugHandler{ body:             Vec::new(),
+                      chunk_data:       Vec::new(),
+                      chunk_extension:  Vec::new(),
+                      chunk_size:       0,
+                      finished:         false,
+                      header_field:     Vec::new(),
+                      header_value:     Vec::new(),
+                      headers_finished: false,
+                      method:           Vec::new(),
+                      multipart_data:   Vec::new(),
+                      param_field:      Vec::new(),
+                      param_value:      Vec::new(),
+                      status:           Vec::new(),
+                      status_code:      0,
+                      url:              Vec::new(),
+                      url_fragment:     Vec::new(),
+                      url_host:         Vec::new(),
+                      url_path:         Vec::new(),
+                      url_port:         0,
+                      url_query_string: Vec::new(),
+                      url_scheme:       Vec::new(),
+                      version_major:    0,
+                      version_minor:    0 }
+    }
+
+    pub fn reset(&mut self) {
+        self.body             = Vec::new();
+        self.chunk_data       = Vec::new();
+        self.chunk_extension  = Vec::new();
+        self.chunk_size       = 0;
+        self.finished         = false;
+        self.header_field     = Vec::new();
+        self.header_value     = Vec::new();
+        self.headers_finished = false;
+        self.method           = Vec::new();
+        self.multipart_data   = Vec::new();
+        self.param_field      = Vec::new();
+        self.param_value      = Vec::new();
+        self.status           = Vec::new();
+        self.status_code      = 0;
+        self.url              = Vec::new();
+        self.url_fragment     = Vec::new();
+        self.url_host         = Vec::new();
+        self.url_path         = Vec::new();
+        self.url_port         = 0;
+        self.url_query_string = Vec::new();
+        self.url_scheme       = Vec::new();
+        self.version_major    = 0;
+        self.version_minor    = 0;
+    }
+}
+
+impl HttpHandler for DebugHandler {
+    fn get_connection(&mut self) -> Connection {
+        Connection::None
+    }
+
+    fn get_content_length(&mut self) -> ContentLength {
+        ContentLength::None
+    }
+
+    fn get_content_type(&mut self) -> ContentType {
+        ContentType::None
+    }
+
+    fn get_transfer_encoding(&mut self) -> TransferEncoding {
+        TransferEncoding::None
+    }
+
+    fn on_body(&mut self, body: &[u8]) -> bool {
+        println!("on_body [{}]: {:?}", body.len(), str::from_utf8(body).unwrap());
+        self.body.extend_from_slice(body);
+        true
+    }
+
+    fn on_chunk_data(&mut self, data: &[u8]) -> bool {
+        println!("on_chunk_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
+        self.chunk_data.extend_from_slice(data);
+        true
+    }
+
+    fn on_chunk_extension(&mut self, extension: &[u8]) -> bool {
+        println!("on_chunk_extension [{}]: {:?}", extension.len(), str::from_utf8(extension).unwrap());
+        self.chunk_extension.extend_from_slice(extension);
+        true
+    }
+
+    fn on_chunk_size(&mut self, size: u64) -> bool {
+        println!("on_chunk_size: {}", size);
+        self.chunk_size = size;
+        true
+    }
+
+    fn on_finished(&mut self) {
+        println!("on_finished");
+        self.finished = true;
+    }
+
+    fn on_header_field(&mut self, field: &[u8]) -> bool {
+        println!("on_header_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
+        self.header_field.extend_from_slice(field);
+        true
+    }
+
+    fn on_header_value(&mut self, value: &[u8]) -> bool {
+        println!("on_header_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
+        self.header_value.extend_from_slice(value);
+        true
+    }
+
+    fn on_headers_finished(&mut self) -> bool {
+        println!("on_headers_finished");
+        self.headers_finished = true;
+        true
+    }
+
+    fn on_method(&mut self, method: &[u8]) -> bool {
+        println!("on_method [{}]: {:?}", method.len(), str::from_utf8(method).unwrap());
+        self.method.extend_from_slice(method);
+        true
+    }
+
+    fn on_multipart_data(&mut self, data: &[u8]) -> bool {
+        println!("on_multipart_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
+        self.multipart_data.extend_from_slice(data);
+        true
+    }
+
+    fn on_status(&mut self, status: &[u8]) -> bool {
+        println!("on_status [{}]: {:?}", status.len(), str::from_utf8(status).unwrap());
+        self.status.extend_from_slice(status);
+        true
+    }
+
+    fn on_status_code(&mut self, code: u16) -> bool {
+        println!("on_status_code: {}", code);
+        self.status_code = code;
+        true
+    }
+
+    fn on_url(&mut self, url: &[u8]) -> bool {
+        println!("on_url [{}]: {:?}", url.len(), str::from_utf8(url).unwrap());
+        self.url.extend_from_slice(url);
+        true
+    }
+
+    fn on_version(&mut self, major: u16, minor: u16) -> bool {
+        println!("on_version: {}.{}", major, minor);
+        self.version_major = major;
+        self.version_minor = minor;
+        true
+    }
+}
+
+impl ParamHandler for DebugHandler {
+    fn on_param_field(&mut self, field: &[u8]) -> bool {
+        println!("on_param_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
+        self.param_field.extend_from_slice(field);
+        true
+    }
+
+    fn on_param_value(&mut self, value: &[u8]) -> bool {
+        println!("on_param_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
+        self.param_value.extend_from_slice(value);
+        true
+    }
+}
+
+impl UrlHandler for DebugHandler {
+    fn on_url_fragment(&mut self, fragment: &[u8]) -> bool {
+        println!("on_url_fragment [{}]: {:?}", fragment.len(), str::from_utf8(fragment).unwrap());
+        self.url_fragment.extend_from_slice(fragment);
+        true
+    }
+
+    fn on_url_host(&mut self, host: &[u8]) -> bool {
+        println!("on_url_host [{}]: {:?}", host.len(), str::from_utf8(host).unwrap());
+        self.url_host.extend_from_slice(host);
+        true
+    }
+
+    fn on_url_path(&mut self, path: &[u8]) -> bool {
+        println!("on_url_path [{}]: {:?}", path.len(), str::from_utf8(path).unwrap());
+        self.url_path.extend_from_slice(path);
+        true
+    }
+
+    fn on_url_port(&mut self, port: u16) -> bool {
+        println!("on_url_port: {}", port);
+        self.url_port = port;
+        true
+    }
+
+    fn on_url_query_string(&mut self, query_string: &[u8]) -> bool {
+        println!("on_url_query_string [{}]: {:?}", query_string.len(),
+                 str::from_utf8(query_string).unwrap());
+        self.url_query_string.extend_from_slice(query_string);
+        true
+    }
+
+    fn on_url_scheme(&mut self, scheme: &[u8]) -> bool {
+        println!("on_url_scheme [{}]: {:?}", scheme.len(), str::from_utf8(scheme).unwrap());
+        self.url_scheme.extend_from_slice(scheme);
+        true
+    }
+}
