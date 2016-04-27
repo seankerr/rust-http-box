@@ -418,7 +418,7 @@ pub trait HttpHandler {
     /// This may be executed multiple times in order to supply the entire body.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_body(&mut self, data: &[u8]) -> bool {
+    fn on_body(&mut self, body: &[u8]) -> bool {
         true
     }
 
@@ -436,7 +436,7 @@ pub trait HttpHandler {
     /// This may be executed multiple times in order to supply the entire chunk extension.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_chunk_extension(&mut self, extensions: &[u8]) -> bool {
+    fn on_chunk_extension(&mut self, extension: &[u8]) -> bool {
         true
     }
 
@@ -486,7 +486,7 @@ pub trait HttpHandler {
     /// Callback that is executed when multipart data has been located.
     ///
     /// This may be executed multiple times in order to supply the entire piece of data.
-    fn on_multipart_data(&mut self, method: &[u8]) -> bool {
+    fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         true
     }
 
@@ -502,7 +502,7 @@ pub trait HttpHandler {
     /// Callback that is executed when a response status code has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_status_code(&mut self, status_code: u16) -> bool {
+    fn on_status_code(&mut self, code: u16) -> bool {
         true
     }
 
@@ -568,6 +568,8 @@ bitflags! {
     }
 }
 
+// -------------------------------------------------------------------------------------------------
+
 pub struct Parser<T: HttpHandler + ParamHandler> {
     // Total byte count processed for headers, and body.
     // Once the headers are finished processing, this is reset to 0 to track the body length.
@@ -603,8 +605,6 @@ pub struct Parser<T: HttpHandler + ParamHandler> {
     // HTTP minor version.
     version_minor: u16
 }
-
-// -------------------------------------------------------------------------------------------------
 
 impl<T: HttpHandler + ParamHandler> Parser<T> {
     /// Create a new `Parser` with a maximum headers length of `80 * 1024`.
