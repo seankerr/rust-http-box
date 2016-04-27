@@ -116,7 +116,7 @@ pub const ERR_VERSION: &'static str = "Invalid HTTP version";
 enum Callback<T> {
     None,
     Data(fn(&mut T, &[u8]) -> bool),
-    DataLength(fn(&mut T, &[u8]) -> bool)
+    DataLength(fn(&mut T, &[u8]) -> bool, State)
 }
 
 /// Connection.
@@ -342,14 +342,23 @@ pub enum State {
     /// Parsing URL encoded field.
     UrlEncodedField,
 
-    /// Parsing URL encoded field hex/plus/ampersand sequence.
+    /// Parsing URL encoded field ampersand.
+    UrlEncodedFieldAmpersand,
+
+    /// Parsing URL encoded field hex sequence.
     UrlEncodedFieldHex,
+
+    /// Parsing URL encoded field plus.
+    UrlEncodedFieldPlus,
 
     /// Parsing URL encoded value.
     UrlEncodedValue,
 
-    /// Parsing URL encoded value hex/plus/ampersand sequence.
+    /// Parsing URL encoded value hex sequence.
     UrlEncodedValueHex,
+
+    /// Parsing URL encoded value plus.
+    UrlEncodedValuePlus,
 
     /// CRLF after URL encoded data.
     UrlEncodedNewline1,
@@ -674,9 +683,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         // callback to execute
         let mut callback = match self.callback {
-            Callback::Data(x)       => Callback::Data(x),
-            Callback::DataLength(x) => Callback::DataLength(x),
-            Callback::None          => Callback::None
+            Callback::Data(x)         => Callback::Data(x),
+            Callback::DataLength(x,y) => Callback::DataLength(x,y),
+            Callback::None            => Callback::None
         };
 
         // content length
@@ -886,6 +895,22 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 })
             );
 
+            ($byte1:expr, $byte2:expr, $byte3:expr, $byte4:expr,
+             $error:path, $error_msg:expr) => (
+                collect_base!({
+                    if $byte1 == byte
+                    || $byte2 == byte
+                    || $byte3 == byte
+                    || $byte4 == byte {
+                        true
+                    } else if !is_ascii!(byte) || is_control!(byte) {
+                        error!($error($error_msg, byte));
+                    } else {
+                        false
+                    }
+                })
+            );
+
             ($byte1:expr, $byte2:expr, $error:path, $error_msg:expr) => (
                 collect_base!({
                     if $byte1 == byte || $byte2 == byte {
@@ -994,6 +1019,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
                 return Ok(Success::Eof(stream_length - (stream.len() - stream_index)));
             });
+
+            ($stream_index:expr) => ({
+                save!();
+
+                return Ok(Success::Eof(stream_length - (stream.len() - $stream_index)));
+            });
         }
 
         // save state and exit with finished status
@@ -1061,8 +1092,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         // save a callback to be executed lazily by the parser, followed by a content length check
         macro_rules! callback_data_length {
-            ($function:ident) => (
-                callback = Callback::DataLength(T::$function);
+            ($function:ident, $state:expr) => (
+                callback = Callback::DataLength(T::$function, $state);
             );
         }
         // mark the current byte as the first mark byte
@@ -1191,7 +1222,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                                 exit_callback!();
                             }
                         },
-                        Callback::DataLength(x) => {
+                        Callback::DataLength(x,_y) => {
                             callback = Callback::None;
 
                             if !x(handler, marked_bytes!()) {
@@ -1208,7 +1239,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                                 exit_callback!();
                             }
                         },
-                        Callback::DataLength(x) => {
+                        Callback::DataLength(x,_y) => {
                             if !x(handler, marked_bytes!()) {
                                 exit_callback!();
                             }
@@ -1732,7 +1763,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
                                 State::UrlEncodedField
                             } else {
-                                error!(ParserError::MissingContentLength(ERR_MISSING_CONTENT_LENGTH));
+                                State::UrlEncodedField
                             }
                         }
                     }
@@ -1920,11 +1951,16 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
                         skip_to_state!(State::UrlEncodedFieldHex);
                         state_UrlEncodedFieldHex!()
-                    } else if byte == b'+' || byte == b'&' {
+                    } else if byte == b'&' {
                         replay!();
 
-                        skip_to_state!(State::UrlEncodedFieldHex);
-                        state_UrlEncodedFieldHex!()
+                        skip_to_state!(State::UrlEncodedFieldAmpersand);
+                        state_UrlEncodedFieldAmpersand!()
+                    } else if byte == b'+' {
+                        replay!();
+
+                        skip_to_state!(State::UrlEncodedFieldPlus);
+                        state_UrlEncodedFieldPlus!()
                     } else {
                         replay!();
 
@@ -1937,73 +1973,118 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             });
         }
 
-        macro_rules! state_UrlEncodedFieldHex {
-            () => (
-                State::UrlEncodedFieldHex
-                /*
-                if byte == b'%' {
-                    if !has_bytes!(2) {
-                        error!(ParserError::Eof(stream_index-1));
-                    }
-
-                    if content_length < 2 {
-                        for i in 0..content_length {
-                            next!();
-                        }
-                    } else {
-                        next!();
-                        mark!();
-                        next!();
-                        inc_remaining!();
-                        inc_remaining!();
-
-                        match hex_to_byte(marked_bytes!()) {
-                            Some(byte) => {
-                                if !handler.on_param_field(&[byte]) {
-                                    exit_callback_remaining!();
-                                }
-                            },
-                            _ => {
-                                error!(ParserError::UrlEncodedField(ERR_URL_ENCODED_FIELD, byte));
-                            }
-                        }
-
-                        State::UrlEncodedField
-                    }
-                } else if byte == b'+' {
-                    if !handler.on_param_field(b" ") {
-                        replay!();
-
-                        exit_callback_remaining!();
-                    }
-
-                    State::UrlEncodedField
-                } else {
-                    // param with no value
-                    if !handler.on_param_value(b" ") {
-                        replay!();
-
-                        exit_callback_remaining!();
-                    }
-
-                    State::UrlEncodedField
+        macro_rules! state_UrlEncodedFieldAmpersand {
+            () => ({
+                // param without a value
+                if !handler.on_param_field(b"") {
+                    exit_callback!(State::UrlEncodedField);
                 }
-                */
-            );
+
+                State::UrlEncodedField
+            });
+        }
+
+        macro_rules! state_UrlEncodedFieldHex {
+            () => ({
+                if !has_bytes!(2) {
+                    exit_eof!(stream_index-1);
+                }
+
+                next!();
+                mark!();
+                next!();
+
+                match hex_to_byte(marked_bytes!()) {
+                    Some(byte) => {
+                        if !handler.on_param_field(&[byte]) {
+                            exit_callback!(State::UrlEncodedField);
+                        }
+                    },
+                    _ => {
+                        error!(ParserError::UrlEncodedField(ERR_URL_ENCODED_FIELD, byte));
+                    }
+                }
+
+                State::UrlEncodedField
+            });
+        }
+
+        macro_rules! state_UrlEncodedFieldPlus {
+            () => ({
+                if !handler.on_param_field(b" ") {
+                    exit_callback!(State::UrlEncodedField);
+                }
+
+                State::UrlEncodedField
+            });
         }
 
         macro_rules! state_UrlEncodedValue {
-            () => (
-                State::UrlEncodedValue
-            );
+            () => ({
+                callback_data!(on_param_value);
+
+                if collect_until!(b'\r', b'%', b'&', b'+', ParserError::UrlEncodedValue,
+                                  ERR_URL_ENCODED_VALUE) {
+                    if byte == b'&' {
+                        forget!();
+
+                        State::UrlEncodedField
+                    } else if byte == b'%' {
+                        replay!();
+
+                        skip_to_state!(State::UrlEncodedValueHex);
+                        state_UrlEncodedValueHex!()
+                    } else if byte == b'+' {
+                        replay!();
+
+                        skip_to_state!(State::UrlEncodedValuePlus);
+                        state_UrlEncodedValuePlus!()
+                    } else {
+                        replay!();
+
+                        skip_to_state!(State::UrlEncodedNewline1);
+                        state_UrlEncodedNewline1!()
+                    }
+                } else {
+                    State::UrlEncodedValue
+                }
+            });
         }
 
         macro_rules! state_UrlEncodedValueHex {
-            () => (
-                State::UrlEncodedValueHex
-            );
+            () => ({
+                if !has_bytes!(2) {
+                    exit_eof!(stream_index-1);
+                }
+
+                next!();
+                mark!();
+                next!();
+
+                match hex_to_byte(marked_bytes!()) {
+                    Some(byte) => {
+                        if !handler.on_param_value(&[byte]) {
+                            exit_callback!(State::UrlEncodedValue);
+                        }
+                    },
+                    _ => {
+                        error!(ParserError::UrlEncodedValue(ERR_URL_ENCODED_VALUE, byte));
+                    }
+                }
+
+                State::UrlEncodedValue
+            });
         }
 
+        macro_rules! state_UrlEncodedValuePlus {
+            () => ({
+                if !handler.on_param_value(b" ") {
+                    exit_callback!(State::UrlEncodedValue);
+                }
+
+                State::UrlEncodedValue
+            });
+        }
         macro_rules! state_UrlEncodedNewline1 {
             () => (
                 if byte == b'\r' {
@@ -2066,27 +2147,30 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     }
                 } else {
                     match state {
-                        State::UrlEncodedField    => state_UrlEncodedField!(),
-                        State::UrlEncodedFieldHex => state_UrlEncodedFieldHex!(),
-                        State::UrlEncodedValue    => state_UrlEncodedValue!(),
-                        State::UrlEncodedValueHex => state_UrlEncodedValueHex!(),
-                        State::UrlEncodedNewline1 => state_UrlEncodedNewline1!(),
-                        State::UrlEncodedNewline2 => state_UrlEncodedNewline2!(),
-                        State::Body               => state_Body!(),
-                        State::Content            => state_Content!(),
-                        State::ChunkSize          => state_ChunkSize!(),
-                        State::ChunkExtension     => state_ChunkExtension!(),
-                        State::ChunkSizeNewline1  => state_ChunkSizeNewline1!(),
-                        State::ChunkSizeNewline2  => state_ChunkSizeNewline2!(),
-                        State::ChunkData          => state_ChunkData!(),
-                        State::ChunkDataNewline1  => state_ChunkDataNewline1!(),
-                        State::ChunkDataNewline2  => state_ChunkDataNewline2!(),
-                        State::MultipartHyphen1   => state_MultipartHyphen1!(),
-                        State::MultipartHyphen2   => state_MultipartHyphen2!(),
-                        State::MultipartBoundary  => state_MultipartBoundary!(),
-                        State::MultipartNewline1  => state_MultipartNewline1!(),
-                        State::MultipartNewline2  => state_MultipartNewline2!(),
-                        State::MultipartData      => state_MultipartData!(),
+                        State::UrlEncodedField          => state_UrlEncodedField!(),
+                        State::UrlEncodedFieldAmpersand => state_UrlEncodedFieldAmpersand!(),
+                        State::UrlEncodedFieldHex       => state_UrlEncodedFieldHex!(),
+                        State::UrlEncodedFieldPlus      => state_UrlEncodedFieldPlus!(),
+                        State::UrlEncodedValue          => state_UrlEncodedValue!(),
+                        State::UrlEncodedValueHex       => state_UrlEncodedValueHex!(),
+                        State::UrlEncodedValuePlus      => state_UrlEncodedValuePlus!(),
+                        State::UrlEncodedNewline1       => state_UrlEncodedNewline1!(),
+                        State::UrlEncodedNewline2       => state_UrlEncodedNewline2!(),
+                        State::Body                     => state_Body!(),
+                        State::Content                  => state_Content!(),
+                        State::ChunkSize                => state_ChunkSize!(),
+                        State::ChunkExtension           => state_ChunkExtension!(),
+                        State::ChunkSizeNewline1        => state_ChunkSizeNewline1!(),
+                        State::ChunkSizeNewline2        => state_ChunkSizeNewline2!(),
+                        State::ChunkData                => state_ChunkData!(),
+                        State::ChunkDataNewline1        => state_ChunkDataNewline1!(),
+                        State::ChunkDataNewline2        => state_ChunkDataNewline2!(),
+                        State::MultipartHyphen1         => state_MultipartHyphen1!(),
+                        State::MultipartHyphen2         => state_MultipartHyphen2!(),
+                        State::MultipartBoundary        => state_MultipartBoundary!(),
+                        State::MultipartNewline1        => state_MultipartNewline1!(),
+                        State::MultipartNewline2        => state_MultipartNewline2!(),
+                        State::MultipartData            => state_MultipartData!(),
 
                         _ => {
                             error!(ParserError::Dead(ERR_DEAD));
@@ -2133,27 +2217,30 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     }
                 } else {
                     match state {
-                        State::UrlEncodedField    => state_UrlEncodedField!(),
-                        State::UrlEncodedFieldHex => state_UrlEncodedFieldHex!(),
-                        State::UrlEncodedValue    => state_UrlEncodedValue!(),
-                        State::UrlEncodedValueHex => state_UrlEncodedValueHex!(),
-                        State::UrlEncodedNewline1 => state_UrlEncodedNewline1!(),
-                        State::UrlEncodedNewline2 => state_UrlEncodedNewline2!(),
-                        State::Body               => state_Body!(),
-                        State::Content            => state_Content!(),
-                        State::ChunkSize          => state_ChunkSize!(),
-                        State::ChunkExtension     => state_ChunkExtension!(),
-                        State::ChunkSizeNewline1  => state_ChunkSizeNewline1!(),
-                        State::ChunkSizeNewline2  => state_ChunkSizeNewline2!(),
-                        State::ChunkData          => state_ChunkData!(),
-                        State::ChunkDataNewline1  => state_ChunkDataNewline1!(),
-                        State::ChunkDataNewline2  => state_ChunkDataNewline2!(),
-                        State::MultipartHyphen1   => state_MultipartHyphen1!(),
-                        State::MultipartHyphen2   => state_MultipartHyphen2!(),
-                        State::MultipartBoundary  => state_MultipartBoundary!(),
-                        State::MultipartNewline1  => state_MultipartNewline1!(),
-                        State::MultipartNewline2  => state_MultipartNewline2!(),
-                        State::MultipartData      => state_MultipartData!(),
+                        State::UrlEncodedField          => state_UrlEncodedField!(),
+                        State::UrlEncodedFieldAmpersand => state_UrlEncodedFieldAmpersand!(),
+                        State::UrlEncodedFieldHex       => state_UrlEncodedFieldHex!(),
+                        State::UrlEncodedFieldPlus      => state_UrlEncodedFieldPlus!(),
+                        State::UrlEncodedValue          => state_UrlEncodedValue!(),
+                        State::UrlEncodedValueHex       => state_UrlEncodedValueHex!(),
+                        State::UrlEncodedValuePlus      => state_UrlEncodedValuePlus!(),
+                        State::UrlEncodedNewline1       => state_UrlEncodedNewline1!(),
+                        State::UrlEncodedNewline2       => state_UrlEncodedNewline2!(),
+                        State::Body                     => state_Body!(),
+                        State::Content                  => state_Content!(),
+                        State::ChunkSize                => state_ChunkSize!(),
+                        State::ChunkExtension           => state_ChunkExtension!(),
+                        State::ChunkSizeNewline1        => state_ChunkSizeNewline1!(),
+                        State::ChunkSizeNewline2        => state_ChunkSizeNewline2!(),
+                        State::ChunkData                => state_ChunkData!(),
+                        State::ChunkDataNewline1        => state_ChunkDataNewline1!(),
+                        State::ChunkDataNewline2        => state_ChunkDataNewline2!(),
+                        State::MultipartHyphen1         => state_MultipartHyphen1!(),
+                        State::MultipartHyphen2         => state_MultipartHyphen2!(),
+                        State::MultipartBoundary        => state_MultipartBoundary!(),
+                        State::MultipartNewline1        => state_MultipartNewline1!(),
+                        State::MultipartNewline2        => state_MultipartNewline2!(),
+                        State::MultipartData            => state_MultipartData!(),
 
                         _ => {
                             error!(ParserError::Dead(ERR_DEAD));

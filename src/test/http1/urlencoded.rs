@@ -73,7 +73,7 @@ impl ParamHandler for H {
 
 #[test]
 fn urlencoded_field_basic() {
-    let mut h = H{content_length: ContentLength::Specified(5), field: Vec::new(),
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
                   finished: false, value: Vec::new()};
     let mut p = Parser::new(StreamType::Response);
 
@@ -81,6 +81,202 @@ fn urlencoded_field_basic() {
         Ok(Success::Eof(_)) => {
             assert_eq!(h.field, b"Param");
             assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_basic_ending_equal() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=") {
+        Ok(Success::Eof(_)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(p.get_state(), State::UrlEncodedValue);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_basic_ending_percent() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam%") {
+        Ok(Success::Eof(24)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(p.get_state(), State::UrlEncodedFieldHex);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_basic_ending_plus() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam+") {
+        Ok(Success::Eof(25)) => {
+            assert_eq!(h.field, b"Param ");
+            assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_basic_ending_ampersand() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam&") {
+        Ok(Success::Eof(25)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"");
+            assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_hex() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam%201") {
+        Ok(Success::Eof(28)) => {
+            assert_eq!(h.field, b"Param 1");
+            assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_field_hex_illegal() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam%xx") {
+        Err(ParserError::UrlEncodedField(_,_)) => {
+            assert_eq!(p.get_state(), State::Dead);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_basic() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value") {
+        Ok(Success::Eof(_)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"Value");
+            assert_eq!(p.get_state(), State::UrlEncodedValue);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_basic_ending_percent() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value%") {
+        Ok(Success::Eof(30)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"Value");
+            assert_eq!(p.get_state(), State::UrlEncodedValueHex);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_basic_ending_plus() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value+") {
+        Ok(Success::Eof(31)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"Value ");
+            assert_eq!(p.get_state(), State::UrlEncodedValue);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_basic_ending_ampersand() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value&") {
+        Ok(Success::Eof(31)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"Value");
+            assert_eq!(p.get_state(), State::UrlEncodedField);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_hex() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value%201") {
+        Ok(Success::Eof(34)) => {
+            assert_eq!(h.field, b"Param");
+            assert_eq!(h.value, b"Value 1");
+            assert_eq!(p.get_state(), State::UrlEncodedValue);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn urlencoded_value_hex_illegal() {
+    let mut h = H{content_length: ContentLength::None, field: Vec::new(),
+                  finished: false, value: Vec::new()};
+    let mut p = Parser::new(StreamType::Response);
+
+    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value%xx") {
+        Err(ParserError::UrlEncodedValue(_,_)) => {
+            assert_eq!(p.get_state(), State::Dead);
             true
         },
         _ => false
