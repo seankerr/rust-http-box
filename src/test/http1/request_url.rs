@@ -17,39 +17,88 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::{ assert_vec_eq,
+            setup };
 use url::*;
 
-struct H {
-    data: Vec<u8>
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET ", State::RequestUrl);
+    });
 }
-
-impl HttpHandler for H {
-    fn on_url(&mut self, data: &[u8]) -> bool {
-        self.data.extend_from_slice(data);
-        true
-    }
-}
-
-impl ParamHandler for H {}
 
 #[test]
-fn request_uri_eof() {
-    let mut h = H{data: Vec::new()};
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_url(&mut self, _url: &[u8]) -> bool {
+            false
+        }
+    }
+
+    impl ParamHandler for X {}
+
+    let mut h = X{};
     let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b"GET /path") {
-        Ok(Success::Eof(_)) => true,
+    setup!(p, h);
+
+    assert!(match p.parse(&mut h, b"/") {
+        Ok(Success::Callback(1)) => true,
         _ => false
     });
+}
 
-    assert_eq!(h.data, b"/path");
-    assert_eq!(p.get_state(), State::RequestUrl);
+#[test]
+fn invalid_byte() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new(StreamType::Request);
 
-    assert!(match p.parse(&mut h, b" ") {
-        Ok(Success::Eof(_)) => true,
+    setup!(p, h);
+
+    assert!(match p.parse(&mut h, b"/path\r") {
+        Err(ParserError::Url(_,x)) => {
+            assert_eq!(x, b'\r');
+            assert_eq!(p.get_state(), State::Dead);
+            true
+        },
         _ => false
     });
+}
 
-    assert_eq!(p.get_state(), State::RequestHttp1);
+#[test]
+fn with_schema() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new(StreamType::Request);
+
+    setup!(p, h);
+
+    assert!(match p.parse(&mut h, b"http://host.com:443/path?query_string#fragment ") {
+        Ok(Success::Eof(47)) => {
+            assert_vec_eq(h.url, b"http://host.com:443/path?query_string#fragment");
+            assert_eq!(p.get_state(), State::RequestHttp1);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn without_schema() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new(StreamType::Request);
+
+    setup!(p, h);
+
+    assert!(match p.parse(&mut h, b"/path?query_string#fragment ") {
+        Ok(Success::Eof(28)) => {
+            assert_vec_eq(h.url, b"/path?query_string#fragment");
+            assert_eq!(p.get_state(), State::RequestHttp1);
+            true
+        },
+        _ => false
+    });
 }

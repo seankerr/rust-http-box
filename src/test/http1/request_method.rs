@@ -27,7 +27,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_method(&mut self, data: &[u8]) -> bool {
+        fn on_method(&mut self, _data: &[u8]) -> bool {
             false
         }
     }
