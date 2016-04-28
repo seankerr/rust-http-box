@@ -9,6 +9,12 @@ Development is currently in progress but moving forward steadily. Plan to have f
 specification parsing finished by end of March 2016. Once complete, HTTP 2.x support will be
 planned.
 
+## Maintain Control
+
+Each chunk of data is passed to a callback function. This callback function allows you to
+prematurely exit the parser, but you remain in control, and can resume parsing at any point.
+This will allow you to limit header and content size.
+
 ## Parsing Roadmap
 
 - [x] Semi-Strict Parsing
