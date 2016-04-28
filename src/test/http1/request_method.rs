@@ -19,8 +19,50 @@
 use Success;
 use handler::*;
 use http1::*;
+use test::{ loop_non_tokens,
+            loop_tokens };
 use url::*;
 use std::str;
+
+#[test]
+fn byte_check() {
+    // invalid bytes
+    loop_non_tokens(b" ", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new(StreamType::Request);
+
+        assert!(match p.parse(&mut h, b"a") {
+            Ok(Success::Eof(1)) => {
+                assert_eq!(p.get_state(), State::RequestMethod);
+                true
+            },
+            _ => false
+        });
+
+        assert!(match p.parse(&mut h, &[byte]) {
+            Err(ParserError::Method(_,x)) => {
+                assert_eq!(x, byte);
+                assert_eq!(p.get_state(), State::Dead);
+                true
+            },
+            _ => false
+        });
+    });
+
+    // valid bytes
+    loop_tokens(b"", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new(StreamType::Request);
+
+        assert!(match p.parse(&mut h, &[byte]) {
+            Ok(Success::Eof(1)) => {
+                assert_eq!(p.get_state(), State::RequestMethod);
+                true
+            },
+            _ => false
+        });
+    });
+}
 
 #[test]
 fn callback_exit() {
@@ -39,21 +81,6 @@ fn callback_exit() {
 
     assert!(match p.parse(&mut h, b"G") {
         Ok(Success::Callback(1)) => true,
-        _ => false
-    });
-}
-
-#[test]
-fn invalid_byte() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"G@T") {
-        Err(ParserError::Method(_,x)) => {
-            assert_eq!(x, b'@');
-            assert_eq!(p.get_state(), State::Dead);
-            true
-        },
         _ => false
     });
 }
@@ -130,7 +157,7 @@ fn multiple_pieces_connect() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"CONNECT");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -200,7 +227,7 @@ fn multiple_pieces_delete() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"DELETE");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -243,7 +270,7 @@ fn multiple_pieces_get() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"GET");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -295,7 +322,7 @@ fn multiple_pieces_head() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"HEAD");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -374,7 +401,7 @@ fn multiple_pieces_options() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"OPTIONS");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -426,7 +453,7 @@ fn multiple_pieces_post() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"POST");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -469,7 +496,7 @@ fn multiple_pieces_put() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"PUT");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -530,7 +557,7 @@ fn multiple_pieces_trace() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"TRACE");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -609,7 +636,7 @@ fn multiple_pieces_unknown() {
     assert!(match p.parse(&mut h, b" ") {
         Ok(Success::Eof(1)) => {
             assert_eq!(h.method, b"UNKNOWN");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -624,7 +651,7 @@ fn one_piece_connect() {
     assert!(match p.parse(&mut h, b"CONNECT ") {
         Ok(Success::Eof(8)) => {
             assert_eq!(h.method, b"CONNECT");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -639,7 +666,7 @@ fn one_piece_delete() {
     assert!(match p.parse(&mut h, b"DELETE ") {
         Ok(Success::Eof(7)) => {
             assert_eq!(h.method, b"DELETE");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -654,7 +681,7 @@ fn one_piece_get() {
     assert!(match p.parse(&mut h, b"GET ") {
         Ok(Success::Eof(4)) => {
             assert_eq!(h.method, b"GET");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -669,7 +696,7 @@ fn one_piece_head() {
     assert!(match p.parse(&mut h, b"HEAD ") {
         Ok(Success::Eof(5)) => {
             assert_eq!(h.method, b"HEAD");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -684,7 +711,7 @@ fn one_piece_options() {
     assert!(match p.parse(&mut h, b"OPTIONS ") {
         Ok(Success::Eof(8)) => {
             assert_eq!(h.method, b"OPTIONS");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -699,7 +726,7 @@ fn one_piece_post() {
     assert!(match p.parse(&mut h, b"POST ") {
         Ok(Success::Eof(5)) => {
             assert_eq!(h.method, b"POST");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -714,7 +741,7 @@ fn one_piece_put() {
     assert!(match p.parse(&mut h, b"PUT ") {
         Ok(Success::Eof(4)) => {
             assert_eq!(h.method, b"PUT");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -729,7 +756,7 @@ fn one_piece_trace() {
     assert!(match p.parse(&mut h, b"TRACE ") {
         Ok(Success::Eof(6)) => {
             assert_eq!(h.method, b"TRACE");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
             true
         },
         _ => false
@@ -744,7 +771,21 @@ fn one_piece_unknown() {
     assert!(match p.parse(&mut h, b"UNKNOWN ") {
         Ok(Success::Eof(8)) => {
             assert_eq!(h.method, b"UNKNOWN");
-            assert_eq!(p.get_state(), State::RequestUrl);
+            assert_eq!(p.get_state(), State::StripRequestUrl);
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
+fn starting_space() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new(StreamType::Request);
+
+    assert!(match p.parse(&mut h, b"   ") {
+        Ok(Success::Eof(3)) => {
+            assert_eq!(p.get_state(), State::StripRequestMethod);
             true
         },
         _ => false

@@ -70,7 +70,7 @@ fn response_version_0_0() {
 
     assert_eq!(h.major, 0);
     assert_eq!(h.minor, 0);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::StripResponseStatusCode);
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn response_version_1_1() {
 
     assert_eq!(h.major, 1);
     assert_eq!(h.minor, 1);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::StripResponseStatusCode);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn response_version_999_999() {
 
     assert_eq!(h.major, 999);
     assert_eq!(h.minor, 999);
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_eq!(p.get_state(), State::StripResponseStatusCode);
 }
 
 #[test]

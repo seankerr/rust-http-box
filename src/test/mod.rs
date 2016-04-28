@@ -17,6 +17,7 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use byte::is_token;
 use http1::{ HttpHandler,
              Parser,
              State };
@@ -27,11 +28,63 @@ mod byte;
 mod http1;
 mod url;
 
-fn assert_vec_eq<T: Debug + PartialEq>(vec: Vec<T>, slice: &[T]) {
-    assert_eq!(vec.len(), slice.len());
+fn loop_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
 
-    for n in 0..vec.len() {
-        assert_eq!(vec[n], slice[n]);
+        if !is_ascii!(n1) || is_control!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_ascii!(n1) && !is_control!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_token(n1 as u8) {
+            function(n1 as u8);
+        }
+    }
+}
+
+fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_token(n1 as u8) {
+            function(n1 as u8);
+        }
     }
 }
 
@@ -44,4 +97,12 @@ fn setup<T:HttpHandler + ParamHandler>(p: &mut Parser<T>, h: &mut T, data: &[u8]
         },
         _ => false
     });
+}
+
+fn vec_eq<T: Debug + PartialEq>(vec: Vec<T>, slice: &[T]) {
+    assert_eq!(vec.len(), slice.len());
+
+    for n in 0..vec.len() {
+        assert_eq!(vec[n], slice[n]);
+    }
 }

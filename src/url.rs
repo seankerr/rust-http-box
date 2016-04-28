@@ -951,7 +951,7 @@ pub fn parse_url(handler: &mut UrlHandler, bytes: &[u8]) -> Result<Success, UrlE
         // collect an exact amount
         ($count:expr) => (
             byte_index += $count;
-            byte        = bytes[byte_index-1];
+            byte        = bytes[byte_index - 1];
         );
     }
 

@@ -20,20 +20,27 @@ mod chunk_data;
 mod chunk_extension;
 mod chunk_size;
 mod chunk_trailer;
+
 mod header_field;
 mod header_max_length;
 mod header_quoted_value;
 mod header_value;
 mod headers_finished;
+
 mod multipart_boundary;
 mod multipart_data;
 mod multipart_header;
-mod request_http;
+
 mod request_method;
 mod request_url;
+mod request_http;
 mod request_version;
+
 mod response_http;
-mod response_status;
-mod response_status_code;
 mod response_version;
+mod response_status_code;
+mod response_status;
+
+/*
 mod urlencoded;
+*/

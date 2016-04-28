@@ -224,11 +224,20 @@ pub enum State {
     // REQUEST
     // ---------------------------------------------------------------------------------------------
 
+    /// Stripping space before method.
+    StripRequestMethod,
+
     /// Parsing request method.
     RequestMethod,
 
+    /// Stripping space before URL.
+    StripRequestUrl,
+
     /// Determining if URL starts with a scheme, or is an absolute path
     RequestUrl,
+
+    /// Stripping space before request HTTP version.
+    StripRequestHttp,
 
     /// Parsing request HTTP version.
     RequestHttp1,
@@ -247,6 +256,9 @@ pub enum State {
     // RESPONSE
     // ---------------------------------------------------------------------------------------------
 
+    /// Stripping space before response HTTP version.
+    StripResponseHttp,
+
     /// Parsing response HTTP version.
     ResponseHttp1,
     ResponseHttp2,
@@ -260,8 +272,14 @@ pub enum State {
     /// Parsing response HTTP minor version.
     ResponseVersionMinor,
 
+    /// Stripping space before response status code.
+    StripResponseStatusCode,
+
     /// Parsing response status code.
     ResponseStatusCode,
+
+    /// Stripping space before response status.
+    StripResponseStatus,
 
     /// Parsing response status.
     ResponseStatus,
@@ -279,6 +297,9 @@ pub enum State {
     //       support for now: https://tools.ietf.org/html/rfc7230#section-3.2.4
     PreHeaders1,
     PreHeaders2,
+
+    /// Stripping space before header field.
+    StripHeaderField,
 
     /// Parsing header field.
     HeaderField,
@@ -621,9 +642,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 max_headers_length:   CFG_MAX_HEADERS_LENGTH,
                 overflow_index:       0,
                 state:                if stream_type == StreamType::Request {
-                                          State::RequestMethod
+                                          State::StripRequestMethod
                                       } else {
-                                          State::ResponseHttp1
+                                          State::StripResponseHttp
                                       },
                 status_code:          0,
                 version_major:        0,
@@ -644,9 +665,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 max_headers_length:   max_headers_length,
                 overflow_index:       0,
                 state:                if stream_type == StreamType::Request {
-                                          State::RequestMethod
+                                          State::StripRequestMethod
                                       } else {
-                                          State::ResponseHttp1
+                                          State::StripResponseHttp
                                       },
                 status_code:          0,
                 version_major:        0,
@@ -843,11 +864,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! collect_only {
             ($byte:expr) => (
                 collect_base!({
-                    if $byte == byte {
-                        false
-                    } else {
-                        true
-                    }
+                    !($byte == byte)
                 })
             );
 
@@ -1069,7 +1086,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! jump {
             ($count:expr) => (
                 stream_index += $count;
-                byte          = stream[stream_index-1];
+                byte          = stream[stream_index - 1];
 
                 // check max headers length
                 // we're incrementing the stream index by an arbitrary amount of bytes, so we cannot
@@ -1118,7 +1135,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! move_stream {
             () => ({
                 self.byte_count = 0;
-                stream          = &stream[stream_index-1..stream.len()];
+                stream          = &stream[stream_index - 1..stream.len()];
                 stream_index    = 0;
 
                 next!();
@@ -1216,17 +1233,25 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 if state != old_state {
                     match callback {
                         Callback::Data(x) => {
+                            let slice = marked_bytes!();
+
                             callback = Callback::None;
 
-                            if !x(handler, marked_bytes!()) {
-                                exit_callback!();
+                            if slice.len() > 0 {
+                                if !x(handler, slice) {
+                                    exit_callback!();
+                                }
                             }
                         },
                         Callback::DataLength(x,_y) => {
+                            let slice = marked_bytes!();
+
                             callback = Callback::None;
 
-                            if !x(handler, marked_bytes!()) {
-                                exit_callback!();
+                            if slice.len() > 0 {
+                                if !x(handler, slice) {
+                                    exit_callback!();
+                                }
                             }
                         },
                         Callback::None => {
@@ -1235,13 +1260,21 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 } else if is_eof!() {
                     match callback {
                         Callback::Data(x) => {
-                            if !x(handler, marked_bytes!()) {
-                                exit_callback!();
+                            let slice = marked_bytes!();
+
+                            if slice.len() > 0 {
+                                if !x(handler, slice) {
+                                    exit_callback!();
+                                }
                             }
                         },
                         Callback::DataLength(x,_y) => {
-                            if !x(handler, marked_bytes!()) {
-                                exit_callback!();
+                            let slice = marked_bytes!();
+
+                            if slice.len() > 0 {
+                                if !x(handler, slice) {
+                                    exit_callback!();
+                                }
                             }
                         },
                         Callback::None => {
@@ -1263,6 +1296,22 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         // STATE MACROS IN ORDER OF EXECUTION
         // -----------------------------------------------------------------------------------------
 
+        macro_rules! state_StripRequestMethod {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::RequestMethod
+                    /*
+                    skip_to_state!(State::RequestMethod);
+                    state_RequestMethod!()
+                    */
+                } else {
+                    State::StripRequestMethod
+                }
+            });
+        };
+
         // private request method macros
         macro_rules! request_method {
             () => ({
@@ -1271,8 +1320,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 if collect_token_until!(b' ', ParserError::Method, ERR_METHOD) {
                     forget!();
 
-                    skip_to_state!(State::RequestUrl);
-                    state_RequestUrl!()
+                    State::StripRequestUrl
+                    /*
+                    skip_to_state!(State::StripRequestUrl);
+                    state_StripRequestUrl!()
+                    */
                 } else {
                     State::RequestMethod
                 }
@@ -1282,10 +1334,13 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! request_method_handler {
             ($method:expr) => (
                 if handler.on_method($method) {
-                    skip_to_state!(State::RequestUrl);
-                    state_RequestUrl!()
+                    State::StripRequestUrl
+                    /*
+                    skip_to_state!(State::StripRequestUrl);
+                    state_StripRequestUrl!()
+                    */
                 } else {
-                    exit_callback!(State::RequestUrl);
+                    exit_callback!(State::StripRequestUrl);
                 }
             );
         }
@@ -1326,16 +1381,52 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             );
         }
 
+        macro_rules! state_StripRequestUrl {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::RequestUrl
+                    /*
+                    skip_to_state!(State::RequestUrl);
+                    state_RequestUrl!()
+                    */
+                } else {
+                    State::StripRequestUrl
+                }
+            });
+        };
+
         macro_rules! state_RequestUrl {
             () => ({
                 callback_data!(on_url);
 
                 if collect_until!(b' ', ParserError::Url, ERR_URL) {
                     forget!();
-                    skip_to_state!(State::RequestHttp1);
-                    state_RequestHttp1!()
+
+                    State::StripRequestHttp
+                    /*
+                    skip_to_state!(State::StripRequestHttp);
+                    state_StripRequestHttp!()
+                    */
                 } else {
                     State::RequestUrl
+                }
+            });
+        };
+
+        macro_rules! state_StripRequestHttp {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::RequestHttp1
+                    /*
+                    skip_to_state!(State::RequestHttp1);
+                    state_RequestHttp1!()
+                    */
+                } else {
+                    State::StripRequestHttp
                 }
             });
         };
@@ -1344,11 +1435,18 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => (
                 if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
                     jump!(4);
+
+                    State::RequestVersionMajor
+                    /*
                     skip_to_state!(State::RequestVersionMajor);
                     state_RequestVersionMajor!()
+                    */
                 } else if byte == b'H' || byte == b'h' {
+                    State::RequestHttp2
+                    /*
                     skip_to_state!(State::RequestHttp2);
                     state_RequestHttp2!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1358,8 +1456,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_RequestHttp2 {
             () => (
                 if byte == b'T' || byte == b't' {
+                    State::RequestHttp3
+                    /*
                     skip_to_state!(State::RequestHttp3);
                     state_RequestHttp3!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1369,8 +1470,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_RequestHttp3 {
             () => (
                 if byte == b'T' || byte == b't' {
+                    State::RequestHttp4
+                    /*
                     skip_to_state!(State::RequestHttp4);
                     state_RequestHttp4!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1380,8 +1484,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_RequestHttp4 {
             () => (
                 if byte == b'P' || byte == b'p' {
+                    State::RequestHttp5
+                    /*
                     skip_to_state!(State::RequestHttp5);
                     state_RequestHttp5!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1391,8 +1498,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_RequestHttp5 {
             () => (
                 if byte == b'/' {
+                    State::RequestVersionMajor
+                    /*
                     skip_to_state!(State::RequestVersionMajor);
                     state_RequestVersionMajor!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1403,8 +1513,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => ({
                 if collect_digit!(b'.', self.version_major, 999,
                                   ParserError::Version, ERR_VERSION) {
+                    State::RequestVersionMinor
+                    /*
                     skip_to_state!(State::RequestVersionMinor);
                     state_RequestVersionMinor!()
+                    */
                 } else {
                     State::RequestVersionMajor
                 }
@@ -1416,8 +1529,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 if collect_digit!(b'\r', self.version_minor, 999,
                                   ParserError::Version, ERR_VERSION) {
                     if handler.on_version(self.version_major, self.version_minor) {
+                        State::PreHeaders1
+                        /*
                         skip_to_state!(State::PreHeaders1);
                         state_PreHeaders1!()
+                        */
                     } else {
                         exit_callback!(State::PreHeaders1);
                     }
@@ -1427,15 +1543,38 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             });
         }
 
+        macro_rules! state_StripResponseHttp {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::ResponseHttp1
+                    /*
+                    skip_to_state!(State::ResponseHttp1);
+                    state_ResponseHttp1!()
+                    */
+                } else {
+                    State::StripResponseHttp
+                }
+            });
+        };
+
         macro_rules! state_ResponseHttp1 {
             () => (
                 if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
                     jump!(4);
+
+                    State::ResponseVersionMajor
+                    /*
                     skip_to_state!(State::ResponseVersionMajor);
                     state_ResponseVersionMajor!()
+                    */
                 } else if byte == b'H' || byte == b'h' {
+                    State::ResponseHttp2
+                    /*
                     skip_to_state!(State::ResponseHttp2);
                     state_ResponseHttp2!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1445,8 +1584,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ResponseHttp2 {
             () => (
                 if byte == b'T' || byte == b't' {
+                    State::ResponseHttp3
+                    /*
                     skip_to_state!(State::ResponseHttp3);
                     state_ResponseHttp3!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1456,8 +1598,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ResponseHttp3 {
             () => (
                 if byte == b'T' || byte == b't' {
+                    State::ResponseHttp4
+                    /*
                     skip_to_state!(State::ResponseHttp4);
                     state_ResponseHttp4!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1467,8 +1612,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ResponseHttp4 {
             () => (
                 if byte == b'P' || byte == b'p' {
+                    State::ResponseHttp5
+
+                    /*
                     skip_to_state!(State::ResponseHttp5);
                     state_ResponseHttp5!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1478,8 +1627,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ResponseHttp5 {
             () => (
                 if byte == b'/' {
+                    State::ResponseVersionMajor
+                    /*
                     skip_to_state!(State::ResponseVersionMajor);
                     state_ResponseVersionMajor!()
+                    */
                 } else {
                     error!(ParserError::Version(ERR_VERSION));
                 }
@@ -1490,8 +1642,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => ({
                 if collect_digit!(b'.', self.version_major, 999,
                                   ParserError::Version, ERR_VERSION) {
+                    State::ResponseVersionMinor
+                    /*
                     skip_to_state!(State::ResponseVersionMinor);
                     state_ResponseVersionMinor!()
+                    */
                 } else {
                     State::ResponseVersionMajor
                 }
@@ -1503,10 +1658,13 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 if collect_digit!(b' ', self.version_minor, 999,
                                   ParserError::Version, ERR_VERSION) {
                     if handler.on_version(self.version_major, self.version_minor) {
-                        skip_to_state!(State::ResponseStatusCode);
-                        state_ResponseStatusCode!()
+                        State::StripResponseStatusCode
+                        /*
+                        skip_to_state!(State::StripResponseStatusCode);
+                        state_StripResponseStatusCode!()
+                        */
                     } else {
-                        exit_callback!(State::ResponseStatusCode);
+                        exit_callback!(State::StripResponseStatusCode);
                     }
                 } else {
                     State::ResponseVersionMinor
@@ -1514,15 +1672,34 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             });
         }
 
+        macro_rules! state_StripResponseStatusCode {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::ResponseStatusCode
+                    /*
+                    skip_to_state!(State::ResponseStatusCode);
+                    state_ResponseStatusCode!()
+                    */
+                } else {
+                    State::StripResponseStatus
+                }
+            });
+        };
+
         macro_rules! state_ResponseStatusCode {
             () => ({
                 if collect_digit!(b' ', self.status_code, 999,
                                   ParserError::StatusCode, ERR_STATUS_CODE) {
                     if handler.on_status_code(self.status_code) {
-                        skip_to_state!(State::ResponseStatus);
-                        state_ResponseStatus!()
+                        State::StripResponseStatus
+                        /*
+                        skip_to_state!(State::StripResponseStatus);
+                        state_StripResponseStatus!()
+                        */
                     } else {
-                        exit_callback!(State::ResponseStatus);
+                        exit_callback!(State::StripResponseStatus);
                     }
                 } else {
                     State::ResponseStatusCode
@@ -1530,14 +1707,34 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             });
         }
 
+        macro_rules! state_StripResponseStatus {
+            () => ({
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::ResponseStatus
+                    /*
+                    skip_to_state!(State::ResponseStatus);
+                    state_ResponseStatus!()
+                    */
+                } else {
+                    State::StripResponseStatus
+                }
+            });
+        };
+
         macro_rules! state_ResponseStatus {
             () => ({
                 callback_data!(on_status);
 
                 if collect_token_space_tab_until!(b'\r', ParserError::Status, ERR_STATUS) {
                     forget!();
+
+                    State::PreHeaders1
+                    /*
                     skip_to_state!(State::PreHeaders1);
                     state_PreHeaders1!()
+                    */
                 } else {
                     State::ResponseStatus
                 }
@@ -1547,8 +1744,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_PreHeaders1 {
             () => (
                 if byte == b'\n' {
+                    State::PreHeaders2
+                    /*
                     skip_to_state!(State::PreHeaders2);
                     state_PreHeaders2!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1561,14 +1761,32 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 flags.insert(F_IN_HEADERS);
 
                 if byte == b'\r' {
-                    State::Newline4
+                    skip_to_state!(State::Newline4);
+                    state_Newline4!()
                 } else {
                     replay!();
 
-                    State::HeaderField
+                    skip_to_state!(State::StripHeaderField);
+                    state_StripHeaderField!()
                 }
             });
         }
+
+        macro_rules! state_StripHeaderField {
+            () => (
+                if collect_only!(b' ', b'\t') {
+                    replay!();
+
+                    State::HeaderField
+                    /*
+                    skip_to_state!(State::HeaderField);
+                    state_HeaderField!()
+                    */
+                } else {
+                    State::StripHeaderField
+                }
+            );
+        };
 
         macro_rules! state_HeaderField {
             () => ({
@@ -1576,8 +1794,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
                 if collect_token_until!(b':', ParserError::HeaderField, ERR_HEADER_FIELD) {
                     forget!();
+
+                    State::StripHeaderValue
+                    /*
                     skip_to_state!(State::StripHeaderValue);
                     state_StripHeaderValue!()
+                    */
                 } else {
                     State::HeaderField
                 }
@@ -1588,12 +1810,19 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => ({
                 if collect_only!(b' ', b'\t') {
                     if byte == b'"' {
+                        State::QuotedHeaderValue
+                        /*
                         skip_to_state!(State::QuotedHeaderValue);
                         state_QuotedHeaderValue!()
+                        */
                     } else {
                         replay!();
+
+                        State::HeaderValue
+                        /*
                         skip_to_state!(State::HeaderValue);
                         state_HeaderValue!()
+                        */
                     }
                 } else {
                     State::StripHeaderValue
@@ -1653,11 +1882,18 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => ({
                 if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
                     jump!(1);
+
+                    State::Newline3
+                    /*
                     skip_to_state!(State::Newline3);
                     state_Newline3!()
+                    */
                 } else if byte == b'\r' {
+                    State::Newline2
+                    /*
                     skip_to_state!(State::Newline2);
                     state_Newline2!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1667,8 +1903,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_Newline2 {
             () => (
                 if byte == b'\n' {
+                    State::Newline3
+                    /*
                     skip_to_state!(State::Newline3);
                     state_Newline3!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1678,8 +1917,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_Newline3 {
             () => (
                 if byte == b'\r' {
+                    State::Newline4
+                    /*
                     skip_to_state!(State::Newline4);
                     state_Newline4!()
+                    */
                 } else if (byte == b' ' || byte == b'\t')
                 && flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits {
                     // multiline header value
@@ -1687,15 +1929,22 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     // between multiline header values, but it seems to make sense, otherwise why
                     // would there be a newline in the first place?
                     if handler.on_header_value(b" ") {
+                        State::StripHeaderValue
+                        /*
                         skip_to_state!(State::StripHeaderValue);
                         state_StripHeaderValue!()
+                        */
                     } else {
                         exit_callback!(State::StripHeaderValue);
                     }
                 } else {
                     replay!();
-                    skip_to_state!(State::HeaderField);
-                    state_HeaderField!()
+
+                    State::StripHeaderField
+                    /*
+                    skip_to_state!(State::StripHeaderField);
+                    state_StripHeaderField!()
+                    */
                 }
             );
         }
@@ -1797,8 +2046,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         if handler.on_chunk_size(content_length) {
                             replay!();
 
+                            State::ChunkSizeNewline1
+                            /*
                             skip_to_state!(State::ChunkSizeNewline1);
                             state_ChunkSizeNewline1!()
+                            */
                         } else {
                             exit_callback!(State::ChunkSizeNewline2);
                         }
@@ -1806,8 +2058,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         reset_overflow!();
 
                         if handler.on_chunk_size(content_length) {
+                            State::ChunkExtension
+                            /*
                             skip_to_state!(State::ChunkExtension);
                             state_ChunkExtension!()
+                            */
                         } else {
                             exit_callback!(State::ChunkExtension);
                         }
@@ -1828,8 +2083,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                                                  ParserError::ChunkExtension, ERR_CHUNK_EXTENSION) {
                     replay!();
 
+                    State::ChunkSizeNewline1
+                    /*
                     skip_to_state!(State::ChunkSizeNewline1);
                     state_ChunkSizeNewline1!()
+                    */
                 } else {
                     State::ChunkExtension
                 }
@@ -1840,11 +2098,18 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             () => (
                 if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
                     jump!(1);
+
+                    State::ChunkData
+                    /*
                     skip_to_state!(State::ChunkData);
                     state_ChunkData!()
+                    */
                 } else if byte == b'\r' {
+                    State::ChunkSizeNewline2
+                    /*
                     skip_to_state!(State::ChunkSizeNewline2);
                     state_ChunkSizeNewline2!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1854,8 +2119,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ChunkSizeNewline2 {
             () => (
                 if byte == b'\n' {
+                    State::ChunkData
+                    /*
                     skip_to_state!(State::ChunkData);
                     state_ChunkData!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1867,8 +2135,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 callback_data!(on_chunk_data);
 
                 if collect_remaining_unsafe!() {
+                    State::ChunkDataNewline1
+                    /*
                     skip_to_state!(State::ChunkDataNewline1);
                     state_ChunkDataNewline1!()
+                    */
                 } else {
                     State::ChunkData
                 }
@@ -1878,8 +2149,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_ChunkDataNewline1 {
             () => (
                 if byte == b'\r' {
+                    State::ChunkDataNewline2
+                    /*
                     skip_to_state!(State::ChunkDataNewline2);
                     state_ChunkDataNewline2!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -1944,28 +2218,43 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     if byte == b'=' {
                         forget!();
 
+                        State::UrlEncodedValue
+                        /*
                         skip_to_state!(State::UrlEncodedValue);
                         state_UrlEncodedValue!()
+                        */
                     } else if byte == b'%' {
                         replay!();
 
+                        State::UrlEncodedFieldHex
+                        /*
                         skip_to_state!(State::UrlEncodedFieldHex);
                         state_UrlEncodedFieldHex!()
+                        */
                     } else if byte == b'&' {
                         replay!();
 
+                        State::UrlEncodedFieldAmpersand
+                        /*
                         skip_to_state!(State::UrlEncodedFieldAmpersand);
                         state_UrlEncodedFieldAmpersand!()
+                        */
                     } else if byte == b'+' {
                         replay!();
 
+                        State::UrlEncodedFieldPlus
+                        /*
                         skip_to_state!(State::UrlEncodedFieldPlus);
                         state_UrlEncodedFieldPlus!()
+                        */
                     } else {
                         replay!();
 
+                        State::UrlEncodedNewline1
+                        /*
                         skip_to_state!(State::UrlEncodedNewline1);
                         state_UrlEncodedNewline1!()
+                        */
                     }
                 } else {
                     State::UrlEncodedField
@@ -1987,7 +2276,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_UrlEncodedFieldHex {
             () => ({
                 if !has_bytes!(2) {
-                    exit_eof!(stream_index-1);
+                    exit_eof!(stream_index - 1);
                 }
 
                 next!();
@@ -2032,18 +2321,27 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     } else if byte == b'%' {
                         replay!();
 
+                        State::UrlEncodedValueHex
+                        /*
                         skip_to_state!(State::UrlEncodedValueHex);
                         state_UrlEncodedValueHex!()
+                        */
                     } else if byte == b'+' {
                         replay!();
 
+                        State::UrlEncodedValuePlus
+                        /*
                         skip_to_state!(State::UrlEncodedValuePlus);
                         state_UrlEncodedValuePlus!()
+                        */
                     } else {
                         replay!();
 
+                        State::UrlEncodedNewline1
+                        /*
                         skip_to_state!(State::UrlEncodedNewline1);
                         state_UrlEncodedNewline1!()
+                        */
                     }
                 } else {
                     State::UrlEncodedValue
@@ -2054,7 +2352,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_UrlEncodedValueHex {
             () => ({
                 if !has_bytes!(2) {
-                    exit_eof!(stream_index-1);
+                    exit_eof!(stream_index - 1);
                 }
 
                 next!();
@@ -2088,8 +2386,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! state_UrlEncodedNewline1 {
             () => (
                 if byte == b'\r' {
+                    State::UrlEncodedNewline2
+                    /*
                     skip_to_state!(State::UrlEncodedNewline2);
                     state_UrlEncodedNewline2!()
+                    */
                 } else {
                     error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
                 }
@@ -2121,6 +2422,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         State::Newline3          => state_Newline3!(),
                         State::Newline4          => state_Newline4!(),
                         State::QuotedHeaderValue => state_QuotedHeaderValue!(),
+                        State::StripHeaderField  => state_StripHeaderField!(),
                         State::StripHeaderValue  => state_StripHeaderValue!(),
 
                         _ => {
@@ -2129,8 +2431,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     }
                 } else if flags.contains(F_IN_INITIAL) {
                     match state {
+                        State::StripRequestMethod    => state_StripRequestMethod!(),
                         State::RequestMethod         => state_RequestMethod!(),
+                        State::StripRequestUrl       => state_StripRequestUrl!(),
                         State::RequestUrl            => state_RequestUrl!(),
+                        State::StripRequestHttp      => state_StripRequestHttp!(),
                         State::RequestHttp1          => state_RequestHttp1!(),
                         State::RequestVersionMajor   => state_RequestVersionMajor!(),
                         State::RequestVersionMinor   => state_RequestVersionMinor!(),
@@ -2191,6 +2496,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         State::Newline3          => state_Newline3!(),
                         State::Newline4          => state_Newline4!(),
                         State::QuotedHeaderValue => state_QuotedHeaderValue!(),
+                        State::StripHeaderField  => state_StripHeaderField!(),
                         State::StripHeaderValue  => state_StripHeaderValue!(),
 
                         _ => {
@@ -2199,17 +2505,20 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     }
                 } else if flags.contains(F_IN_INITIAL) {
                     match state {
-                        State::ResponseHttp1        => state_ResponseHttp1!(),
-                        State::ResponseVersionMajor => state_ResponseVersionMajor!(),
-                        State::ResponseVersionMinor => state_ResponseVersionMinor!(),
-                        State::ResponseStatusCode   => state_ResponseStatusCode!(),
-                        State::ResponseStatus       => state_ResponseStatus!(),
-                        State::PreHeaders1          => state_PreHeaders1!(),
-                        State::PreHeaders2          => state_PreHeaders2!(),
-                        State::ResponseHttp2        => state_ResponseHttp2!(),
-                        State::ResponseHttp3        => state_ResponseHttp3!(),
-                        State::ResponseHttp4        => state_ResponseHttp4!(),
-                        State::ResponseHttp5        => state_ResponseHttp5!(),
+                        State::StripResponseHttp       => state_StripResponseHttp!(),
+                        State::ResponseHttp1           => state_ResponseHttp1!(),
+                        State::ResponseVersionMajor    => state_ResponseVersionMajor!(),
+                        State::ResponseVersionMinor    => state_ResponseVersionMinor!(),
+                        State::StripResponseStatusCode => state_StripResponseStatusCode!(),
+                        State::ResponseStatusCode      => state_ResponseStatusCode!(),
+                        State::StripResponseStatus     => state_StripResponseStatus!(),
+                        State::ResponseStatus          => state_ResponseStatus!(),
+                        State::PreHeaders1             => state_PreHeaders1!(),
+                        State::PreHeaders2             => state_PreHeaders2!(),
+                        State::ResponseHttp2           => state_ResponseHttp2!(),
+                        State::ResponseHttp3           => state_ResponseHttp3!(),
+                        State::ResponseHttp4           => state_ResponseHttp4!(),
+                        State::ResponseHttp5           => state_ResponseHttp5!(),
 
                         _ => {
                             error!(ParserError::Dead(ERR_DEAD));

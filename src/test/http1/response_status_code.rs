@@ -57,7 +57,7 @@ fn response_status_code_0() {
     });
 
     assert_eq!(h.data, 0);
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(p.get_state(), State::StripResponseStatus);
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn response_status_code_999() {
     });
 
     assert_eq!(h.data, 999);
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eq!(p.get_state(), State::StripResponseStatus);
 }
 
 #[test]
