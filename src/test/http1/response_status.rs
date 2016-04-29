@@ -117,7 +117,7 @@ fn response_status_invalid_crlf() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\r") {
-        Err(ParserError::CrlfSequence(_)) => true,
+        Err(ParserError::CrlfSequence(_,_)) => true,
         _ => false
     });
 

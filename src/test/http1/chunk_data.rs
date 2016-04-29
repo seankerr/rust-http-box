@@ -82,14 +82,14 @@ fn chunk_data_crlf() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!x") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
+        Err(ParserError::CrlfSequence(_,_)) => true,
+        _                                   => false
     });
 
     p.reset();
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\rx") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
+        Err(ParserError::CrlfSequence(_,_)) => true,
+        _                                   => false
     });
 }

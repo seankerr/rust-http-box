@@ -94,7 +94,7 @@ fn chunk_extension_illegal() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0;neat-extension") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
+        Err(ParserError::CrlfSequence(_,_)) => true,
+        _                                   => false
     });
 }

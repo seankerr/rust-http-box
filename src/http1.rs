@@ -154,7 +154,7 @@ pub enum ParserError {
     ChunkSize(&'static str, u8),
 
     /// Invalid CRLF sequence.
-    CrlfSequence(&'static str),
+    CrlfSequence(&'static str, u8),
 
     /// Parsing has failed, but `Parser::parse()` is executed again.
     Dead(&'static str),
@@ -1750,7 +1750,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_PreHeaders2!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -1895,7 +1895,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_Newline2!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             });
         }
@@ -1909,7 +1909,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_Newline3!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -1971,7 +1971,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         exit_callback!(State::Body);
                     }
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2111,7 +2111,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_ChunkSizeNewline2!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2125,7 +2125,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_ChunkData!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2155,7 +2155,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_ChunkDataNewline2!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2168,7 +2168,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
                     State::ChunkSize
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2392,7 +2392,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     state_UrlEncodedNewline2!()
                     */
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }
@@ -2402,7 +2402,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 if byte == b'\n' {
                     exit_finished!();
                 } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE));
+                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
                 }
             );
         }

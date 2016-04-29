@@ -74,7 +74,7 @@ fn headers_finished_fail() {
     p.reset();
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\n") {
-        Err(ParserError::CrlfSequence(_)) => true,
+        Err(ParserError::CrlfSequence(_,_)) => true,
         _ => false
     });
 

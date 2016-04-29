@@ -131,7 +131,7 @@ fn chunk_size_invalid_crlf() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nF\rinvalid") {
-        Err(ParserError::CrlfSequence(_)) => true,
-        _                                 => false
+        Err(ParserError::CrlfSequence(_,_)) => true,
+        _                                   => false
     });
 }
