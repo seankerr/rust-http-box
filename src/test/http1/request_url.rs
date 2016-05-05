@@ -19,10 +19,7 @@
 use Success;
 use handler::*;
 use http1::*;
-use test::{ loop_control,
-            loop_non_control,
-            setup,
-            vec_eq };
+use test::*;
 use url::*;
 
 macro_rules! setup {
@@ -34,36 +31,27 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_control(b" \t", |byte| {
+    loop_non_safe(b" \t", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new(StreamType::Request);
+        let mut p = Parser::new_request();
 
         setup!(p, h);
 
-        assert!(match p.parse(&mut h, &[byte]) {
-            Err(ParserError::Url(_,x)) => {
-                assert_eq!(x, byte);
-                assert_eq!(p.get_state(), State::Dead);
-                true
-            },
-            _ => false
-        });
+        if let ParserError::Url(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
     });
 
     // valid bytes
-    loop_non_control(b" \t", |byte| {
+    loop_safe(b" ", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new(StreamType::Request);
+        let mut p = Parser::new_request();
 
         setup!(p, h);
 
-        assert!(match p.parse(&mut h, &[byte]) {
-            Ok(Success::Eof(1)) => {
-                assert_eq!(p.get_state(), State::RequestUrl);
-                true
-            },
-            _ => false
-        });
+        assert_eof(&mut p, &mut h, &[byte], State::RequestUrl, 1);
     });
 }
 
@@ -80,46 +68,33 @@ fn callback_exit() {
     impl ParamHandler for X {}
 
     let mut h = X{};
-    let mut p = Parser::new(StreamType::Request);
+    let mut p = Parser::new_request();
 
     setup!(p, h);
 
-    assert!(match p.parse(&mut h, b"/") {
-        Ok(Success::Callback(1)) => true,
-        _ => false
-    });
+    assert_callback(&mut p, &mut h, b"/", State::RequestUrl, 1);
 }
 
 #[test]
 fn with_schema() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new(StreamType::Request);
+    let mut p = Parser::new_request();
 
     setup!(p, h);
 
-    assert!(match p.parse(&mut h, b"http://host.com:443/path?query_string#fragment ") {
-        Ok(Success::Eof(47)) => {
-            vec_eq(h.url, b"http://host.com:443/path?query_string#fragment");
-            assert_eq!(p.get_state(), State::StripRequestHttp);
-            true
-        },
-        _ => false
-    });
+    assert_eof(&mut p, &mut h, b"http://host.com:443/path?query_string#fragment ",
+               State::StripRequestHttp, 47);
+    vec_eq(h.url, b"http://host.com:443/path?query_string#fragment");
 }
 
 #[test]
 fn without_schema() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new(StreamType::Request);
+    let mut p = Parser::new_request();
 
     setup!(p, h);
 
-    assert!(match p.parse(&mut h, b"/path?query_string#fragment ") {
-        Ok(Success::Eof(28)) => {
-            vec_eq(h.url, b"/path?query_string#fragment");
-            assert_eq!(p.get_state(), State::StripRequestHttp);
-            true
-        },
-        _ => false
-    });
+    assert_eof(&mut p, &mut h, b"/path?query_string#fragment ",
+               State::StripRequestHttp, 28);
+    vec_eq(h.url, b"/path?query_string#fragment");
 }

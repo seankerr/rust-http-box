@@ -20,7 +20,9 @@ use Success;
 use byte::is_token;
 use http1::{ HttpHandler,
              Parser,
-             State };
+             ParserError,
+             State,
+             StateFunction };
 use url::ParamHandler;
 use std::fmt::Debug;
 
@@ -28,7 +30,46 @@ mod byte;
 mod http1;
 mod url;
 
-fn loop_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn assert_callback<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
+                                                      stream: &[u8], state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Callback(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn assert_eof<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
+                                                 stream: &[u8], state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Eof(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn assert_error<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
+                                                   stream: &[u8])
+-> Option<ParserError> {
+    match parser.parse(handler, stream) {
+        Err(error) => {
+            assert_eq!(parser.get_state(), State::Dead);
+            return Some(error);
+        },
+        _ => {
+            assert_eq!(parser.get_state(), State::Dead);
+            None
+        }
+    }
+}
+
+pub fn loop_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -37,13 +78,28 @@ fn loop_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if !is_ascii!(n1) || is_control!(n1) {
+        if is_control!(n1) {
             function(n1 as u8);
         }
     }
 }
 
-fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_control!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -58,7 +114,22 @@ fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn loop_non_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_ascii!(n1) || is_control!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -73,7 +144,7 @@ fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -88,18 +159,19 @@ fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-fn setup<T:HttpHandler + ParamHandler>(p: &mut Parser<T>, h: &mut T, data: &[u8], state: State) {
-    assert!(match p.parse(h, data) {
+pub fn setup<T:HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                           state: State) {
+    assert!(match parser.parse(handler, stream) {
         Ok(Success::Eof(length)) => {
-            assert_eq!(length, data.len());
-            assert_eq!(p.get_state(), state);
+            assert_eq!(length, stream.len());
+            assert_eq!(parser.get_state(), state);
             true
         },
         _ => false
     });
 }
 
-fn vec_eq<T: Debug + PartialEq>(vec: Vec<T>, slice: &[T]) {
+pub fn vec_eq<T: Debug + PartialEq>(vec: Vec<T>, slice: &[T]) {
     assert_eq!(vec.len(), slice.len());
 
     for n in 0..vec.len() {

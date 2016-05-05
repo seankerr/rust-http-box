@@ -17,104 +17,189 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
 
-struct H {}
-
-impl HttpHandler for H {}
-
-impl ParamHandler for H {}
-
-#[test]
-fn request_http_eof() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / ", State::StripRequestHttp);
     });
-
-    assert_eq!(p.get_state(), State::RequestHttp5);
 }
 
 #[test]
-fn request_http_upper() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn callback_exit() {
+    struct X;
 
-    assert!(match p.parse(&mut h, b"GET /path HTTP/") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    impl HttpHandler for X {
+        fn on_version(&mut self, _major: u16, _minor: u16) -> bool {
+            false
+        }
+    }
 
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    impl ParamHandler for X {}
+
+    let mut h = X{};
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_callback(&mut p, &mut h, b"HTTP/1.0\r", State::PreHeaders1, 9);
 }
 
 #[test]
-fn request_http_lower() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn http_1_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"GET /path http/") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    assert_eof(&mut p, &mut h, b"HTTP/1.0\r", State::PreHeaders1, 9);
+    assert_eq!(h.version_major, 1);
+    assert_eq!(h.version_minor, 0);
 }
 
 #[test]
-fn request_http_multiple_streams() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn http_1_1 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"GET /path H") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::RequestHttp2);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp3);
-
-    assert!(match p.parse(&mut h, b"T") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp4);
-
-    assert!(match p.parse(&mut h, b"P") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestHttp5);
-
-    assert!(match p.parse(&mut h, b"/") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
+    assert_eof(&mut p, &mut h, b"HTTP/1.1\r", State::PreHeaders1, 9);
+    assert_eq!(h.version_major, 1);
+    assert_eq!(h.version_minor, 1);
 }
 
 #[test]
-fn request_http_invalid_byte() {
-    let mut h = H{};
-    let mut p = Parser::new(StreamType::Request);
+fn http_2_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"GET /path HTT@/") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"HTTP/2.0\r", State::PreHeaders1, 9);
+    assert_eq!(h.version_major, 2);
+    assert_eq!(h.version_minor, 0);
+}
+
+#[test]
+fn h_lower () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+}
+
+#[test]
+fn h_upper () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+}
+
+#[test]
+fn ht_lower () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+}
+
+#[test]
+fn ht_upper () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+}
+
+#[test]
+fn htt_lower () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+}
+
+#[test]
+fn htt_upper () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+}
+
+#[test]
+fn http_lower () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+    assert_eof(&mut p, &mut h, b"p", State::RequestHttp5, 1);
+}
+
+#[test]
+fn http_upper () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+    assert_eof(&mut p, &mut h, b"P", State::RequestHttp5, 1);
+}
+
+#[test]
+fn http_slash_lower () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+    assert_eof(&mut p, &mut h, b"p", State::RequestHttp5, 1);
+    assert_eof(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
+}
+
+#[test]
+fn http_slash_upper () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+    assert_eof(&mut p, &mut h, b"P", State::RequestHttp5, 1);
+    assert_eof(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
 }

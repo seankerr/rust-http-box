@@ -17,70 +17,307 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
-use std::str;
 
-struct H {
-    data: Vec<u8>
-}
-
-impl HttpHandler for H {
-    fn on_header_field(&mut self, data: &[u8]) -> bool {
-        println!("on_header_field: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
-        true
-    }
-}
-
-impl ParamHandler for H {}
-
-#[test]
-fn header_field_eof() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n", State::PreHeaders2);
     });
-
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::HeaderField);
 }
 
 #[test]
-fn header_field_complete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn byte_check() {
+    // invalid bytes
+    loop_non_tokens(b"\r\n \t:", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length:") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
+        setup!(p, h);
+
+        if let ParserError::HeaderField(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
     });
 
-    assert_eq!(h.data, b"Content-Length");
-    assert_eq!(p.get_state(), State::StripHeaderValue);
+    // valid bytes
+    loop_tokens(b"\r\n \t:", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[byte], State::HeaderField, 1);
+    });
 }
 
 #[test]
-fn header_field_invalid_byte() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn by_name_accept() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent@") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"Accept:                   ", State::StripHeaderValue, 26);
+}
 
-    p.reset();
+#[test]
+fn by_name_accept_charset() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCont\r") {
-        Err(ParserError::HeaderField(_,_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"Accept-Charset:           ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_accept_encoding() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Accept-Encoding:          ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_accept_language() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Accept-Language:          ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_authorization() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Authorization:            ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_connection() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Connection:               ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_content_type() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Content-Type:             ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_content_length() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Content-Length:           ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_cookie() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Cookie:                   ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_cache_control() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Cache-Control:            ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_content_security_policy() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Content-Security-Policy:  ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_location() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Location:                 ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_last_modified() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Last-Modified:            ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_pragma() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Pragma:                   ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_set_cookie() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Set-Cookie:               ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_transfer_encoding() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Transfer-Encoding:        ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_user_agent() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"User-Agent:               ", State::StripHeaderValue, 26);
+}
+#[test]
+fn by_name_upgrade() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Upgrade:                  ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_powered_by() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-Powered-By:             ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_forwarded_for() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-Forwarded-For:          ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_forwarded_host() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-Forwarded-Host:         ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_xss_protection() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-XSS-Protection:         ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_webkit_csp() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-WebKit-CSP:             ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_x_content_security_policy() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"X-Content-Security-Policy:", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn by_name_www_authenticate() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"WWW-Authenticate:         ", State::StripHeaderValue, 26);
+}
+
+#[test]
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"Field", State::HeaderField, 5);
+    assert_eq!(h.header_field, b"Field");
+    assert_eof(&mut p, &mut h, b"Name", State::HeaderField, 4);
+    assert_eq!(h.header_field, b"FieldName");
+    assert_eof(&mut p, &mut h, b":", State::StripHeaderValue, 1);
+}
+
+#[test]
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"FieldName:", State::StripHeaderValue, 10);
+    assert_eq!(h.header_field, b"FieldName");
 }

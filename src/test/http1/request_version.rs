@@ -17,141 +17,121 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
 
-struct H {
-    major: u16,
-    minor: u16
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/", State::RequestVersionMajor);
+    });
 }
 
-impl HttpHandler for H {
-    fn on_version(&mut self, major: u16, minor: u16) -> bool {
-        println!("on_version: {}.{}", major, minor);
-        self.major = major;
-        self.minor = minor;
-        true
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_version(&mut self, _major: u16, _minor: u16) -> bool {
+            false
+        }
+    }
+
+    impl ParamHandler for X {}
+
+    let mut h = X{};
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_callback(&mut p, &mut h, b"1.0\r", State::PreHeaders1, 4);
+}
+
+#[test]
+fn v0_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"0.0\r", State::PreHeaders1, 4);
+    assert_eq!(h.version_major, 0);
+    assert_eq!(h.version_minor, 0);
+}
+
+#[test]
+fn v1_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"1.0\r", State::PreHeaders1, 4);
+    assert_eq!(h.version_major, 1);
+    assert_eq!(h.version_minor, 0);
+}
+
+#[test]
+fn v1_1 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"1.1\r", State::PreHeaders1, 4);
+    assert_eq!(h.version_major, 1);
+    assert_eq!(h.version_minor, 1);
+}
+
+#[test]
+fn v2_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"2.0\r", State::PreHeaders1, 4);
+    assert_eq!(h.version_major, 2);
+    assert_eq!(h.version_minor, 0);
+}
+
+#[test]
+fn v999_999 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"999.999\r", State::PreHeaders1, 8);
+    assert_eq!(h.version_major, 999);
+    assert_eq!(h.version_minor, 999);
+}
+
+#[test]
+fn v1000_0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    if let ParserError::Version(_,x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
+        assert_eq!(x, b'0');
+    } else {
+        panic!();
     }
 }
 
-impl ParamHandler for H {}
-
 #[test]
-fn request_version_eof() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
+fn v0_1000 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::RequestVersionMajor);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::RequestVersionMinor);
-}
-
-#[test]
-fn request_version_0_0() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/0.0\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.major, 0);
-    assert_eq!(h.minor, 0);
-    assert_eq!(p.get_state(), State::PreHeaders1);
-}
-
-#[test]
-fn request_version_1_1() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.major, 1);
-    assert_eq!(h.minor, 1);
-    assert_eq!(p.get_state(), State::PreHeaders1);
-}
-
-#[test]
-fn request_version_999_999() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/999.999\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.major, 999);
-    assert_eq!(h.minor, 999);
-    assert_eq!(p.get_state(), State::PreHeaders1);
-}
-
-#[test]
-fn request_version_invalid() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1000") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1.1000") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-}
-
-#[test]
-fn request_version_invalid_byte() {
-    let mut h = H{major: 0, minor: 0};
-    let mut p = Parser::new(StreamType::Request);
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/@") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1@") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"GET /path HTTP/1.@") {
-        Err(ParserError::Version(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    if let ParserError::Version(_,x) = assert_error(&mut p, &mut h, b"0.1000").unwrap() {
+        assert_eq!(x, b'0');
+    } else {
+        panic!();
+    }
 }

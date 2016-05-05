@@ -25,8 +25,7 @@ use url::{ ParamError,
            ParamHandler,
            parse_query_string };
 
-/// Maximum content byte count to process before returning `ParserError::MaxContentLength`.
-pub const CFG_MAX_CONTENT_LENGTH: u64 = !0u64;
+use std::str;
 
 /// Maximum chunk extension byte count to process before returning
 /// `ParserError::MaxChunkExtensionLength`.
@@ -34,9 +33,6 @@ pub const CFG_MAX_CHUNK_EXTENSION_LENGTH: u8 = 255;
 
 /// Maximum chunk size byte count to process before returning `ParserError::MaxChunkSizeLength`.
 pub const CFG_MAX_CHUNK_SIZE_LENGTH: u8 = 16;
-
-/// Maximum headers byte count to process before returning `ParserError::MaxHeadersLength`.
-pub const CFG_MAX_HEADERS_LENGTH: u32 = 80 * 1024;
 
 /// Maximum multipart boundary byte count to process before returning
 /// `ParserError::MaxMultipartBoundaryLength`.
@@ -65,23 +61,14 @@ pub const ERR_HEADER_VALUE: &'static str = "Invalid header byte";
 /// Invalid hex sequence.
 pub const ERR_HEX_SEQUENCE: &'static str = "Invalid hex byte";
 
-/// Maximum conent length has been met.
-pub const ERR_MAX_CONTENT_LENGTH: &'static str = "Maximum content length";
-
 /// Maximum chunk extension length has been met.
 pub const ERR_MAX_CHUNK_EXTENSION_LENGTH: &'static str = "Maximum chunk extension length";
 
 /// Maximum chunk size length has been met.
 pub const ERR_MAX_CHUNK_SIZE_LENGTH: &'static str = "Maximum chunk size length";
 
-/// Maximum headers length has been met.
-pub const ERR_MAX_HEADERS_LENGTH: &'static str = "Maximum headers length";
-
 /// Maximum multipart boundary length.
 pub const ERR_MAX_MULTIPART_BOUNDARY_LENGTH: &'static str = "Maximum multipart boundary length";
-
-/// Maximul URL encoded data length.
-pub const ERR_MAX_URL_ENCODED_DATA_LENGTH: &'static str = "Maximum URL encoded data length";
 
 /// Invalid method.
 pub const ERR_METHOD: &'static str = "Invalid method";
@@ -112,12 +99,30 @@ pub const ERR_VERSION: &'static str = "Invalid HTTP version";
 
 // -------------------------------------------------------------------------------------------------
 
-#[allow(dead_code)]
-enum Callback<T> {
-    None,
-    Data(fn(&mut T, &[u8]) -> bool),
-    DataLength(fn(&mut T, &[u8]) -> bool, State)
+// Flags used to track state details.
+bitflags! {
+    flags Flag: u8 {
+        // No flags.
+        const F_NONE = 0,
+
+        // Parsing chunk data.
+        const F_CHUNK_DATA = 1 << 0,
+
+        // Parsing data that needs to check against content length.
+        const F_CONTENT_LENGTH = 1 << 1,
+
+        // Quoted header value has an escape character.
+        const F_QUOTE_ESCAPED = 1 << 2,
+
+        // Parsing multipart data.
+        const F_MULTIPART_DATA = 1 << 3,
+
+        // Indicates the stream contains request data rather than response.
+        const F_REQUEST = 1 << 4
+    }
 }
+
+// -------------------------------------------------------------------------------------------------
 
 /// Connection.
 #[derive(Clone,Copy,PartialEq)]
@@ -174,12 +179,6 @@ pub enum ParserError {
     /// Maximum content length has been met.
     MaxContentLength(&'static str, u8),
 
-    /// Maximum headers length has been met.
-    MaxHeadersLength(&'static str, u32),
-
-    /// Maximum URL encoded data length.
-    MaxUrlEncodedDataLength(&'static str),
-
     /// Missing an expected Content-Length header.
     MissingContentLength(&'static str),
 
@@ -193,7 +192,7 @@ pub enum ParserError {
     Status(&'static str, u8),
 
     /// Invalid status code.
-    StatusCode(&'static str),
+    StatusCode(&'static str, u8),
 
     /// Invalid URL character.
     Url(&'static str, u8),
@@ -205,7 +204,19 @@ pub enum ParserError {
     UrlEncodedValue(&'static str, u8),
 
     /// Invalid HTTP version.
-    Version(&'static str),
+    Version(&'static str, u8),
+}
+
+/// Parser return values.
+pub enum ParserValue {
+    /// Exit the parser loop.
+    Exit(Success),
+
+    /// Continue the parser loop.
+    Continue,
+
+    /// Shift the stream slice over a specified length.
+    ShiftStream(usize)
 }
 
 /// Indicates the current parser state.
@@ -300,6 +311,9 @@ pub enum State {
 
     /// Stripping space before header field.
     StripHeaderField,
+
+    /// Parsing first byte of header field.
+    FirstHeaderField,
 
     /// Parsing header field.
     HeaderField,
@@ -408,6 +422,12 @@ pub enum TransferEncoding {
     Gzip,
     Other(String)
 }
+
+// -------------------------------------------------------------------------------------------------
+
+/// Parser state function type.
+pub type StateFunction<T> = fn(&mut Parser<T>, &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError>;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -536,7 +556,7 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when the HTTP version has been located.
+    /// Callback that is executed when the HTTP major version has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
@@ -546,132 +566,77 @@ pub trait HttpHandler {
 
 // -------------------------------------------------------------------------------------------------
 
-// Flags used to track individual byte details.
-bitflags! {
-    flags ByteFlag: u8 {
-        // No flags.
-        const B_NONE = 0,
+/// Parser context data.
+pub struct ParserContext<'a, T: HttpHandler + ParamHandler + 'a> {
+    // Current byte.
+    byte: u8,
 
-        // Forget most recent byte.
-        const B_FORGET = 1 << 0
+    // Callback handler.
+    handler: &'a mut T,
+
+    // Stream index.
+    index: usize,
+
+    // Stream data.
+    stream: &'a [u8]
+}
+
+impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
+    /// Create a new `ParserContext`.
+    pub fn new(handler: &'a mut T, stream: &'a [u8]) -> ParserContext<'a, T> {
+        ParserContext{ byte:    0,
+                       handler: handler,
+                       index:   0,
+                       stream:  stream }
     }
 }
 
-// Flags used to track request/response/state details.
-bitflags! {
-    flags Flag: u8 {
-        // No flags.
-        const F_NONE = 0,
-
-        // Parsing chunk data.
-        const F_CHUNK_DATA = 1 << 0,
-
-        // Parsing data that needs to check against content length.
-        const F_CONTENT_LENGTH = 1 << 1,
-
-        // Parsing initial.
-        const F_IN_INITIAL = 1 << 2,
-
-        // Parsing headers.
-        const F_IN_HEADERS = 1 << 3,
-
-        // Finished parsing headers.
-        const F_HEADERS_FINISHED = 1 << 4,
-
-        // Quoted header value has an escape character.
-        const F_QUOTE_ESCAPED = 1 << 5,
-
-        // Parsing multipart data.
-        const F_MULTIPART_DATA = 1 << 6,
-
-        // Indicates the stream contains request data rather than response.
-        const F_REQUEST = 1 << 7
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
+/// Parser data.
 pub struct Parser<T: HttpHandler + ParamHandler> {
+    // Bit data that represents u8, u16, u32, and u64 representations of incoming digits, converted
+    // to a primitive upon parsing. It's also used to store content length.
+    bit_data: u64,
+
     // Total byte count processed for headers, and body.
     // Once the headers are finished processing, this is reset to 0 to track the body length.
     byte_count: usize,
 
-    // Current callback that is handled at the top of each byte loop.
-    callback: Callback<T>,
-
-    // Content length used to track amount of bytes left to process.
-    content_length: u64,
-
     // Content type.
     content_type: ContentType,
 
-    // The request/response flags.
+    // State details.
     flags: Flag,
 
-    // Maximum header byte count to process before we assume it's a DoS stream.
-    max_headers_length: u32,
-
-    // Index used for overflow detection.
-    overflow_index: u8,
+    // Callback mark index.
+    mark_index: usize,
 
     // Current state.
     state: State,
 
-    // Response status code.
-    status_code: u16,
-
-    // HTTP major version.
-    version_major: u16,
-
-    // HTTP minor version.
-    version_minor: u16
+    // Current state function.
+    state_function: StateFunction<T>
 }
 
 impl<T: HttpHandler + ParamHandler> Parser<T> {
-    /// Create a new `Parser` with a maximum headers length of `80 * 1024`.
-    pub fn new(stream_type: StreamType) -> Parser<T> {
-        Parser{ byte_count:           0,
-                callback:             Callback::None,
-                content_length:       0,
-                content_type:         ContentType::None,
-                flags:                if stream_type == StreamType::Request {
-                                          F_IN_INITIAL | F_REQUEST
-                                      } else {
-                                          F_IN_INITIAL
-                                      },
-                max_headers_length:   CFG_MAX_HEADERS_LENGTH,
-                overflow_index:       0,
-                state:                if stream_type == StreamType::Request {
-                                          State::StripRequestMethod
-                                      } else {
-                                          State::StripResponseHttp
-                                      },
-                status_code:          0,
-                version_major:        0,
-                version_minor:        0 }
+    /// Create a new `Parser`.
+    pub fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
+        Parser{ bit_data:       0,
+                byte_count:     0,
+                content_type:   ContentType::None,
+                flags:          F_NONE,
+                mark_index:     0,
+                state:          state,
+                state_function: state_function }
     }
 
-    /// Create a new `Parser` with specified settings.
-    pub fn with_settings(stream_type: StreamType, max_headers_length: u32) -> Parser<T> {
-        Parser{ byte_count:           0,
-                callback:             Callback::None,
-                content_length:       0,
-                content_type:         ContentType::None,
-                flags:                if stream_type == StreamType::Request {
-                                          F_IN_INITIAL | F_REQUEST
-                                      } else {
-                                          F_IN_INITIAL
-                                      },
-                max_headers_length:   max_headers_length,
-                overflow_index:       0,
-                state:                if stream_type == StreamType::Request {
-                                          State::StripRequestMethod
-                                      } else {
-                                          State::StripResponseHttp
-                                      },
-                status_code:          0,
-                version_major:        0,
-                version_minor:        0 }
+    /// Create a new `Parser` for request parsing.
+    pub fn new_request() -> Parser<T> {
+        Parser::new(State::StripRequestMethod, Parser::strip_request_method)
+    }
+
+    /// Create a new `Parser` for response parsing.
+    pub fn new_response() -> Parser<T> {
+        Parser::new(State::StripResponseHttp, Parser::strip_response_http)
     }
 
     /// Retrieve the processed byte count since the start of the message.
@@ -679,9 +644,14 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         self.byte_count
     }
 
-    /// Retrieve the current parser state.
+    /// Retrieve the state.
     pub fn get_state(&self) -> State {
         self.state
+    }
+
+    /// Retrieve the state function.
+    pub fn get_state_function(&self) -> StateFunction<T> {
+        self.state_function
     }
 
     /// Parse HTTP data.
@@ -694,1892 +664,643 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     ///
     /// Returns the parsed byte count of the current slice when parsing completes, or when
     /// a callback function preemptively stops parsing. Otherwise `ParserError`.
-    #[cfg_attr(test, allow(cyclomatic_complexity))]
+    #[inline]
     pub fn parse(&mut self, handler: &mut T, mut stream: &[u8]) -> Result<Success, ParserError> {
-        // current byte
-        let mut byte: u8 = 0;
-
-        // byte flags
-        let mut byte_flags: ByteFlag = B_NONE;
-
-        // callback to execute
-        let mut callback = match self.callback {
-            Callback::Data(x)         => Callback::Data(x),
-            Callback::DataLength(x,y) => Callback::DataLength(x,y),
-            Callback::None            => Callback::None
-        };
-
-        // content length
-        let mut content_length = self.content_length;
-
-        // content type
-        let mut content_type = ContentType::None;
-
-        // message flags
-        let mut flags = self.flags;
-
-        // stream index for the start of the mark
-        let mut mark_index: usize = 0;
-
-        // stream index at which to check max headers length
-        let max_headers_length_index: usize = if self.max_headers_length > 0 {
-                                                    self.max_headers_length
-                                                  - self.byte_count as u32
-                                                  + 1
-                                              } else {
-                                                  0
-                                              } as usize;
-
-        // old state
-        let mut old_state = self.state;
-
-        // overflow index
-        let mut overflow_index = self.overflow_index;
-
-        // current state
-        let mut state = self.state;
-
-        // stream index we're processing
-        let mut stream_index: usize = 0;
-
-        // stream length
-        let stream_length = stream.len();
-
-        if state == State::Dead {
-            return Err(ParserError::Dead(ERR_DEAD))
-        }
-
-        // -----------------------------------------------------------------------------------------
-
-        // check max headers length
-        macro_rules! check_max_headers_length {
-            () => (
-                if stream_index == max_headers_length_index
-                && flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits {
-                    error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
-                                                         self.max_headers_length));
-                }
-            );
-        }
-
-        // check content length is equal to or less than byte count
-        macro_rules! check_content_length {
-            () => (
-                byte_count < content_length
-            );
-        }
-
-        // collect macro base
-        macro_rules! collect_base {
-            ($block:block) => ({
-                let mut found = false;
-
-                // put stream index back one byte to reflect our start loop index
-                stream_index -= 1;
-
-                while !is_eof!() {
-                    byte = peek!();
-
-                    if $block {
-                        found         = true;
-                        stream_index += 1;
-
-                        break
-                    }
-
-                    stream_index += 1;
-
-                    check_max_headers_length!();
-                }
-
-                found
-            });
-        }
-
-        // collect a digit
-        macro_rules! collect_digit {
-            ($byte:expr, $digit:expr, $max:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if is_digit!(byte) {
-                        $digit *= 10;
-                        $digit += byte as u16 - b'0' as u16;
-
-                        if $digit > $max {
-                            error!($error($error_msg));
-                        }
-
-                        false
-                    } else if $byte == byte {
-                        true
-                    } else {
-                        error!($error($error_msg));
-                    }
-                })
-            );
-        }
-
-        // collect a hex digit
-        macro_rules! collect_hex_digit {
-            ($byte1:expr, $byte2:expr, $digit:expr, $max:expr, $overflow_error:path,
-             $overflow_error_msg:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if is_hex!(byte) {
-                        if $max == overflow_index {
-                            error!($overflow_error($overflow_error_msg, byte));
-                        }
-
-                        inc_overflow!();
-
-                        $digit <<= 4;
-
-                        match hex_to_byte(&[byte]) {
-                            Some(byte) => {
-                                $digit += byte as u64;
-                            },
-                            None => {
-                                error!($error($error_msg, byte));
-                            }
-                        }
-
-                        false
-                    } else if $byte1 == byte || $byte2 == byte {
-                        true
-                    } else {
-                        error!($error($error_msg, byte));
-                    }
-                })
-            );
-        }
-
-        // collect non-control characters
-        macro_rules! collect_non_control {
-            () => (
-                collect_base!({
-                    is_control!(byte)
-                })
-            );
-        }
-
-        // collect only the given characters
-        macro_rules! collect_only {
-            ($byte:expr) => (
-                collect_base!({
-                    !($byte == byte)
-                })
-            );
-
-            ($byte1:expr, $byte2:expr) => (
-                collect_base!({
-                    !($byte1 == byte || $byte2 == byte)
-                })
-            );
-        }
-
-        // collect remaining byte count
-        macro_rules! collect_remaining_unsafe {
-            () => ({
-                stream_index -= 1;
-
-                let slice = if content_length <= (stream.len() - stream_index) as u64 {
-                    &stream[stream_index..stream_index + content_length as usize]
-                } else {
-                    &stream[stream_index..stream.len()]
-                };
-
-                content_length -= slice.len() as u64;
-                stream_index   += slice.len();
-
-                content_length == 0
-            });
-        }
-
-        // collect non-control characters until a certain byte is found
-        macro_rules! collect_until {
-            ($byte1:expr, $byte2:expr, $byte3:expr, $byte4:expr, $byte5:expr,
-             $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte1 == byte
-                    || $byte2 == byte
-                    || $byte3 == byte
-                    || $byte4 == byte
-                    || $byte5 == byte {
-                        true
-                    } else if !is_ascii!(byte) || is_control!(byte) {
-                        error!($error($error_msg, byte));
-                    } else {
-                        false
-                    }
-                })
-            );
-
-            ($byte1:expr, $byte2:expr, $byte3:expr, $byte4:expr,
-             $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte1 == byte
-                    || $byte2 == byte
-                    || $byte3 == byte
-                    || $byte4 == byte {
-                        true
-                    } else if !is_ascii!(byte) || is_control!(byte) {
-                        error!($error($error_msg, byte));
-                    } else {
-                        false
-                    }
-                })
-            );
-
-            ($byte1:expr, $byte2:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte1 == byte || $byte2 == byte {
-                        true
-                    } else if !is_ascii!(byte) || is_control!(byte) {
-                        error!($error($error_msg, byte));
-                    } else {
-                        false
-                    }
-                })
-            );
-
-            ($byte:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte == byte {
-                        true
-                    } else if !is_ascii!(byte) || is_control!(byte) {
-                        error!($error($error_msg, byte));
-                    } else {
-                        false
-                    }
-                })
-            );
-        }
-
-        // collect token characters until a certain byte is found
-        macro_rules! collect_token_until {
-            ($byte:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte == byte {
-                        true
-                    } else if is_token(byte) {
-                        false
-                    } else {
-                        error!($error($error_msg, byte));
-                    }
-                })
-            );
-        }
-
-        // collect token characters until a certain byte is found, but check an overflow
-        macro_rules! collect_token_until_overflow {
-            ($byte:expr, $max:expr, $overflow_error:path, $overflow_error_msg:expr,
-             $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte == byte {
-                        true
-                    } else if is_token(byte) {
-                        if $max == overflow_index {
-                            error!($overflow_error($overflow_error_msg, byte));
-                        }
-
-                        overflow_index += 1;
-
-                        false
-                    } else {
-                        error!($error($error_msg, byte));
-                    }
-                })
-            );
-        }
-
-        // collect token characters, spaces, and tabs until a certain byte is found
-        macro_rules! collect_token_space_tab_until {
-            ($byte:expr, $error:path, $error_msg:expr) => (
-                collect_base!({
-                    if $byte == byte {
-                        true
-                    } else if is_token(byte) || byte == b' ' || byte == b'\t' {
-                        false
-                    } else {
-                        error!($error($error_msg, byte));
-                    }
-                })
-            );
-        }
-
-        // set the state to State::Dead and return an error
-        macro_rules! error {
-            ($error:expr) => ({
-                self.state = State::Dead;
-
-                return Err($error);
-            });
-        }
-
-        // save state and exit with callback status
-        macro_rules! exit_callback {
-            () => ({
-                save!();
-
-                return Ok(Success::Callback(stream_length - (stream.len() - stream_index)));
-            });
-
-            ($state:expr) => ({
-                save!($state);
-
-                return Ok(Success::Callback(stream_length - (stream.len() - stream_index)));
-            });
-        }
-
-        // save state and exit with eof status
-        macro_rules! exit_eof {
-            () => ({
-                save!();
-
-                return Ok(Success::Eof(stream_length - (stream.len() - stream_index)));
-            });
-
-            ($stream_index:expr) => ({
-                save!();
-
-                return Ok(Success::Eof(stream_length - (stream.len() - $stream_index)));
-            });
-        }
-
-        // save state and exit with finished status
-        macro_rules! exit_finished {
-            () => ({
-                save!(State::Done);
-
-                return Ok(Success::Finished(stream_length - (stream.len() - stream_index)));
-            });
-        }
-
-        // forget one byte when marked_bytes!() is called
-        // do not use this with replay!(), only use replay!(), as it serves both purposes
-        macro_rules! forget {
-            () => (
-                byte_flags.insert(B_FORGET);
-            );
-        }
-
-        // indicates that we have enough bytes in the stream to extract them
-        macro_rules! has_bytes {
-            ($count:expr) => (
-                stream_index + $count - 1 < stream.len()
-            );
-        }
-
-        // increment overflow index
-        macro_rules! inc_overflow {
-            () => (
-                overflow_index += 1
-            );
-        }
-
-        // check end of stream
-        macro_rules! is_eof {
-            () => (
-                stream_index == stream.len()
-            );
-        }
-
-        // jump a specific number of bytes
-        macro_rules! jump {
-            ($count:expr) => (
-                stream_index += $count;
-                byte          = stream[stream_index - 1];
-
-                // check max headers length
-                // we're incrementing the stream index by an arbitrary amount of bytes, so we cannot
-                // check max_headers_length_index == stream_index
-                if flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits
-                && stream_index > max_headers_length_index {
-                    error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
-                                                         self.max_headers_length));
-                }
-            );
-        }
-
-        // save a callback to be executed lazily by the parser
-        macro_rules! callback_data {
-            // callback with data
-            ($function:ident) => (
-                callback = Callback::Data(T::$function);
-            );
-        }
-
-        // save a callback to be executed lazily by the parser, followed by a content length check
-        macro_rules! callback_data_length {
-            ($function:ident, $state:expr) => (
-                callback = Callback::DataLength(T::$function, $state);
-            );
-        }
-        // mark the current byte as the first mark byte
-        macro_rules! mark {
-            () => (
-                mark_index = stream_index - 1;
-            );
-        }
-
-        // get the marked bytes
-        macro_rules! marked_bytes {
-            () => (
-                &stream[mark_index..stream_index - (byte_flags.bits & B_FORGET.bits) as usize]
-            );
-
-            ($length:expr) => (
-                &stream[mark_index..mark_index + $length]
-            );
-        }
-
-        // move the stream forward and reset the byte count
-        macro_rules! move_stream {
-            () => ({
-                self.byte_count = 0;
-                stream          = &stream[stream_index - 1..stream.len()];
-                stream_index    = 0;
-
-                next!();
-            });
-        }
-
-        // skip to the next byte
-        macro_rules! next {
-            () => (
-                if is_eof!() {
-                    exit_eof!();
-                }
-
-                byte          = peek!();
-                byte_flags    = B_NONE;
-                stream_index += 1;
-
-                // check max headers length
-                if stream_index == max_headers_length_index
-                && flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits {
-                    error!(ParserError::MaxHeadersLength(ERR_MAX_HEADERS_LENGTH,
-                                                         self.max_headers_length));
-                }
-            );
-        }
-
-        // peek at the next byte
-        macro_rules! peek {
-            () => (
-                stream[stream_index]
-            );
-
-            ($count:expr) => (
-                stream[stream_index + $count - 1]
-            )
-        }
-
-        // peek at a chunk of bytes starting with the current byte
-        macro_rules! peek_chunk {
-            ($count:expr) => (
-                &stream[stream_index - 1..stream_index + $count - 1]
-            );
-        }
-
-        // replay the current byte
-        macro_rules! replay {
-            () => (
-                stream_index -= 1
-            );
-        }
-
-        // reset content length
-        macro_rules! reset_content_length {
-            () => (
-                content_length = 0
-            );
-        }
-
-        // reset overflow index
-        macro_rules! reset_overflow {
-            () => (
-                overflow_index = 0
-            );
-        }
-
-        // save parser details
-        macro_rules! save {
-            () => (
-                save!(state)
-            );
-
-            ($state:expr) => (
-                self.byte_count     += stream_index;
-                self.callback        = callback;
-                self.content_length  = content_length;
-                self.content_type    = content_type;
-                self.flags           = flags;
-                self.overflow_index  = overflow_index;
-                self.state           = $state;
-            );
-        }
-
-        // skip to a new state and bypass the match loop
-        macro_rules! skip_to_state {
-            ($state:expr) => (
-                state = $state;
-
-                top_of_loop!();
-            );
-        }
-
-        // top of loop processing
-        macro_rules! top_of_loop {
-            () => (
-                if state != old_state {
-                    match callback {
-                        Callback::Data(x) => {
-                            let slice = marked_bytes!();
-
-                            callback = Callback::None;
-
-                            if slice.len() > 0 {
-                                if !x(handler, slice) {
-                                    exit_callback!();
-                                }
-                            }
-                        },
-                        Callback::DataLength(x,_y) => {
-                            let slice = marked_bytes!();
-
-                            callback = Callback::None;
-
-                            if slice.len() > 0 {
-                                if !x(handler, slice) {
-                                    exit_callback!();
-                                }
-                            }
-                        },
-                        Callback::None => {
-                        }
-                    }
-                } else if is_eof!() {
-                    match callback {
-                        Callback::Data(x) => {
-                            let slice = marked_bytes!();
-
-                            if slice.len() > 0 {
-                                if !x(handler, slice) {
-                                    exit_callback!();
-                                }
-                            }
-                        },
-                        Callback::DataLength(x,_y) => {
-                            let slice = marked_bytes!();
-
-                            if slice.len() > 0 {
-                                if !x(handler, slice) {
-                                    exit_callback!();
-                                }
-                            }
-                        },
-                        Callback::None => {
-                        }
-                    }
-                }
-
-                next!();
-
-                if old_state != state {
-                    mark!();
-                }
-
-                old_state = state;
-            );
-        }
-
-        // -----------------------------------------------------------------------------------------
-        // STATE MACROS IN ORDER OF EXECUTION
-        // -----------------------------------------------------------------------------------------
-
-        macro_rules! state_StripRequestMethod {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::RequestMethod
-                    /*
-                    skip_to_state!(State::RequestMethod);
-                    state_RequestMethod!()
-                    */
-                } else {
-                    State::StripRequestMethod
-                }
-            });
-        };
-
-        // private request method macros
-        macro_rules! request_method {
-            () => ({
-                callback_data!(on_method);
-
-                if collect_token_until!(b' ', ParserError::Method, ERR_METHOD) {
-                    forget!();
-
-                    State::StripRequestUrl
-                    /*
-                    skip_to_state!(State::StripRequestUrl);
-                    state_StripRequestUrl!()
-                    */
-                } else {
-                    State::RequestMethod
-                }
-            });
-        }
-
-        macro_rules! request_method_handler {
-            ($method:expr) => (
-                if handler.on_method($method) {
-                    State::StripRequestUrl
-                    /*
-                    skip_to_state!(State::StripRequestUrl);
-                    state_StripRequestUrl!()
-                    */
-                } else {
-                    exit_callback!(State::StripRequestUrl);
-                }
-            );
-        }
-
-        macro_rules! state_RequestMethod {
-            () => (
-                if has_bytes!(7) {
-                    if b"GET " == peek_chunk!(4) {
-                        jump!(3);
-                        request_method_handler!(b"GET")
-                    } else if b"POST " == peek_chunk!(5) {
-                        jump!(4);
-                        request_method_handler!(b"POST")
-                    } else if b"PUT " == peek_chunk!(4) {
-                        jump!(3);
-                        request_method_handler!(b"PUT")
-                    } else if b"DELETE " == peek_chunk!(7) {
-                        jump!(6);
-                        request_method_handler!(b"DELETE")
-                    } else if b"CONNECT " == peek_chunk!(8) {
-                        jump!(7);
-                        request_method_handler!(b"CONNECT")
-                    } else if b"OPTIONS " == peek_chunk!(8) {
-                        jump!(7);
-                        request_method_handler!(b"OPTIONS")
-                    } else if b"HEAD " == peek_chunk!(5) {
-                        jump!(4);
-                        request_method_handler!(b"HEAD")
-                    } else if b"TRACE " == peek_chunk!(6) {
-                        jump!(5);
-                        request_method_handler!(b"TRACE")
-                    } else {
-                        request_method!()
-                    }
-                } else {
-                    request_method!()
-                }
-            );
-        }
-
-        macro_rules! state_StripRequestUrl {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::RequestUrl
-                    /*
-                    skip_to_state!(State::RequestUrl);
-                    state_RequestUrl!()
-                    */
-                } else {
-                    State::StripRequestUrl
-                }
-            });
-        };
-
-        macro_rules! state_RequestUrl {
-            () => ({
-                callback_data!(on_url);
-
-                if collect_until!(b' ', ParserError::Url, ERR_URL) {
-                    forget!();
-
-                    State::StripRequestHttp
-                    /*
-                    skip_to_state!(State::StripRequestHttp);
-                    state_StripRequestHttp!()
-                    */
-                } else {
-                    State::RequestUrl
-                }
-            });
-        };
-
-        macro_rules! state_StripRequestHttp {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::RequestHttp1
-                    /*
-                    skip_to_state!(State::RequestHttp1);
-                    state_RequestHttp1!()
-                    */
-                } else {
-                    State::StripRequestHttp
-                }
-            });
-        };
-
-        macro_rules! state_RequestHttp1 {
-            () => (
-                if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
-                    jump!(4);
-
-                    State::RequestVersionMajor
-                    /*
-                    skip_to_state!(State::RequestVersionMajor);
-                    state_RequestVersionMajor!()
-                    */
-                } else if byte == b'H' || byte == b'h' {
-                    State::RequestHttp2
-                    /*
-                    skip_to_state!(State::RequestHttp2);
-                    state_RequestHttp2!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_RequestHttp2 {
-            () => (
-                if byte == b'T' || byte == b't' {
-                    State::RequestHttp3
-                    /*
-                    skip_to_state!(State::RequestHttp3);
-                    state_RequestHttp3!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_RequestHttp3 {
-            () => (
-                if byte == b'T' || byte == b't' {
-                    State::RequestHttp4
-                    /*
-                    skip_to_state!(State::RequestHttp4);
-                    state_RequestHttp4!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_RequestHttp4 {
-            () => (
-                if byte == b'P' || byte == b'p' {
-                    State::RequestHttp5
-                    /*
-                    skip_to_state!(State::RequestHttp5);
-                    state_RequestHttp5!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_RequestHttp5 {
-            () => (
-                if byte == b'/' {
-                    State::RequestVersionMajor
-                    /*
-                    skip_to_state!(State::RequestVersionMajor);
-                    state_RequestVersionMajor!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_RequestVersionMajor {
-            () => ({
-                if collect_digit!(b'.', self.version_major, 999,
-                                  ParserError::Version, ERR_VERSION) {
-                    State::RequestVersionMinor
-                    /*
-                    skip_to_state!(State::RequestVersionMinor);
-                    state_RequestVersionMinor!()
-                    */
-                } else {
-                    State::RequestVersionMajor
-                }
-            });
-        }
-
-        macro_rules! state_RequestVersionMinor {
-            () => ({
-                if collect_digit!(b'\r', self.version_minor, 999,
-                                  ParserError::Version, ERR_VERSION) {
-                    if handler.on_version(self.version_major, self.version_minor) {
-                        State::PreHeaders1
-                        /*
-                        skip_to_state!(State::PreHeaders1);
-                        state_PreHeaders1!()
-                        */
-                    } else {
-                        exit_callback!(State::PreHeaders1);
-                    }
-                } else {
-                    State::RequestVersionMinor
-                }
-            });
-        }
-
-        macro_rules! state_StripResponseHttp {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::ResponseHttp1
-                    /*
-                    skip_to_state!(State::ResponseHttp1);
-                    state_ResponseHttp1!()
-                    */
-                } else {
-                    State::StripResponseHttp
-                }
-            });
-        };
-
-        macro_rules! state_ResponseHttp1 {
-            () => (
-                if has_bytes!(4) && (b"HTTP/" == peek_chunk!(5) || b"http/" == peek_chunk!(5)) {
-                    jump!(4);
-
-                    State::ResponseVersionMajor
-                    /*
-                    skip_to_state!(State::ResponseVersionMajor);
-                    state_ResponseVersionMajor!()
-                    */
-                } else if byte == b'H' || byte == b'h' {
-                    State::ResponseHttp2
-                    /*
-                    skip_to_state!(State::ResponseHttp2);
-                    state_ResponseHttp2!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_ResponseHttp2 {
-            () => (
-                if byte == b'T' || byte == b't' {
-                    State::ResponseHttp3
-                    /*
-                    skip_to_state!(State::ResponseHttp3);
-                    state_ResponseHttp3!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_ResponseHttp3 {
-            () => (
-                if byte == b'T' || byte == b't' {
-                    State::ResponseHttp4
-                    /*
-                    skip_to_state!(State::ResponseHttp4);
-                    state_ResponseHttp4!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_ResponseHttp4 {
-            () => (
-                if byte == b'P' || byte == b'p' {
-                    State::ResponseHttp5
-
-                    /*
-                    skip_to_state!(State::ResponseHttp5);
-                    state_ResponseHttp5!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_ResponseHttp5 {
-            () => (
-                if byte == b'/' {
-                    State::ResponseVersionMajor
-                    /*
-                    skip_to_state!(State::ResponseVersionMajor);
-                    state_ResponseVersionMajor!()
-                    */
-                } else {
-                    error!(ParserError::Version(ERR_VERSION));
-                }
-            );
-        };
-
-        macro_rules! state_ResponseVersionMajor {
-            () => ({
-                if collect_digit!(b'.', self.version_major, 999,
-                                  ParserError::Version, ERR_VERSION) {
-                    State::ResponseVersionMinor
-                    /*
-                    skip_to_state!(State::ResponseVersionMinor);
-                    state_ResponseVersionMinor!()
-                    */
-                } else {
-                    State::ResponseVersionMajor
-                }
-            });
-        }
-
-        macro_rules! state_ResponseVersionMinor {
-            () => ({
-                if collect_digit!(b' ', self.version_minor, 999,
-                                  ParserError::Version, ERR_VERSION) {
-                    if handler.on_version(self.version_major, self.version_minor) {
-                        State::StripResponseStatusCode
-                        /*
-                        skip_to_state!(State::StripResponseStatusCode);
-                        state_StripResponseStatusCode!()
-                        */
-                    } else {
-                        exit_callback!(State::StripResponseStatusCode);
-                    }
-                } else {
-                    State::ResponseVersionMinor
-                }
-            });
-        }
-
-        macro_rules! state_StripResponseStatusCode {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::ResponseStatusCode
-                    /*
-                    skip_to_state!(State::ResponseStatusCode);
-                    state_ResponseStatusCode!()
-                    */
-                } else {
-                    State::StripResponseStatus
-                }
-            });
-        };
-
-        macro_rules! state_ResponseStatusCode {
-            () => ({
-                if collect_digit!(b' ', self.status_code, 999,
-                                  ParserError::StatusCode, ERR_STATUS_CODE) {
-                    if handler.on_status_code(self.status_code) {
-                        State::StripResponseStatus
-                        /*
-                        skip_to_state!(State::StripResponseStatus);
-                        state_StripResponseStatus!()
-                        */
-                    } else {
-                        exit_callback!(State::StripResponseStatus);
-                    }
-                } else {
-                    State::ResponseStatusCode
-                }
-            });
-        }
-
-        macro_rules! state_StripResponseStatus {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::ResponseStatus
-                    /*
-                    skip_to_state!(State::ResponseStatus);
-                    state_ResponseStatus!()
-                    */
-                } else {
-                    State::StripResponseStatus
-                }
-            });
-        };
-
-        macro_rules! state_ResponseStatus {
-            () => ({
-                callback_data!(on_status);
-
-                if collect_token_space_tab_until!(b'\r', ParserError::Status, ERR_STATUS) {
-                    forget!();
-
-                    State::PreHeaders1
-                    /*
-                    skip_to_state!(State::PreHeaders1);
-                    state_PreHeaders1!()
-                    */
-                } else {
-                    State::ResponseStatus
-                }
-            });
-        }
-
-        macro_rules! state_PreHeaders1 {
-            () => (
-                if byte == b'\n' {
-                    State::PreHeaders2
-                    /*
-                    skip_to_state!(State::PreHeaders2);
-                    state_PreHeaders2!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_PreHeaders2 {
-            () => ({
-                flags.remove(F_IN_INITIAL);
-                flags.insert(F_IN_HEADERS);
-
-                if byte == b'\r' {
-                    skip_to_state!(State::Newline4);
-                    state_Newline4!()
-                } else {
-                    replay!();
-
-                    skip_to_state!(State::StripHeaderField);
-                    state_StripHeaderField!()
-                }
-            });
-        }
-
-        macro_rules! state_StripHeaderField {
-            () => (
-                if collect_only!(b' ', b'\t') {
-                    replay!();
-
-                    State::HeaderField
-                    /*
-                    skip_to_state!(State::HeaderField);
-                    state_HeaderField!()
-                    */
-                } else {
-                    State::StripHeaderField
-                }
-            );
-        };
-
-        macro_rules! state_HeaderField {
-            () => ({
-                callback_data!(on_header_field);
-
-                if collect_token_until!(b':', ParserError::HeaderField, ERR_HEADER_FIELD) {
-                    forget!();
-
-                    State::StripHeaderValue
-                    /*
-                    skip_to_state!(State::StripHeaderValue);
-                    state_StripHeaderValue!()
-                    */
-                } else {
-                    State::HeaderField
-                }
-            });
-        }
-
-        macro_rules! state_StripHeaderValue {
-            () => ({
-                if collect_only!(b' ', b'\t') {
-                    if byte == b'"' {
-                        State::QuotedHeaderValue
-                        /*
-                        skip_to_state!(State::QuotedHeaderValue);
-                        state_QuotedHeaderValue!()
-                        */
-                    } else {
-                        replay!();
-
-                        State::HeaderValue
-                        /*
-                        skip_to_state!(State::HeaderValue);
-                        state_HeaderValue!()
-                        */
-                    }
-                } else {
-                    State::StripHeaderValue
-                }
-            });
-        };
-
-        macro_rules! state_HeaderValue {
-            () => ({
-                callback_data!(on_header_value);
-
-                if collect_non_control!() {
-                    replay!();
-
-                    State::Newline1
-                } else {
-                    State::HeaderValue
-                }
-            });
-        }
-
-        macro_rules! state_QuotedHeaderValue {
-            () => ({
-                callback_data!(on_header_value);
-
-                if collect_until!(b'"', b'\\', ParserError::HeaderValue, ERR_HEADER_VALUE) {
-                    if flags.bits & F_QUOTE_ESCAPED.bits == F_QUOTE_ESCAPED.bits {
-                        flags.remove(F_QUOTE_ESCAPED);
-
-                        mark!();
-
-                        State::QuotedHeaderValue
-                    } else if byte == b'\\' {
-                        flags.insert(F_QUOTE_ESCAPED);
-
-                        if mark_index < stream_index - 1 {
-                            forget!();
-
-                            if !handler.on_header_value(marked_bytes!()) {
-                                exit_callback!();
-                            }
-                        }
-
-                        State::QuotedHeaderValue
-                    } else {
-                        forget!();
-
-                        State::Newline1
-                    }
-                } else {
-                    State::QuotedHeaderValue
-                }
-            });
-        }
-
-        macro_rules! state_Newline1 {
-            () => ({
-                if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
-                    jump!(1);
-
-                    State::Newline3
-                    /*
-                    skip_to_state!(State::Newline3);
-                    state_Newline3!()
-                    */
-                } else if byte == b'\r' {
-                    State::Newline2
-                    /*
-                    skip_to_state!(State::Newline2);
-                    state_Newline2!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            });
-        }
-
-        macro_rules! state_Newline2 {
-            () => (
-                if byte == b'\n' {
-                    State::Newline3
-                    /*
-                    skip_to_state!(State::Newline3);
-                    state_Newline3!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_Newline3 {
-            () => (
-                if byte == b'\r' {
-                    State::Newline4
-                    /*
-                    skip_to_state!(State::Newline4);
-                    state_Newline4!()
-                    */
-                } else if (byte == b' ' || byte == b'\t')
-                && flags.bits & F_HEADERS_FINISHED.bits == F_NONE.bits {
-                    // multiline header value
-                    // it is optional within the HTTP spec to provide an empty space
-                    // between multiline header values, but it seems to make sense, otherwise why
-                    // would there be a newline in the first place?
-                    if handler.on_header_value(b" ") {
-                        State::StripHeaderValue
-                        /*
-                        skip_to_state!(State::StripHeaderValue);
-                        state_StripHeaderValue!()
-                        */
-                    } else {
-                        exit_callback!(State::StripHeaderValue);
-                    }
-                } else {
-                    replay!();
-
-                    State::StripHeaderField
-                    /*
-                    skip_to_state!(State::StripHeaderField);
-                    state_StripHeaderField!()
-                    */
-                }
-            );
-        }
-
-        macro_rules! state_Newline4 {
-            () => (
-                if byte == b'\n' {
-                    flags.insert(F_HEADERS_FINISHED);
-                    flags.remove(F_IN_HEADERS);
-
-                    if handler.on_headers_finished() {
-                        if flags.bits & F_CHUNK_DATA.bits == F_CHUNK_DATA.bits {
-                            handler.on_finished();
-
-                            exit_finished!();
-                        }
-
-                        State::Body
-                    } else if flags.bits & F_CHUNK_DATA.bits == F_CHUNK_DATA.bits {
-                        handler.on_finished();
-
-                        exit_finished!();
-                    } else {
-                        exit_callback!(State::Body);
-                    }
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_Body {
-            () => ({
-                move_stream!();
-                replay!();
-
-                if handler.get_transfer_encoding() == TransferEncoding::Chunked {
-                    reset_overflow!();
-                    reset_content_length!();
-
-                    flags.insert(F_CHUNK_DATA);
-
-                    State::ChunkSize
-                } else {
-                    content_type = handler.get_content_type();
-
-                    match content_type {
-                        ContentType::None | ContentType::Other(_) => {
-                            if let ContentLength::Specified(length) = handler.get_content_length() {
-                                content_length = length;
-
-                                State::Content
-                            } else {
-                                error!(ParserError::MissingContentLength(ERR_MISSING_CONTENT_LENGTH));
-                            }
-                        },
-                        ContentType::Multipart(_) => {
-                            State::MultipartHyphen1
-                        },
-                        ContentType::UrlEncoded => {
-                            if let ContentLength::Specified(length) = handler.get_content_length() {
-                                flags.insert(F_CONTENT_LENGTH);
-
-                                content_length = length;
-
-                                State::UrlEncodedField
-                            } else {
-                                State::UrlEncodedField
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        macro_rules! state_Content {
-            () => (
-                State::Content
-            );
-        }
-
-        macro_rules! state_ChunkSize {
-            () => (
-                if collect_hex_digit!(b'\r', b';', content_length, CFG_MAX_CHUNK_SIZE_LENGTH,
-                                      ParserError::MaxChunkSizeLength, ERR_MAX_CHUNK_SIZE_LENGTH,
-                                      ParserError::ChunkSize, ERR_CHUNK_SIZE) {
-                    if content_length == 0 {
-                        flags.insert(F_IN_HEADERS);
-                        flags.remove(F_HEADERS_FINISHED);
-
-                        if handler.on_chunk_size(content_length) {
-                            replay!();
-
-                            State::Newline1
-                        } else {
-                            exit_callback!(State::Newline2);
-                        }
-                    } else if byte == b'\r' {
-                        if handler.on_chunk_size(content_length) {
-                            replay!();
-
-                            State::ChunkSizeNewline1
-                            /*
-                            skip_to_state!(State::ChunkSizeNewline1);
-                            state_ChunkSizeNewline1!()
-                            */
-                        } else {
-                            exit_callback!(State::ChunkSizeNewline2);
-                        }
-                    } else {
-                        reset_overflow!();
-
-                        if handler.on_chunk_size(content_length) {
-                            State::ChunkExtension
-                            /*
-                            skip_to_state!(State::ChunkExtension);
-                            state_ChunkExtension!()
-                            */
-                        } else {
-                            exit_callback!(State::ChunkExtension);
-                        }
-                    }
-                } else {
-                    State::ChunkSize
-                }
-            );
-        }
-
-        macro_rules! state_ChunkExtension {
-            () => ({
-                callback_data!(on_chunk_extension);
-
-                if collect_token_until_overflow!(b'\r', CFG_MAX_CHUNK_EXTENSION_LENGTH,
-                                                 ParserError::MaxChunkExtensionLength,
-                                                 ERR_MAX_CHUNK_EXTENSION_LENGTH,
-                                                 ParserError::ChunkExtension, ERR_CHUNK_EXTENSION) {
-                    replay!();
-
-                    State::ChunkSizeNewline1
-                    /*
-                    skip_to_state!(State::ChunkSizeNewline1);
-                    state_ChunkSizeNewline1!()
-                    */
-                } else {
-                    State::ChunkExtension
-                }
-            });
-        }
-
-        macro_rules! state_ChunkSizeNewline1 {
-            () => (
-                if has_bytes!(1) && b"\r\n" == peek_chunk!(2) {
-                    jump!(1);
-
-                    State::ChunkData
-                    /*
-                    skip_to_state!(State::ChunkData);
-                    state_ChunkData!()
-                    */
-                } else if byte == b'\r' {
-                    State::ChunkSizeNewline2
-                    /*
-                    skip_to_state!(State::ChunkSizeNewline2);
-                    state_ChunkSizeNewline2!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_ChunkSizeNewline2 {
-            () => (
-                if byte == b'\n' {
-                    State::ChunkData
-                    /*
-                    skip_to_state!(State::ChunkData);
-                    state_ChunkData!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_ChunkData {
-            () => ({
-                callback_data!(on_chunk_data);
-
-                if collect_remaining_unsafe!() {
-                    State::ChunkDataNewline1
-                    /*
-                    skip_to_state!(State::ChunkDataNewline1);
-                    state_ChunkDataNewline1!()
-                    */
-                } else {
-                    State::ChunkData
-                }
-            });
-        }
-
-        macro_rules! state_ChunkDataNewline1 {
-            () => (
-                if byte == b'\r' {
-                    State::ChunkDataNewline2
-                    /*
-                    skip_to_state!(State::ChunkDataNewline2);
-                    state_ChunkDataNewline2!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_ChunkDataNewline2 {
-            () => (
-                if byte == b'\n' {
-                    reset_overflow!();
-                    reset_content_length!();
-
-                    State::ChunkSize
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_MultipartHyphen1 {
-            () => (
-                State::MultipartHyphen1
-            );
-        }
-
-        macro_rules! state_MultipartHyphen2 {
-            () => (
-                State::MultipartHyphen2
-            );
-        }
-
-        macro_rules! state_MultipartBoundary {
-            () => (
-                State::MultipartBoundary
-            );
-        }
-
-        macro_rules! state_MultipartData {
-            () => (
-                State::MultipartData
-            );
-        }
-
-        macro_rules! state_MultipartNewline1 {
-            () => (
-                State::MultipartNewline1
-            );
-        }
-
-        macro_rules! state_MultipartNewline2 {
-            () => (
-                State::MultipartNewline2
-            );
-        }
-
-        macro_rules! state_UrlEncodedField {
-            () => ({
-                callback_data!(on_param_field);
-
-                if collect_until!(b'\r', b'=', b'%', b'&', b'+', ParserError::UrlEncodedField,
-                                         ERR_URL_ENCODED_FIELD) {
-                    if byte == b'=' {
-                        forget!();
-
-                        State::UrlEncodedValue
-                        /*
-                        skip_to_state!(State::UrlEncodedValue);
-                        state_UrlEncodedValue!()
-                        */
-                    } else if byte == b'%' {
-                        replay!();
-
-                        State::UrlEncodedFieldHex
-                        /*
-                        skip_to_state!(State::UrlEncodedFieldHex);
-                        state_UrlEncodedFieldHex!()
-                        */
-                    } else if byte == b'&' {
-                        replay!();
-
-                        State::UrlEncodedFieldAmpersand
-                        /*
-                        skip_to_state!(State::UrlEncodedFieldAmpersand);
-                        state_UrlEncodedFieldAmpersand!()
-                        */
-                    } else if byte == b'+' {
-                        replay!();
-
-                        State::UrlEncodedFieldPlus
-                        /*
-                        skip_to_state!(State::UrlEncodedFieldPlus);
-                        state_UrlEncodedFieldPlus!()
-                        */
-                    } else {
-                        replay!();
-
-                        State::UrlEncodedNewline1
-                        /*
-                        skip_to_state!(State::UrlEncodedNewline1);
-                        state_UrlEncodedNewline1!()
-                        */
-                    }
-                } else {
-                    State::UrlEncodedField
-                }
-            });
-        }
-
-        macro_rules! state_UrlEncodedFieldAmpersand {
-            () => ({
-                // param without a value
-                if !handler.on_param_field(b"") {
-                    exit_callback!(State::UrlEncodedField);
-                }
-
-                State::UrlEncodedField
-            });
-        }
-
-        macro_rules! state_UrlEncodedFieldHex {
-            () => ({
-                if !has_bytes!(2) {
-                    exit_eof!(stream_index - 1);
-                }
-
-                next!();
-                mark!();
-                next!();
-
-                match hex_to_byte(marked_bytes!()) {
-                    Some(byte) => {
-                        if !handler.on_param_field(&[byte]) {
-                            exit_callback!(State::UrlEncodedField);
-                        }
-                    },
-                    _ => {
-                        error!(ParserError::UrlEncodedField(ERR_URL_ENCODED_FIELD, byte));
-                    }
-                }
-
-                State::UrlEncodedField
-            });
-        }
-
-        macro_rules! state_UrlEncodedFieldPlus {
-            () => ({
-                if !handler.on_param_field(b" ") {
-                    exit_callback!(State::UrlEncodedField);
-                }
-
-                State::UrlEncodedField
-            });
-        }
-
-        macro_rules! state_UrlEncodedValue {
-            () => ({
-                callback_data!(on_param_value);
-
-                if collect_until!(b'\r', b'%', b'&', b'+', ParserError::UrlEncodedValue,
-                                  ERR_URL_ENCODED_VALUE) {
-                    if byte == b'&' {
-                        forget!();
-
-                        State::UrlEncodedField
-                    } else if byte == b'%' {
-                        replay!();
-
-                        State::UrlEncodedValueHex
-                        /*
-                        skip_to_state!(State::UrlEncodedValueHex);
-                        state_UrlEncodedValueHex!()
-                        */
-                    } else if byte == b'+' {
-                        replay!();
-
-                        State::UrlEncodedValuePlus
-                        /*
-                        skip_to_state!(State::UrlEncodedValuePlus);
-                        state_UrlEncodedValuePlus!()
-                        */
-                    } else {
-                        replay!();
-
-                        State::UrlEncodedNewline1
-                        /*
-                        skip_to_state!(State::UrlEncodedNewline1);
-                        state_UrlEncodedNewline1!()
-                        */
-                    }
-                } else {
-                    State::UrlEncodedValue
-                }
-            });
-        }
-
-        macro_rules! state_UrlEncodedValueHex {
-            () => ({
-                if !has_bytes!(2) {
-                    exit_eof!(stream_index - 1);
-                }
-
-                next!();
-                mark!();
-                next!();
-
-                match hex_to_byte(marked_bytes!()) {
-                    Some(byte) => {
-                        if !handler.on_param_value(&[byte]) {
-                            exit_callback!(State::UrlEncodedValue);
-                        }
-                    },
-                    _ => {
-                        error!(ParserError::UrlEncodedValue(ERR_URL_ENCODED_VALUE, byte));
-                    }
-                }
-
-                State::UrlEncodedValue
-            });
-        }
-
-        macro_rules! state_UrlEncodedValuePlus {
-            () => ({
-                if !handler.on_param_value(b" ") {
-                    exit_callback!(State::UrlEncodedValue);
-                }
-
-                State::UrlEncodedValue
-            });
-        }
-        macro_rules! state_UrlEncodedNewline1 {
-            () => (
-                if byte == b'\r' {
-                    State::UrlEncodedNewline2
-                    /*
-                    skip_to_state!(State::UrlEncodedNewline2);
-                    state_UrlEncodedNewline2!()
-                    */
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        macro_rules! state_UrlEncodedNewline2 {
-            () => (
-                if byte == b'\n' {
-                    exit_finished!();
-                } else {
-                    error!(ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, byte));
-                }
-            );
-        }
-
-        // -----------------------------------------------------------------------------------------
-
-        if flags.contains(F_REQUEST) {
-            loop {
-                top_of_loop!();
-
-                state = if flags.contains(F_IN_HEADERS) {
-                    match state {
-                        State::HeaderField       => state_HeaderField!(),
-                        State::HeaderValue       => state_HeaderValue!(),
-                        State::Newline1          => state_Newline1!(),
-                        State::Newline2          => state_Newline2!(),
-                        State::Newline3          => state_Newline3!(),
-                        State::Newline4          => state_Newline4!(),
-                        State::QuotedHeaderValue => state_QuotedHeaderValue!(),
-                        State::StripHeaderField  => state_StripHeaderField!(),
-                        State::StripHeaderValue  => state_StripHeaderValue!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
-                } else if flags.contains(F_IN_INITIAL) {
-                    match state {
-                        State::StripRequestMethod    => state_StripRequestMethod!(),
-                        State::RequestMethod         => state_RequestMethod!(),
-                        State::StripRequestUrl       => state_StripRequestUrl!(),
-                        State::RequestUrl            => state_RequestUrl!(),
-                        State::StripRequestHttp      => state_StripRequestHttp!(),
-                        State::RequestHttp1          => state_RequestHttp1!(),
-                        State::RequestVersionMajor   => state_RequestVersionMajor!(),
-                        State::RequestVersionMinor   => state_RequestVersionMinor!(),
-                        State::PreHeaders1           => state_PreHeaders1!(),
-                        State::PreHeaders2           => state_PreHeaders2!(),
-                        State::RequestHttp2          => state_RequestHttp2!(),
-                        State::RequestHttp3          => state_RequestHttp3!(),
-                        State::RequestHttp4          => state_RequestHttp4!(),
-                        State::RequestHttp5          => state_RequestHttp5!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
-                } else {
-                    match state {
-                        State::UrlEncodedField          => state_UrlEncodedField!(),
-                        State::UrlEncodedFieldAmpersand => state_UrlEncodedFieldAmpersand!(),
-                        State::UrlEncodedFieldHex       => state_UrlEncodedFieldHex!(),
-                        State::UrlEncodedFieldPlus      => state_UrlEncodedFieldPlus!(),
-                        State::UrlEncodedValue          => state_UrlEncodedValue!(),
-                        State::UrlEncodedValueHex       => state_UrlEncodedValueHex!(),
-                        State::UrlEncodedValuePlus      => state_UrlEncodedValuePlus!(),
-                        State::UrlEncodedNewline1       => state_UrlEncodedNewline1!(),
-                        State::UrlEncodedNewline2       => state_UrlEncodedNewline2!(),
-                        State::Body                     => state_Body!(),
-                        State::Content                  => state_Content!(),
-                        State::ChunkSize                => state_ChunkSize!(),
-                        State::ChunkExtension           => state_ChunkExtension!(),
-                        State::ChunkSizeNewline1        => state_ChunkSizeNewline1!(),
-                        State::ChunkSizeNewline2        => state_ChunkSizeNewline2!(),
-                        State::ChunkData                => state_ChunkData!(),
-                        State::ChunkDataNewline1        => state_ChunkDataNewline1!(),
-                        State::ChunkDataNewline2        => state_ChunkDataNewline2!(),
-                        State::MultipartHyphen1         => state_MultipartHyphen1!(),
-                        State::MultipartHyphen2         => state_MultipartHyphen2!(),
-                        State::MultipartBoundary        => state_MultipartBoundary!(),
-                        State::MultipartNewline1        => state_MultipartNewline1!(),
-                        State::MultipartNewline2        => state_MultipartNewline2!(),
-                        State::MultipartData            => state_MultipartData!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
-                }
-            }
-        } else {
-            loop {
-                top_of_loop!();
-
-                state = if flags.contains(F_IN_HEADERS) {
-                    match state {
-                        State::HeaderField       => state_HeaderField!(),
-                        State::HeaderValue       => state_HeaderValue!(),
-                        State::Newline1          => state_Newline1!(),
-                        State::Newline2          => state_Newline2!(),
-                        State::Newline3          => state_Newline3!(),
-                        State::Newline4          => state_Newline4!(),
-                        State::QuotedHeaderValue => state_QuotedHeaderValue!(),
-                        State::StripHeaderField  => state_StripHeaderField!(),
-                        State::StripHeaderValue  => state_StripHeaderValue!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
-                } else if flags.contains(F_IN_INITIAL) {
-                    match state {
-                        State::StripResponseHttp       => state_StripResponseHttp!(),
-                        State::ResponseHttp1           => state_ResponseHttp1!(),
-                        State::ResponseVersionMajor    => state_ResponseVersionMajor!(),
-                        State::ResponseVersionMinor    => state_ResponseVersionMinor!(),
-                        State::StripResponseStatusCode => state_StripResponseStatusCode!(),
-                        State::ResponseStatusCode      => state_ResponseStatusCode!(),
-                        State::StripResponseStatus     => state_StripResponseStatus!(),
-                        State::ResponseStatus          => state_ResponseStatus!(),
-                        State::PreHeaders1             => state_PreHeaders1!(),
-                        State::PreHeaders2             => state_PreHeaders2!(),
-                        State::ResponseHttp2           => state_ResponseHttp2!(),
-                        State::ResponseHttp3           => state_ResponseHttp3!(),
-                        State::ResponseHttp4           => state_ResponseHttp4!(),
-                        State::ResponseHttp5           => state_ResponseHttp5!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
-                } else {
-                    match state {
-                        State::UrlEncodedField          => state_UrlEncodedField!(),
-                        State::UrlEncodedFieldAmpersand => state_UrlEncodedFieldAmpersand!(),
-                        State::UrlEncodedFieldHex       => state_UrlEncodedFieldHex!(),
-                        State::UrlEncodedFieldPlus      => state_UrlEncodedFieldPlus!(),
-                        State::UrlEncodedValue          => state_UrlEncodedValue!(),
-                        State::UrlEncodedValueHex       => state_UrlEncodedValueHex!(),
-                        State::UrlEncodedValuePlus      => state_UrlEncodedValuePlus!(),
-                        State::UrlEncodedNewline1       => state_UrlEncodedNewline1!(),
-                        State::UrlEncodedNewline2       => state_UrlEncodedNewline2!(),
-                        State::Body                     => state_Body!(),
-                        State::Content                  => state_Content!(),
-                        State::ChunkSize                => state_ChunkSize!(),
-                        State::ChunkExtension           => state_ChunkExtension!(),
-                        State::ChunkSizeNewline1        => state_ChunkSizeNewline1!(),
-                        State::ChunkSizeNewline2        => state_ChunkSizeNewline2!(),
-                        State::ChunkData                => state_ChunkData!(),
-                        State::ChunkDataNewline1        => state_ChunkDataNewline1!(),
-                        State::ChunkDataNewline2        => state_ChunkDataNewline2!(),
-                        State::MultipartHyphen1         => state_MultipartHyphen1!(),
-                        State::MultipartHyphen2         => state_MultipartHyphen2!(),
-                        State::MultipartBoundary        => state_MultipartBoundary!(),
-                        State::MultipartNewline1        => state_MultipartNewline1!(),
-                        State::MultipartNewline2        => state_MultipartNewline2!(),
-                        State::MultipartData            => state_MultipartData!(),
-
-                        _ => {
-                            error!(ParserError::Dead(ERR_DEAD));
-                        }
-                    }
+        let mut context = ParserContext::new(handler, stream);
+
+        loop {
+            match (self.state_function)(self, &mut context) {
+                Ok(ParserValue::Continue) => {
+                },
+                Ok(ParserValue::ShiftStream(length)) => {
+                },
+                Ok(ParserValue::Exit(success)) => {
+                    return Ok(success);
+                },
+                Err(error) => {
+                    return Err(error);
                 }
             }
         }
     }
 
-    /// Reset the parser to its initial state.
-    pub fn reset(&mut self) {
-        self.byte_count           = 0;
-        self.callback             = Callback::None;
-        self.content_length       = 0;
-        self.content_type         = ContentType::None;
-        self.flags                = if self.flags.contains(F_REQUEST) {
-                                        F_IN_INITIAL | F_REQUEST
-                                    } else {
-                                        F_IN_INITIAL
-                                    };
-        self.overflow_index       = 0;
-        self.status_code          = 0;
-        self.version_major        = 0;
-        self.version_minor        = 0;
+    // ---------------------------------------------------------------------------------------------
+    // HEADER STATES
+    // ---------------------------------------------------------------------------------------------
 
-        self.state = if self.flags.contains(F_REQUEST) {
-            State::RequestMethod
+    #[inline]
+    pub fn pre_headers1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\n' {
+            set_state!(self, State::PreHeaders2, pre_headers2);
+            change_state!(self, context);
         } else {
-            State::ResponseHttp1
+            exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
         }
+    }
+
+    #[inline]
+    pub fn pre_headers2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\r' {
+            set_state!(self, State::Newline4, newline4);
+            change_state!(self, context);
+        } else {
+            replay!(context);
+            set_state!(self, State::StripHeaderField, strip_header_field);
+            change_state!(self, context);
+        }
+    }
+
+    #[inline]
+    pub fn strip_header_field(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::FirstHeaderField, first_header_field);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn first_header_field(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        macro_rules! header {
+            ($header:expr, $length:expr) => ({
+                jump_bytes!(context, $length);
+                set_state!(self, State::StripHeaderValue, strip_header_value);
+                callback_data!(self, context, $header, on_header_field, {
+                    change_state_fast!(self, context);
+                });
+            });
+        }
+
+        if has_bytes!(context, 26) {
+            // have enough bytes to compare common header fields immediately, without collecting
+            // individual tokens
+            if context.byte == b'L' {
+                if b"Location:" == peek_bytes!(context, 9) {
+                    header!(b"Location", 9);
+                } else if b"Last-Modified:" == peek_bytes!(context, 14) {
+                    header!(b"Last-Modified", 14);
+                }
+            } else if context.byte == b'P' {
+                if b"Pragma:" == peek_bytes!(context, 7) {
+                    header!(b"Pragma", 7);
+                }
+            } else if context.byte == b'S' {
+                if b"Set-Cookie:" == peek_bytes!(context, 11) {
+                    header!(b"Set-Cookie", 11);
+                }
+            } else if context.byte == b'T' {
+                if b"Transfer-Encoding:" == peek_bytes!(context, 18) {
+                    header!(b"Transfer-Encoding", 18);
+                }
+            } else if context.byte == b'U' {
+                if b"User-Agent:" == peek_bytes!(context, 11) {
+                    header!(b"User-Agent", 11);
+                } else if b"Upgrade:" == peek_bytes!(context, 8) {
+                    header!(b"Upgrade", 8);
+                }
+            } else if context.byte == b'A' {
+                if b"Accept:" == peek_bytes!(context, 7) {
+                    header!(b"Accept", 7);
+                } else if b"Accept-Charset:" == peek_bytes!(context, 15) {
+                    header!(b"Accept-Charset", 15);
+                } else if b"Accept-Encoding:" == peek_bytes!(context, 16) {
+                    header!(b"Accept-Encoding", 16);
+                } else if b"Accept-Language:" == peek_bytes!(context, 16) {
+                    header!(b"Accept-Language", 16);
+                } else if b"Authorization:" == peek_bytes!(context, 14) {
+                    header!(b"Authorization", 14);
+                }
+            } else if context.byte == b'C' {
+                if b"Connection:" == peek_bytes!(context, 11) {
+                    header!(b"Connection", 11);
+                } else if b"Content-Type:" == peek_bytes!(context, 13) {
+                    header!(b"Content-Type", 13);
+                } else if b"Content-Length:" == peek_bytes!(context, 15) {
+                    header!(b"Content-Length", 15);
+                } else if b"Cookie:" == peek_bytes!(context, 7) {
+                    header!(b"Cookie", 7);
+                } else if b"Cache-Control:" == peek_bytes!(context, 14) {
+                    header!(b"Cache-Control", 14);
+                } else if b"Content-Security-Policy:" == peek_bytes!(context, 24) {
+                    header!(b"Content-Security-Policy", 24);
+                }
+            } else if context.byte == b'X' {
+                if b"X-Powered-By:" == peek_bytes!(context, 13) {
+                    header!(b"X-Powered-By", 13);
+                } else if b"X-Forwarded-For:" == peek_bytes!(context, 16) {
+                    header!(b"X-Forwarded-For", 16);
+                } else if b"X-Forwarded-Host:" == peek_bytes!(context, 17) {
+                    header!(b"X-Forwarded-Host", 17);
+                } else if b"X-XSS-Protection:" == peek_bytes!(context, 17) {
+                    header!(b"X-XSS-Protection", 17);
+                } else if b"X-WebKit-CSP:" == peek_bytes!(context, 13) {
+                    header!(b"X-WebKit-CSP", 13);
+                } else if b"X-Content-Security-Policy:" == peek_bytes!(context, 26) {
+                    header!(b"X-Content-Security-Policy", 26);
+                }
+            } else if context.byte == b'W' {
+                if b"WWW-Authenticate:" == peek_bytes!(context, 17) {
+                    header!(b"WWW-Authenticate", 17);
+                }
+            }
+        }
+
+        exit_if_eof!(self, context);
+        set_state!(self, State::HeaderField, header_field);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn header_field(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_tokens!(self, context, b':', ParserError::HeaderField, ERR_HEADER_FIELD, {
+            callback_or_eof!(self, context, on_header_field);
+        });
+
+        set_state!(self, State::StripHeaderValue, strip_header_value);
+        callback_ignore!(self, context, on_header_field, {
+            change_state_fast!(self, context);
+        });
+    }
+
+    #[inline]
+    pub fn strip_header_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn header_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn quoted_header_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn newline3(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn newline4(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // REQUEST STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    pub fn strip_request_method(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::RequestMethod, request_method);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn request_method(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        macro_rules! method {
+            ($method:expr, $length:expr) => (
+                jump_bytes!(context, $length);
+                set_state!(self, State::StripRequestUrl, strip_request_url);
+                callback_data!(self, context, $method, on_method, {
+                    change_state_fast!(self, context);
+                });
+            );
+        }
+
+        if has_bytes!(context, 8) {
+            // have enough bytes to compare all known methods immediately, without collecting
+            // individual tokens
+            if b"GET " == peek_bytes!(context, 4) {
+                method!(b"GET", 4);
+            } else if b"POST " == peek_bytes!(context, 5) {
+                method!(b"POST", 5);
+            } else if b"PUT " == peek_bytes!(context, 4) {
+                method!(b"PUT", 4);
+            } else if b"DELETE " == peek_bytes!(context, 7) {
+                method!(b"DELETE", 7);
+            } else if b"CONNECT " == peek_bytes!(context, 8) {
+                method!(b"CONNECT", 8);
+            } else if b"OPTIONS " == peek_bytes!(context, 8) {
+                method!(b"OPTIONS", 8);
+            } else if b"HEAD " == peek_bytes!(context, 5) {
+                method!(b"HEAD", 5);
+            } else if b"TRACE " == peek_bytes!(context, 6) {
+                method!(b"TRACE", 6);
+            }
+        }
+
+        collect_tokens!(self, context, b' ', ParserError::Method, ERR_METHOD, {
+            callback_or_eof!(self, context, on_method);
+        });
+
+        replay!(context);
+        set_state!(self, State::StripRequestUrl, strip_request_url);
+        callback!(self, context, on_method, {
+            change_state_fast!(self, context);
+        });
+    }
+
+    #[inline]
+    pub fn strip_request_url(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::RequestUrl, request_url);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn request_url(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_safe!(self, context, b' ', ParserError::Url, ERR_URL, {
+            callback_or_eof!(self, context, on_url);
+        });
+
+        replay!(context);
+        set_state!(self, State::StripRequestHttp, strip_request_http);
+        callback!(self, context, on_url, {
+            change_state_fast!(self, context);
+        });
+    }
+
+    #[inline]
+    pub fn strip_request_http(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::RequestHttp1, request_http1);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn request_http1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        macro_rules! version {
+            ($major:expr, $minor:expr, $length:expr) => (
+                jump_bytes!(context, $length);
+                set_state!(self, State::PreHeaders1, pre_headers1);
+
+                if context.handler.on_version($major, $minor) {
+                    change_state!(self, context);
+                } else {
+                    exit_callback!(self, context);
+                }
+            );
+        }
+
+        if has_bytes!(context, 9) {
+            // have enough bytes to compare all known versions immediately, without collecting
+            // individual tokens
+            if b"HTTP/1.1\r" == peek_bytes!(context, 9) {
+                version!(1, 1, 9);
+            } else if b"HTTP/2.0\r" == peek_bytes!(context, 9) {
+                version!(2, 0, 9);
+            } else if b"HTTP/1.0\r" == peek_bytes!(context, 9) {
+                version!(1, 0, 9);
+            }
+        }
+
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'H' || context.byte == b'h' {
+            set_state!(self, State::RequestHttp2, request_http2);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+    }
+
+    #[inline]
+    pub fn request_http2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            set_state!(self, State::RequestHttp3, request_http3);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+    }
+
+    #[inline]
+    pub fn request_http3(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            set_state!(self, State::RequestHttp4, request_http4);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+    }
+
+    #[inline]
+    pub fn request_http4(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'P' || context.byte == b'p' {
+            set_state!(self, State::RequestHttp5, request_http5);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+    }
+
+    #[inline]
+    pub fn request_http5(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'/' {
+            self.bit_data = 0;
+
+            set_state!(self, State::RequestVersionMajor, request_version_major);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+    }
+
+    #[inline]
+    pub fn request_version_major(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        let mut digit = self.bit_data as u16;
+
+        collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
+            self.bit_data = digit as u64;
+
+            exit_eof!(self, context);
+        });
+
+        self.bit_data = (digit as u64) << 4;
+
+        if context.byte != b'.' {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+
+        set_state!(self, State::RequestVersionMinor, request_version_minor);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn request_version_minor(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        let mut digit: u16 = (self.bit_data & 0xF) as u16;
+
+        collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
+            self.bit_data += digit as u64;
+
+            exit_eof!(self, context);
+        });
+
+        set_state!(self, State::PreHeaders1, pre_headers1);
+
+        if context.handler.on_version((self.bit_data >> 4) as u16, digit) {
+            change_state!(self, context);
+        } else {
+            exit_callback!(self, context);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // RESPONSE STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    pub fn strip_response_http(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_http1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_http2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_http3(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_http4(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_http5(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_version_major(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // BODY STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    pub fn body(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn content(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_size(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_extension(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_size_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_size_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_data(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_data_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn chunk_data_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn multipart_data(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_field(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_field_ampersand(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_field_hex(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_field_plus(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_value_hex(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_value_plus(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
+    }
+
+    #[inline]
+    pub fn urlencoded_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eof!(self, context);
     }
 }
