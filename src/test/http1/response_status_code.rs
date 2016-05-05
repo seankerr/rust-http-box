@@ -17,85 +17,96 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
 
-struct H {
-    data: u16
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"HTTP/1.0 ", State::StripResponseStatusCode);
+    });
 }
 
-impl HttpHandler for H {
-    fn on_status_code(&mut self, data: u16) -> bool {
-        self.data = data;
-        true
+#[test]
+fn byte_check() {
+    // invalid bytes
+    loop_non_digits(b" \t", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_response();
+
+        setup!(p, h);
+
+        if let ParserError::StatusCode(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
+    });
+
+    // valid bytes
+    loop_digits(b"", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_response();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[byte], State::ResponseStatusCode, 1);
+    });
+}
+
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_status_code(&mut self, _code: u16) -> bool {
+            false
+        }
     }
-}
 
-impl ParamHandler for H {}
+    impl ParamHandler for X {}
 
-#[test]
-fn response_status_code_eof() {
-    let mut h = H{data: 0};
-    let mut p = Parser::new(StreamType::Response);
+    let mut h = X{};
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 0") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::ResponseStatusCode);
+    assert_callback(&mut p, &mut h, b"100 ", State::StripResponseStatus, 3);
 }
 
 #[test]
-fn response_status_code_0() {
-    let mut h = H{data: 0};
-    let mut p = Parser::new(StreamType::Response);
+fn v0 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 0 ") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, 0);
-    assert_eq!(p.get_state(), State::StripResponseStatus);
+    assert_eof(&mut p, &mut h, b"0 ", State::StripResponseStatus, 2);
+    assert_eq!(h.status_code, 0);
 }
 
 #[test]
-fn response_status_code_999() {
-    let mut h = H{data: 0};
-    let mut p = Parser::new(StreamType::Response);
+fn v999 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 999 ") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, 999);
-    assert_eq!(p.get_state(), State::StripResponseStatus);
+    assert_eof(&mut p, &mut h, b"999 ", State::StripResponseStatus, 4);
+    assert_eq!(h.status_code, 999);
 }
 
 #[test]
-fn response_status_code_invalid() {
-    let mut h = H{data: 0};
-    let mut p = Parser::new(StreamType::Response);
+fn v1000 () {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 1000") {
-        Err(ParserError::StatusCode(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::Dead);
-}
-
-#[test]
-fn response_status_code_invalid_byte() {
-    let mut h = H{data: 0};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 a") {
-        Err(ParserError::StatusCode(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    if let ParserError::StatusCode(_,x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
+        assert_eq!(x, b'0');
+    } else {
+        panic!();
+    }
 }

@@ -1111,49 +1111,218 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_response_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::ResponseHttp1, response_http1);
+        change_state_fast!(self, context);
     }
 
     #[inline]
     pub fn response_http1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        macro_rules! version {
+            ($major:expr, $minor:expr, $length:expr) => (
+                jump_bytes!(context, $length);
+                set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
+
+                if context.handler.on_version($major, $minor) {
+                    change_state!(self, context);
+                } else {
+                    exit_callback!(self, context);
+                }
+            );
+        }
+
+        if has_bytes!(context, 9) {
+            // have enough bytes to compare all known versions immediately, without collecting
+            // individual tokens
+            if b"HTTP/1.1 " == peek_bytes!(context, 9) {
+                version!(1, 1, 9);
+            } else if b"HTTP/2.0 " == peek_bytes!(context, 9) {
+                version!(2, 0, 9);
+            } else if b"HTTP/1.0 " == peek_bytes!(context, 9) {
+                version!(1, 0, 9);
+            }
+        }
+
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'H' || context.byte == b'h' {
+            set_state!(self, State::ResponseHttp2, response_http2);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
     }
 
     #[inline]
     pub fn response_http2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            set_state!(self, State::ResponseHttp3, response_http3);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
     }
 
     #[inline]
     pub fn response_http3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            set_state!(self, State::ResponseHttp4, response_http4);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
     }
 
     #[inline]
     pub fn response_http4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'P' || context.byte == b'p' {
+            set_state!(self, State::ResponseHttp5, response_http5);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
     }
 
     #[inline]
     pub fn response_http5(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'/' {
+            self.bit_data = 0;
+
+            set_state!(self, State::ResponseVersionMajor, response_version_major);
+            change_state_fast!(self, context);
+        } else {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
     }
 
     #[inline]
     pub fn response_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        let mut digit = self.bit_data as u16;
+
+        collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
+            self.bit_data = digit as u64;
+
+            exit_eof!(self, context);
+        });
+
+        self.bit_data = (digit as u64) << 4;
+
+        if context.byte != b'.' {
+            exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
+        }
+
+        set_state!(self, State::ResponseVersionMinor, response_version_minor);
+        change_state_fast!(self, context);
     }
 
     #[inline]
     pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        let mut digit: u16 = (self.bit_data & 0xF) as u16;
+
+        collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
+            self.bit_data += digit as u64;
+
+            exit_eof!(self, context);
+        });
+
+        set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
+
+        if context.handler.on_version((self.bit_data >> 4) as u16, digit) {
+            change_state_fast!(self, context);
+        } else {
+            exit_callback!(self, context);
+        }
+    }
+
+    #[inline]
+    pub fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+
+        if !is_digit!(context.byte) {
+            exit_error!(self, context, ParserError::StatusCode(ERR_STATUS_CODE, context.byte));
+        }
+
+        replay!(context);
+
+        self.bit_data = 0;
+
+        set_state!(self, State::ResponseStatusCode, response_status_code);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn response_status_code(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        let mut digit = self.bit_data as u16;
+
+        collect_digits!(self, context, digit, 999, ParserError::StatusCode, ERR_STATUS_CODE, {
+            self.bit_data = digit as u64;
+
+            exit_eof!(self, context);
+        });
+
+        replay!(context);
+        set_state!(self, State::StripResponseStatus, strip_response_status);
+
+        if context.handler.on_status_code(digit as u16) {
+            change_state_fast!(self, context);
+        } else {
+            exit_callback!(self, context);
+        }
+    }
+
+    #[inline]
+    pub fn strip_response_status(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_space_tab!(self, context);
+        replay!(context);
+        set_state!(self, State::ResponseStatus, response_status);
+        change_state_fast!(self, context);
+    }
+
+    #[inline]
+    pub fn response_status(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        loop {
+            if is_eof!(context) {
+                callback_or_eof!(self, context, on_status);
+            }
+
+            next!(context);
+
+            if context.byte == b'\r' {
+                break;
+            } else if context.byte != b' ' && context.byte != b'\t' && !is_token(context.byte) {
+                exit_error!(self, context, ParserError::Status(ERR_STATUS, context.byte));
+            }
+        }
+
+        set_state!(self, State::PreHeaders1, pre_headers1);
+        callback_ignore!(self, context, on_status, {
+            change_state!(self, context);
+        });
     }
 
     // ---------------------------------------------------------------------------------------------

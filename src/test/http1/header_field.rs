@@ -304,9 +304,23 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field", State::HeaderField, 5);
+    assert_eof(&mut p, &mut h, b"F", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"F");
+    assert_eof(&mut p, &mut h, b"i", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"Fi");
+    assert_eof(&mut p, &mut h, b"e", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"Fie");
+    assert_eof(&mut p, &mut h, b"l", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"Fiel");
+    assert_eof(&mut p, &mut h, b"d", State::HeaderField, 1);
     assert_eq!(h.header_field, b"Field");
-    assert_eof(&mut p, &mut h, b"Name", State::HeaderField, 4);
+    assert_eof(&mut p, &mut h, b"N", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"FieldN");
+    assert_eof(&mut p, &mut h, b"a", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"FieldNa");
+    assert_eof(&mut p, &mut h, b"m", State::HeaderField, 1);
+    assert_eq!(h.header_field, b"FieldNam");
+    assert_eof(&mut p, &mut h, b"e", State::HeaderField, 1);
     assert_eq!(h.header_field, b"FieldName");
     assert_eof(&mut p, &mut h, b":", State::StripHeaderValue, 1);
 }

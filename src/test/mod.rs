@@ -99,6 +99,36 @@ pub fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
+pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_digit!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_non_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_digit!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
 pub fn loop_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {

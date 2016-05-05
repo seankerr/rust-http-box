@@ -17,118 +17,84 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
 
-use std::str;
-
-struct H {
-    data: Vec<u8>
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"HTTP/1.1 200 ", State::StripResponseStatus);
+    });
 }
 
-impl HttpHandler for H {
-    fn on_status(&mut self, data: &[u8]) -> bool {
-        println!("on_status: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
-        true
+#[test]
+fn byte_check() {
+    // invalid bytes
+    loop_non_tokens(b"\r \t", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_response();
+
+        setup!(p, h);
+
+        if let ParserError::Status(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
+    });
+
+    // valid bytes
+    loop_tokens(b"", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_response();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[byte], State::ResponseStatus, 1);
+    });
+}
+
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_status(&mut self, _status: &[u8]) -> bool {
+            false
+        }
     }
-}
 
-impl ParamHandler for H {}
+    impl ParamHandler for X {}
 
-#[test]
-fn response_status_single() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+    let mut h = X{};
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"OK");
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", State::PreHeaders1, 14);
 }
 
 #[test]
-fn response_status_multiple() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT FOUND") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"NOT FOUND");
-    assert_eq!(p.get_state(), State::ResponseStatus);
+    assert_eof(&mut p, &mut h, b"NOT ", State::ResponseStatus, 4);
+    assert_eq!(h.status, b"NOT ");
+    assert_eof(&mut p, &mut h, b"FOUND\r", State::PreHeaders1, 6);
+    assert_eq!(h.status, b"NOT FOUND");
 }
 
 #[test]
-fn response_status_invalid_byte() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_response();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 404 NOT@FOUND") {
-        Err(ParserError::Status(_,_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(p.get_state(), State::Dead);
-}
-
-#[test]
-fn response_status_to_body() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::PreHeaders1);
-
-    assert!(match p.parse(&mut h, b"\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::PreHeaders2);
-
-    assert!(match p.parse(&mut h, b"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Newline4);
-
-    assert!(match p.parse(&mut h, b"\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Body);
-}
-
-#[test]
-fn response_status_invalid_crlf() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\r") {
-        Err(ParserError::CrlfSequence(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\n") {
-        Err(ParserError::Status(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"NOT FOUND\r", State::PreHeaders1, 10);
+    assert_eq!(h.status, b"NOT FOUND");
 }
