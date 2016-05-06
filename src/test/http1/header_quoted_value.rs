@@ -17,130 +17,63 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
-use std::str;
 
-struct H {
-    data: Vec<u8>
-}
-
-impl HttpHandler for H {
-    fn on_header_value(&mut self, data: &[u8]) -> bool {
-        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
-        true
-    }
-}
-
-impl ParamHandler for H {}
-
-#[test]
-fn header_quoted_value_escape() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple \\\"word\\\" value\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", State::StripHeaderValue);
     });
-
-    assert_eq!(h.data, b"multiple \"word\" value");
-    assert_eq!(p.get_state(), State::Newline2);
 }
 
 #[test]
-fn header_quoted_value_no_escape() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn escaped_multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple word value\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"multiple word value");
-    assert_eq!(p.get_state(), State::Newline2);
+    assert_eof(&mut p, &mut h, b"\"Value", State::QuotedHeaderValue, 6);
+    assert_eq!(h.header_value, b"Value");
+    assert_eof(&mut p, &mut h, b"\\\"", State::QuotedHeaderValue, 2);
+    assert_eq!(h.header_value, b"Value\"");
+    assert_eof(&mut p, &mut h, b"Time\"", State::Newline1, 5);
+    assert_eq!(h.header_value, b"Value\"Time");
 }
 
 #[test]
-fn header_quoted_value_starting_escape() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn escaped_single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"\\\"word\\\" value\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"\"word\" value");
-    assert_eq!(p.get_state(), State::Newline2);
+    assert_eof(&mut p, &mut h, b"\"Value\\\"Time\"", State::Newline1, 13);
+    assert_eq!(h.header_value, b"Value\"Time");
 }
 
 #[test]
-fn header_quoted_value_ending_escape() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"word \\\"value\\\"\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"word \"value\"");
-    assert_eq!(p.get_state(), State::Newline2);
+    assert_eof(&mut p, &mut h, b"\"Value", State::QuotedHeaderValue, 6);
+    assert_eq!(h.header_value, b"Value");
+    assert_eof(&mut p, &mut h, b"Time\"", State::Newline1, 5);
+    assert_eq!(h.header_value, b"ValueTime");
 }
 
 #[test]
-fn header_quoted_value_multiline() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \"value1\"\r\n \"value2\"\r\n \"value3\"\r\n \"value4\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"value1 value2 value3 value4");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_quoted_value_white_space() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \t \t \t \t \"value\"\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_quoted_value_incomplete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"multiple word\r") {
-        Err(ParserError::HeaderValue(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
-}
-
-#[test]
-fn header_quoted_value_invalid_byte() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nCustom-Header: \"\0value\"\r") {
-        Err(ParserError::HeaderValue(_,_)) => true,
-        _ => false
-    });
-
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"\"Value Time\"", State::Newline1, 12);
+    assert_eq!(h.header_value, b"Value Time");
 }

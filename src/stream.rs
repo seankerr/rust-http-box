@@ -51,7 +51,7 @@ macro_rules! callback_data {
 /// otherwise exit with callback status.
 macro_rules! callback_ignore {
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
-        let slice = &$context.stream[$parser.mark_index..$context.index - 1];
+        let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
@@ -78,7 +78,7 @@ macro_rules! callback_or_eof {
 /// Change parser state.
 macro_rules! change_state {
     ($parser:expr, $context:expr) => ({
-        $parser.mark_index = $context.index;
+        $context.mark_index = $context.stream_index;
 
         return Ok(ParserValue::Continue);
     });
@@ -87,7 +87,7 @@ macro_rules! change_state {
 /// Change parser state fast, without returning immediately.
 macro_rules! change_state_fast {
     ($parser:expr, $context:expr) => ({
-        $parser.mark_index = $context.index;
+        $context.mark_index = $context.stream_index;
 
         return ($parser.state_function)($parser, $context);
     });
@@ -96,14 +96,14 @@ macro_rules! change_state_fast {
 /// Retrieve a slice of collected bytes.
 macro_rules! collected_bytes {
     ($parser:expr, $context:expr) => (
-        &$context.stream[$parser.mark_index..$context.index]
+        &$context.stream[$context.mark_index..$context.stream_index]
     );
 }
 
 /// Retrieve a slice of collected bytes forgetting the most recent byte.
 macro_rules! collected_bytes_forget {
     ($parser:expr, $context:expr) => (
-        &$context.stream[$parser.mark_index..$context.index - 1]
+        &$context.stream[$context.mark_index..$context.stream_index - 1]
     );
 }
 
@@ -134,6 +134,23 @@ macro_rules! collect_digits {
 
 /// Collect all 7-bit non-control bytes.
 macro_rules! collect_safe {
+    ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $error:expr, $error_msg:expr,
+     $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            next!($context);
+
+            if $stop1 == $context.byte || $stop2 == $context.byte {
+                break;
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+                exit_error!($parser, $context, $error($error_msg, $context.byte));
+            }
+        }
+    });
+
     ($parser:expr, $context:expr, $stop:expr, $error:expr, $error_msg:expr,
      $eof_block:block) => ({
         loop {
@@ -192,28 +209,38 @@ macro_rules! consume_space_tab {
 /// Exit parser function with a callback status.
 macro_rules! exit_callback {
     ($parser:expr, $context:expr) => ({
-        $parser.byte_count += $context.index;
+        $parser.byte_count += $context.stream_index;
 
-        return Ok(ParserValue::Exit(Success::Callback($context.index)));
+        return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });
 }
 
 /// Exit parser function with an EOF status.
 macro_rules! exit_eof {
     ($parser:expr, $context:expr) => ({
-        $parser.byte_count += $context.index;
+        $parser.byte_count += $context.stream_index;
 
-        return Ok(ParserValue::Exit(Success::Eof($context.index)));
+        return Ok(ParserValue::Exit(Success::Eof($context.stream_index)));
     });
 }
 
 /// Exit parser function with an error.
 macro_rules! exit_error {
     ($parser:expr, $context:expr, $error:expr) => ({
-        $parser.byte_count += $context.index;
+        $parser.byte_count += $context.stream_index;
         $parser.state       = State::Dead;
 
         return Err($error);
+    });
+}
+
+/// Exit parser with finished status.
+macro_rules! exit_finished {
+    ($parser:expr, $context:expr) => ({
+        $parser.byte_count += $context.stream_index;
+        $parser.state       = State::Finished;
+
+        return Ok(ParserValue::Exit(Success::Finished($context.stream_index)));
     });
 }
 
@@ -229,43 +256,43 @@ macro_rules! exit_if_eof {
 /// Indicates that a specified amount of bytes are available.
 macro_rules! has_bytes {
     ($context:expr, $length:expr) => (
-        $context.index + $length <= $context.stream.len()
+        $context.stream_index + $length <= $context.stream.len()
     );
 }
 
 /// Indicates that we're at the end of the stream.
 macro_rules! is_eof {
     ($context:expr) => (
-        $context.index == $context.stream.len()
+        $context.stream_index == $context.stream.len()
     );
 }
 
 /// Jump a specified amount of bytes.
 macro_rules! jump_bytes {
     ($context:expr, $length:expr) => ({
-        $context.index += $length;
+        $context.stream_index += $length;
     });
 }
 
 /// Advance the stream one byte.
 macro_rules! next {
     ($context:expr) => ({
-        $context.index += 1;
-        $context.byte   = $context.stream[$context.index - 1]
+        $context.stream_index += 1;
+        $context.byte   = $context.stream[$context.stream_index - 1]
     });
 }
 
 /// Peek at a slice of available bytes.
 macro_rules! peek_bytes {
     ($context:expr, $length:expr) => (
-        &$context.stream[$context.index..$context.index + $length]
+        &$context.stream[$context.stream_index..$context.stream_index + $length]
     );
 }
 
 /// Replay the most recent byte by rewinding the stream index 1 byte.
 macro_rules! replay {
     ($context:expr) => (
-        $context.index -= 1;
+        $context.stream_index -= 1;
     );
 }
 

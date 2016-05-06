@@ -32,7 +32,6 @@ pub struct DebugHandler {
     pub chunk_data:       Vec<u8>,
     pub chunk_extension:  Vec<u8>,
     pub chunk_size:       u64,
-    pub finished:         bool,
     pub header_field:     Vec<u8>,
     pub header_value:     Vec<u8>,
     pub headers_finished: bool,
@@ -59,7 +58,6 @@ impl DebugHandler {
                       chunk_data:       Vec::new(),
                       chunk_extension:  Vec::new(),
                       chunk_size:       0,
-                      finished:         false,
                       header_field:     Vec::new(),
                       header_value:     Vec::new(),
                       headers_finished: false,
@@ -85,7 +83,6 @@ impl DebugHandler {
         self.chunk_data       = Vec::new();
         self.chunk_extension  = Vec::new();
         self.chunk_size       = 0;
-        self.finished         = false;
         self.header_field     = Vec::new();
         self.header_value     = Vec::new();
         self.headers_finished = false;
@@ -146,11 +143,6 @@ impl HttpHandler for DebugHandler {
         println!("on_chunk_size: {}", size);
         self.chunk_size = size;
         true
-    }
-
-    fn on_finished(&mut self) {
-        println!("on_finished");
-        self.finished = true;
     }
 
     fn on_header_field(&mut self, field: &[u8]) -> bool {

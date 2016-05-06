@@ -21,9 +21,7 @@
 use super::Success;
 use byte::hex_to_byte;
 use byte::is_token;
-use url::{ ParamError,
-           ParamHandler,
-           parse_query_string };
+use url::ParamHandler;
 
 use std::str;
 
@@ -111,14 +109,8 @@ bitflags! {
         // Parsing data that needs to check against content length.
         const F_CONTENT_LENGTH = 1 << 1,
 
-        // Quoted header value has an escape character.
-        const F_QUOTE_ESCAPED = 1 << 2,
-
         // Parsing multipart data.
-        const F_MULTIPART_DATA = 1 << 3,
-
-        // Indicates the stream contains request data rather than response.
-        const F_REQUEST = 1 << 4
+        const F_MULTIPART_DATA = 1 << 2
     }
 }
 
@@ -229,7 +221,7 @@ pub enum State {
     Dead = 1,
 
     /// Parser has finished successfully.
-    Done,
+    Finished,
 
     // ---------------------------------------------------------------------------------------------
     // REQUEST
@@ -326,6 +318,9 @@ pub enum State {
 
     /// Parsing header quoted value.
     QuotedHeaderValue,
+
+    /// Parsing header quoted escaped value.
+    QuotedEscapedHeaderValue,
 
     /// CRLF[CRLF] after header value
     Newline1,
@@ -488,10 +483,6 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when parsing has completed successfully.
-    fn on_finished(&mut self) {
-    }
-
     /// Callback that is executed when a header field has been located.
     ///
     /// This may be executed multiple times in order to supply the entire header field.
@@ -574,20 +565,24 @@ pub struct ParserContext<'a, T: HttpHandler + ParamHandler + 'a> {
     // Callback handler.
     handler: &'a mut T,
 
-    // Stream index.
-    index: usize,
+    // Callback mark index.
+    mark_index: usize,
 
     // Stream data.
-    stream: &'a [u8]
+    stream: &'a [u8],
+
+    // Stream index.
+    stream_index: usize
 }
 
 impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
     /// Create a new `ParserContext`.
     pub fn new(handler: &'a mut T, stream: &'a [u8]) -> ParserContext<'a, T> {
-        ParserContext{ byte:    0,
-                       handler: handler,
-                       index:   0,
-                       stream:  stream }
+        ParserContext{ byte:         0,
+                       handler:      handler,
+                       mark_index:   0,
+                       stream:       stream,
+                       stream_index: 0 }
     }
 }
 
@@ -607,9 +602,6 @@ pub struct Parser<T: HttpHandler + ParamHandler> {
     // State details.
     flags: Flag,
 
-    // Callback mark index.
-    mark_index: usize,
-
     // Current state.
     state: State,
 
@@ -624,7 +616,6 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 byte_count:     0,
                 content_type:   ContentType::None,
                 flags:          F_NONE,
-                mark_index:     0,
                 state:          state,
                 state_function: state_function }
     }
@@ -696,7 +687,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         if context.byte == b'\n' {
             set_state!(self, State::PreHeaders2, pre_headers2);
-            change_state!(self, context);
+            change_state_fast!(self, context);
         } else {
             exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
         }
@@ -710,11 +701,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         if context.byte == b'\r' {
             set_state!(self, State::Newline4, newline4);
-            change_state!(self, context);
+            change_state_fast!(self, context);
         } else {
             replay!(context);
             set_state!(self, State::StripHeaderField, strip_header_field);
-            change_state!(self, context);
+            change_state_fast!(self, context);
         }
     }
 
@@ -730,7 +721,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn first_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        macro_rules! header {
+        macro_rules! field {
             ($header:expr, $length:expr) => ({
                 jump_bytes!(context, $length);
                 set_state!(self, State::StripHeaderValue, strip_header_value);
@@ -745,71 +736,71 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             // individual tokens
             if context.byte == b'L' {
                 if b"Location:" == peek_bytes!(context, 9) {
-                    header!(b"Location", 9);
+                    field!(b"Location", 9);
                 } else if b"Last-Modified:" == peek_bytes!(context, 14) {
-                    header!(b"Last-Modified", 14);
+                    field!(b"Last-Modified", 14);
                 }
             } else if context.byte == b'P' {
                 if b"Pragma:" == peek_bytes!(context, 7) {
-                    header!(b"Pragma", 7);
+                    field!(b"Pragma", 7);
                 }
             } else if context.byte == b'S' {
                 if b"Set-Cookie:" == peek_bytes!(context, 11) {
-                    header!(b"Set-Cookie", 11);
+                    field!(b"Set-Cookie", 11);
                 }
             } else if context.byte == b'T' {
                 if b"Transfer-Encoding:" == peek_bytes!(context, 18) {
-                    header!(b"Transfer-Encoding", 18);
+                    field!(b"Transfer-Encoding", 18);
                 }
             } else if context.byte == b'U' {
                 if b"User-Agent:" == peek_bytes!(context, 11) {
-                    header!(b"User-Agent", 11);
+                    field!(b"User-Agent", 11);
                 } else if b"Upgrade:" == peek_bytes!(context, 8) {
-                    header!(b"Upgrade", 8);
+                    field!(b"Upgrade", 8);
                 }
             } else if context.byte == b'A' {
                 if b"Accept:" == peek_bytes!(context, 7) {
-                    header!(b"Accept", 7);
+                    field!(b"Accept", 7);
                 } else if b"Accept-Charset:" == peek_bytes!(context, 15) {
-                    header!(b"Accept-Charset", 15);
+                    field!(b"Accept-Charset", 15);
                 } else if b"Accept-Encoding:" == peek_bytes!(context, 16) {
-                    header!(b"Accept-Encoding", 16);
+                    field!(b"Accept-Encoding", 16);
                 } else if b"Accept-Language:" == peek_bytes!(context, 16) {
-                    header!(b"Accept-Language", 16);
+                    field!(b"Accept-Language", 16);
                 } else if b"Authorization:" == peek_bytes!(context, 14) {
-                    header!(b"Authorization", 14);
+                    field!(b"Authorization", 14);
                 }
             } else if context.byte == b'C' {
                 if b"Connection:" == peek_bytes!(context, 11) {
-                    header!(b"Connection", 11);
+                    field!(b"Connection", 11);
                 } else if b"Content-Type:" == peek_bytes!(context, 13) {
-                    header!(b"Content-Type", 13);
+                    field!(b"Content-Type", 13);
                 } else if b"Content-Length:" == peek_bytes!(context, 15) {
-                    header!(b"Content-Length", 15);
+                    field!(b"Content-Length", 15);
                 } else if b"Cookie:" == peek_bytes!(context, 7) {
-                    header!(b"Cookie", 7);
+                    field!(b"Cookie", 7);
                 } else if b"Cache-Control:" == peek_bytes!(context, 14) {
-                    header!(b"Cache-Control", 14);
+                    field!(b"Cache-Control", 14);
                 } else if b"Content-Security-Policy:" == peek_bytes!(context, 24) {
-                    header!(b"Content-Security-Policy", 24);
+                    field!(b"Content-Security-Policy", 24);
                 }
             } else if context.byte == b'X' {
                 if b"X-Powered-By:" == peek_bytes!(context, 13) {
-                    header!(b"X-Powered-By", 13);
+                    field!(b"X-Powered-By", 13);
                 } else if b"X-Forwarded-For:" == peek_bytes!(context, 16) {
-                    header!(b"X-Forwarded-For", 16);
+                    field!(b"X-Forwarded-For", 16);
                 } else if b"X-Forwarded-Host:" == peek_bytes!(context, 17) {
-                    header!(b"X-Forwarded-Host", 17);
+                    field!(b"X-Forwarded-Host", 17);
                 } else if b"X-XSS-Protection:" == peek_bytes!(context, 17) {
-                    header!(b"X-XSS-Protection", 17);
+                    field!(b"X-XSS-Protection", 17);
                 } else if b"X-WebKit-CSP:" == peek_bytes!(context, 13) {
-                    header!(b"X-WebKit-CSP", 13);
+                    field!(b"X-WebKit-CSP", 13);
                 } else if b"X-Content-Security-Policy:" == peek_bytes!(context, 26) {
-                    header!(b"X-Content-Security-Policy", 26);
+                    field!(b"X-Content-Security-Policy", 26);
                 }
             } else if context.byte == b'W' {
                 if b"WWW-Authenticate:" == peek_bytes!(context, 17) {
-                    header!(b"WWW-Authenticate", 17);
+                    field!(b"WWW-Authenticate", 17);
                 }
             }
         }
@@ -836,43 +827,136 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     pub fn strip_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
-        exit_eof!(self, context);
+
+        if context.byte == b'"' {
+            set_state!(self, State::QuotedHeaderValue, quoted_header_value);
+            change_state_fast!(self, context);
+        }
+
+        replay!(context);
+        set_state!(self, State::HeaderValue, header_value);
+        change_state_fast!(self, context);
     }
 
     #[inline]
     pub fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        collect_safe!(self, context, b'\r', ParserError::HeaderValue, ERR_HEADER_VALUE, {
+            callback_or_eof!(self, context, on_header_value);
+        });
+
+        set_state!(self, State::Newline2, newline2);
+        callback_ignore!(self, context, on_header_value, {
+            change_state_fast!(self, context);
+        });
     }
 
     #[inline]
     pub fn quoted_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        collect_safe!(self, context, b'"', b'\\', ParserError::HeaderValue, ERR_HEADER_VALUE, {
+            callback_or_eof!(self, context, on_header_value);
+        });
+
+        if context.byte == b'"' {
+            set_state!(self, State::Newline1, newline1);
+        } else {
+            set_state!(self, State::QuotedEscapedHeaderValue, quoted_escaped_header_value);
+        }
+
+        callback_ignore!(self, context, on_header_value, {
+            change_state!(self, context);
+        });
+    }
+
+    #[inline]
+    pub fn quoted_escaped_header_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+        set_state!(self, State::QuotedHeaderValue, quoted_header_value);
+        callback_data!(self, context, &[context.byte], on_header_value, {
+            change_state!(self, context);
+        });
     }
 
     #[inline]
     pub fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        if has_bytes!(context, 2) && b"\r\n" == peek_bytes!(context, 2) {
+            set_state!(self, State::Newline3, newline3);
+            change_state_fast!(self, context);
+        }
+
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\r' {
+            set_state!(self, State::Newline2, newline2);
+            change_state_fast!(self, context);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
     }
 
     #[inline]
     pub fn newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\n' {
+            set_state!(self, State::Newline3, newline3);
+            change_state_fast!(self, context);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
     }
 
     #[inline]
     pub fn newline3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\r' {
+            set_state!(self, State::Newline4, newline4);
+            change_state_fast!(self, context);
+        } else if context.byte == b' ' || context.byte == b'\t' {
+            set_state!(self, State::StripHeaderValue, strip_header_value);
+            callback_data!(self, context, b" ", on_header_value, {
+                change_state!(self, context);
+            });
+        } else {
+            replay!(context);
+            set_state!(self, State::StripHeaderField, strip_header_field);
+            change_state!(self, context);
+        }
     }
 
     #[inline]
     pub fn newline4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\n' {
+            set_state!(self, State::Body, body);
+
+            if context.handler.on_headers_finished() {
+                if self.flags.contains(F_CHUNK_DATA) {
+                    exit_finished!(self, context);
+                }
+
+                change_state_fast!(self, context);
+            } else if self.flags.contains(F_CHUNK_DATA) {
+                exit_finished!(self, context);
+            } else {
+                exit_callback!(self, context);
+            }
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -975,7 +1059,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 set_state!(self, State::PreHeaders1, pre_headers1);
 
                 if context.handler.on_version($major, $minor) {
-                    change_state!(self, context);
+                    change_state_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
                 }
@@ -1098,7 +1182,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         set_state!(self, State::PreHeaders1, pre_headers1);
 
         if context.handler.on_version((self.bit_data >> 4) as u16, digit) {
-            change_state!(self, context);
+            change_state_fast!(self, context);
         } else {
             exit_callback!(self, context);
         }
@@ -1126,7 +1210,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
                 if context.handler.on_version($major, $minor) {
-                    change_state!(self, context);
+                    change_state_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
                 }
@@ -1321,7 +1405,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_state!(self, State::PreHeaders1, pre_headers1);
         callback_ignore!(self, context, on_status, {
-            change_state!(self, context);
+            change_state_fast!(self, context);
         });
     }
 

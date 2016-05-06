@@ -69,36 +69,6 @@ pub fn assert_error<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handl
     }
 }
 
-pub fn loop_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
-    'outer:
-    for n1 in 0..255 {
-        for n2 in skip {
-            if n1 == *n2 {
-                continue 'outer;
-            }
-        }
-
-        if is_control!(n1) {
-            function(n1 as u8);
-        }
-    }
-}
-
-pub fn loop_non_control<F>(skip: &[u8], function: F) where F : Fn(u8) {
-    'outer:
-    for n1 in 0..255 {
-        for n2 in skip {
-            if n1 == *n2 {
-                continue 'outer;
-            }
-        }
-
-        if !is_control!(n1) {
-            function(n1 as u8);
-        }
-    }
-}
-
 pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
@@ -129,36 +99,6 @@ pub fn loop_non_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-pub fn loop_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
-    'outer:
-    for n1 in 0..255 {
-        for n2 in skip {
-            if n1 == *n2 {
-                continue 'outer;
-            }
-        }
-
-        if is_ascii!(n1) && !is_control!(n1) {
-            function(n1 as u8);
-        }
-    }
-}
-
-pub fn loop_non_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
-    'outer:
-    for n1 in 0..255 {
-        for n2 in skip {
-            if n1 == *n2 {
-                continue 'outer;
-            }
-        }
-
-        if !is_ascii!(n1) || is_control!(n1) {
-            function(n1 as u8);
-        }
-    }
-}
-
 pub fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
@@ -174,6 +114,21 @@ pub fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
+pub fn loop_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_control!(n1) && is_ascii!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
 pub fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
@@ -184,6 +139,21 @@ pub fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
         }
 
         if is_token(n1 as u8) {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_unsafe<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_control!(n1) || !is_ascii!(n1) {
             function(n1 as u8);
         }
     }

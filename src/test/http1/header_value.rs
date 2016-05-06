@@ -17,90 +17,97 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
-use std::str;
 
-struct H {
-    data: Vec<u8>
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", State::StripHeaderValue);
+    });
 }
 
-impl HttpHandler for H {
-    fn on_header_value(&mut self, data: &[u8]) -> bool {
-        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
-        true
+#[test]
+fn byte_check() {
+    // invalid bytes
+    loop_unsafe(b"\r\t", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        if let ParserError::HeaderValue(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
+    });
+
+    // valid bytes
+    loop_safe(b" \"", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[byte], State::HeaderValue, 1);
+    });
+}
+
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_header_value(&mut self, _field: &[u8]) -> bool {
+            false
+        }
     }
-}
 
-impl ParamHandler for H {}
+    impl ParamHandler for X {}
 
-#[test]
-fn header_value_eof() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+    let mut h = X{};
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::HeaderValue);
+    assert_callback(&mut p, &mut h, b"F", State::HeaderValue, 1);
 }
 
 #[test]
-fn header_value_complete() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiline() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Newline2);
+    assert_eof(&mut p, &mut h, b"Value1\r\n", State::Newline3, 8);
+    assert_eq!(h.header_value, b"Value1");
+    assert_eof(&mut p, &mut h, b" Value2\r", State::Newline2, 8);
+    assert_eq!(h.header_value, b"Value1 Value2");
 }
 
 #[test]
-fn header_value_multiline() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value1\r\n value2\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"value1 value2");
-    assert_eq!(p.get_state(), State::Newline2);
+    assert_eof(&mut p, &mut h, b"Value", State::HeaderValue, 5);
+    assert_eq!(h.header_value, b"Value");
+    assert_eof(&mut p, &mut h, b" Time\r", State::Newline2, 6);
+    assert_eq!(h.header_value, b"Value Time");
 }
 
 #[test]
-fn header_value_white_space() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: \t \t \t \t value\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Newline2);
-}
-
-#[test]
-fn header_value_to_body() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nContent-Length: value\r\n\r\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.data, b"value");
-    assert_eq!(p.get_state(), State::Body);
+    assert_eof(&mut p, &mut h, b"Value Time\r", State::Newline2, 11);
+    assert_eq!(h.header_value, b"Value Time");
 }

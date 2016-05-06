@@ -298,6 +298,26 @@ fn by_name_www_authenticate() {
 }
 
 #[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_header_field(&mut self, _field: &[u8]) -> bool {
+            false
+        }
+    }
+
+    impl ParamHandler for X {}
+
+    let mut h = X{};
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_callback(&mut p, &mut h, b"F", State::HeaderField, 1);
+}
+
+#[test]
 fn multiple() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();

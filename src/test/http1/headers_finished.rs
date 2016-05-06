@@ -17,67 +17,44 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
+use test::*;
 use url::*;
 
-struct H {
-    data: bool
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: Value", State::HeaderValue);
+    });
 }
 
-impl HttpHandler for H {
-    fn on_headers_finished(&mut self) -> bool {
-        println!("on_headers_finished");
-        self.data = true;
-        true
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn on_headers_finished(&mut self) -> bool {
+            false
+        }
     }
-}
 
-impl ParamHandler for H {}
+    impl ParamHandler for X {}
 
-#[test]
-fn headers_finished_success() {
-    let mut h = H{data: false};
-    let mut p = Parser::new(StreamType::Response);
+    let mut h = X{};
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n\r\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert!(h.data);
-    assert_eq!(p.get_state(), State::Body);
+    assert_callback(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
 }
 
 #[test]
-fn headers_finished_fail() {
-    let mut h = H{data: false};
-    let mut p = Parser::new(StreamType::Response);
+fn finished() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert!(!h.data);
-    assert_eq!(p.get_state(), State::Newline2);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\r\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert!(!h.data);
-    assert_eq!(p.get_state(), State::Newline3);
-
-    p.reset();
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\nField: Value\n") {
-        Err(ParserError::CrlfSequence(_,_)) => true,
-        _ => false
-    });
-
-    assert!(!h.data);
-    assert_eq!(p.get_state(), State::Dead);
+    assert_eof(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
+    assert!(h.headers_finished);
 }

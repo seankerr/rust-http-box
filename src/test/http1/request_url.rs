@@ -31,7 +31,7 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_safe(b" \t", |byte| {
+    loop_unsafe(b" \t", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
