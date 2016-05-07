@@ -21,8 +21,7 @@ use byte::is_token;
 use http1::{ HttpHandler,
              Parser,
              ParserError,
-             State,
-             StateFunction };
+             State };
 use url::ParamHandler;
 use std::fmt::Debug;
 
@@ -84,6 +83,21 @@ pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
+pub fn loop_hex<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_hex!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
 pub fn loop_non_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
@@ -94,6 +108,21 @@ pub fn loop_non_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
         }
 
         if !is_digit!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_non_hex<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if !is_hex!(n1) {
             function(n1 as u8);
         }
     }

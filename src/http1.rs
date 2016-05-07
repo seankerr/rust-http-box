@@ -23,14 +23,12 @@ use byte::hex_to_byte;
 use byte::is_token;
 use url::ParamHandler;
 
+use std::fmt;
 use std::str;
 
 /// Maximum chunk extension byte count to process before returning
 /// `ParserError::MaxChunkExtensionLength`.
 pub const CFG_MAX_CHUNK_EXTENSION_LENGTH: u8 = 255;
-
-/// Maximum chunk size byte count to process before returning `ParserError::MaxChunkSizeLength`.
-pub const CFG_MAX_CHUNK_SIZE_LENGTH: u8 = 16;
 
 /// Maximum multipart boundary byte count to process before returning
 /// `ParserError::MaxMultipartBoundaryLength`.
@@ -61,9 +59,6 @@ pub const ERR_HEX_SEQUENCE: &'static str = "Invalid hex byte";
 
 /// Maximum chunk extension length has been met.
 pub const ERR_MAX_CHUNK_EXTENSION_LENGTH: &'static str = "Maximum chunk extension length";
-
-/// Maximum chunk size length has been met.
-pub const ERR_MAX_CHUNK_SIZE_LENGTH: &'static str = "Maximum chunk size length";
 
 /// Maximum multipart boundary length.
 pub const ERR_MAX_MULTIPART_BOUNDARY_LENGTH: &'static str = "Maximum multipart boundary length";
@@ -99,12 +94,12 @@ pub const ERR_VERSION: &'static str = "Invalid HTTP version";
 
 // Flags used to track state details.
 bitflags! {
-    flags Flag: u8 {
+    flags Flag: u64 {
         // No flags.
         const F_NONE = 0,
 
-        // Parsing chunk data.
-        const F_CHUNK_DATA = 1 << 0,
+        // Parsing chunked transfer encoding.
+        const F_CHUNKED = 1 << 0,
 
         // Parsing data that needs to check against content length.
         const F_CONTENT_LENGTH = 1 << 1,
@@ -126,6 +121,27 @@ pub enum Connection {
     Upgrade
 }
 
+impl fmt::Display for Connection {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Connection::None => {
+                write!(formatter, "Connection::None")
+            },
+            Connection::Close => {
+                write!(formatter, "Connection::Close")
+            },
+            Connection::KeepAlive => {
+                write!(formatter, "Connection::KeepAlive")
+            },
+            Connection::Upgrade => {
+                write!(formatter, "Connection::Upgrade")
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Content length.
 #[derive(Clone,Copy,PartialEq)]
 pub enum ContentLength {
@@ -133,13 +149,50 @@ pub enum ContentLength {
     Specified(u64)
 }
 
+impl fmt::Display for ContentLength {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ContentLength::None => {
+                write!(formatter, "ContentLength::None")
+            },
+            ContentLength::Specified(x) => {
+                write!(formatter, "ContentLength::Specified({})", x)
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Content type.
+#[derive(Clone,PartialEq)]
 pub enum ContentType {
     None,
     Multipart(Vec<u8>),
     UrlEncoded,
     Other(Vec<u8>),
 }
+
+impl fmt::Display for ContentType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ContentType::None => {
+                write!(formatter, "ContentType::None")
+            },
+            ContentType::Multipart(ref x) => {
+                write!(formatter, "ContentType::Multipart({:?})", x)
+            },
+            ContentType::UrlEncoded => {
+                write!(formatter, "ContentType::UrlEncoded")
+            },
+            ContentType::Other(ref x) => {
+                write!(formatter, "ContentType::Other({:?})", x)
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
 
 /// Parser error messages.
 #[derive(Clone,Copy,PartialEq)]
@@ -164,9 +217,6 @@ pub enum ParserError {
 
     /// Maximum chunk extension length has been met.
     MaxChunkExtensionLength(&'static str, u8),
-
-    /// Maximum chunk size has been met.
-    MaxChunkSizeLength(&'static str, u8),
 
     /// Maximum content length has been met.
     MaxContentLength(&'static str, u8),
@@ -338,15 +388,41 @@ pub enum State {
     /// Unparsable content.
     Content,
 
-    /// Parsing chunk size.
-    ChunkSize,
+    /// Parsing chunk size byte 1.
+    ChunkSize1,
+
+    /// Parsing chunk size byte 2.
+    ChunkSize2,
+
+    /// Parsing chunk size byte 3.
+    ChunkSize3,
+
+    /// Parsing chunk size byte 4.
+    ChunkSize4,
+
+    /// Parsing chunk size byte 5.
+    ChunkSize5,
+
+    /// Parsing chunk size byte 6.
+    ChunkSize6,
+
+    /// Parsing chunk size byte 7.
+    ChunkSize7,
+
+    /// Parsing chunk size byte 8.
+    ChunkSize8,
+
+    /// Parsing chunk size byte 9.
+    ChunkSize9,
+
+    /// Parsing chunk size byte 10.
+    ChunkSize10,
 
     /// Parsing chunk extension.
     ChunkExtension,
 
     /// CRLF after chunk size.
-    ChunkSizeNewline1,
-    ChunkSizeNewline2,
+    ChunkSizeNewline,
 
     /// Parsing chunk data.
     ChunkData,
@@ -408,14 +484,38 @@ pub enum StreamType {
 
 /// Transfer encoding.
 #[derive(Clone,PartialEq)]
-#[repr(u8)]
 pub enum TransferEncoding {
     None,
     Chunked,
     Compress,
     Deflate,
     Gzip,
-    Other(String)
+    Other(Vec<u8>)
+}
+
+impl fmt::Display for TransferEncoding {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TransferEncoding::None => {
+                write!(formatter, "TransferEncoding::None")
+            },
+            TransferEncoding::Chunked => {
+                write!(formatter, "TransferEncoding::Chunked")
+            },
+            TransferEncoding::Compress => {
+                write!(formatter, "TransferEncoding::Compress")
+            },
+            TransferEncoding::Deflate => {
+                write!(formatter, "TransferEncoding::Deflate")
+            },
+            TransferEncoding::Gzip => {
+                write!(formatter, "TransferEncoding::Gzip")
+            },
+            TransferEncoding::Other(ref x) => {
+                write!(formatter, "TransferEncoding::Other({:?})", x)
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -588,8 +688,8 @@ impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
 
 /// Parser data.
 pub struct Parser<T: HttpHandler + ParamHandler> {
-    // Bit data that represents u8, u16, u32, and u64 representations of incoming digits, converted
-    // to a primitive upon parsing. It's also used to store content length.
+    // Bit data that stores parser bit details.
+    // Top 8 bits: state flags
     bit_data: u64,
 
     // Total byte count processed for headers, and body.
@@ -599,14 +699,75 @@ pub struct Parser<T: HttpHandler + ParamHandler> {
     // Content type.
     content_type: ContentType,
 
-    // State details.
-    flags: Flag,
-
     // Current state.
     state: State,
 
     // Current state function.
     state_function: StateFunction<T>
+}
+
+// Chunk size macro.
+macro_rules! chunk_size {
+    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
+        exit_if_eof!($parser, $context);
+        next!($context);
+
+        match hex_to_byte(&[$context.byte]) {
+            Some(byte) => {
+                $parser.bit_data <<= 4;
+                $parser.bit_data  += byte as u64;
+
+                set_state!($parser, $state, $state_function);
+                change_state_fast!($parser, $context);
+            },
+            None => {
+                if $parser.bit_data == 0 {
+                    set_state!($parser, State::Newline2, newline2);
+
+                    callback_data!($parser, $context, $parser.bit_data & 0xFFFFFFFFFF,
+                                   on_chunk_size, {
+                        change_state!($parser, $context);
+                    });
+                } else if $context.byte == b'\r' {
+                    set_state!($parser, State::ChunkSizeNewline, chunk_size_newline);
+
+                    callback_data!($parser, $context, $parser.bit_data, on_chunk_size, {
+                        change_state!($parser, $context);
+                    });
+                } else if $context.byte == b';' {
+                    set_state!($parser, State::ChunkExtension, chunk_extension);
+
+                    callback_data!($parser, $context, $parser.bit_data, on_chunk_size, {
+                        change_state!($parser, $context);
+                    });
+                } else {
+                    exit_error!($parser, $context, ParserError::ChunkSize(ERR_CHUNK_SIZE,
+                                                                          $context.byte));
+                }
+            }
+        }
+    });
+}
+
+// Indicates that a flag is set.
+macro_rules! has_flag {
+    ($parser:expr, $flag:expr) => ({
+        ($parser.bit_data >> 56) & $flag.bits == $flag.bits
+    });
+}
+
+// Set a flag.
+macro_rules! set_flag {
+    ($parser:expr, $flag:expr) => ({
+        $parser.bit_data |= $flag.bits << 56;
+    });
+}
+
+// Unset a flag.
+macro_rules! unset_flag {
+    ($parser:expr, $flag:expr) => ({
+        $parser.bit_data &= !($flag.bits << 56);
+    });
 }
 
 impl<T: HttpHandler + ParamHandler> Parser<T> {
@@ -615,7 +776,6 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         Parser{ bit_data:       0,
                 byte_count:     0,
                 content_type:   ContentType::None,
-                flags:          F_NONE,
                 state:          state,
                 state_function: state_function }
     }
@@ -719,6 +879,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     }
 
     #[inline]
+    #[cfg_attr(test, allow(cyclomatic_complexity))]
     pub fn first_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! field {
@@ -944,12 +1105,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             set_state!(self, State::Body, body);
 
             if context.handler.on_headers_finished() {
-                if self.flags.contains(F_CHUNK_DATA) {
+                if has_flag!(self, F_CHUNKED) {
                     exit_finished!(self, context);
                 }
 
                 change_state_fast!(self, context);
-            } else if self.flags.contains(F_CHUNK_DATA) {
+            } else if has_flag!(self, F_CHUNKED) {
                 exit_finished!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -1416,6 +1577,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn body(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
+        if context.handler.get_transfer_encoding() == TransferEncoding::Chunked {
+            set_flag!(self, F_CHUNKED);
+            set_state!(self, State::ChunkSize1, chunk_size1);
+            change_state!(self, context);
+        }
+
         exit_eof!(self, context);
     }
 
@@ -1426,9 +1593,78 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_size(&mut self, context: &mut ParserContext<T>)
+    pub fn chunk_size1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_if_eof!(self, context);
+        next!(context);
+
+        match hex_to_byte(&[context.byte]) {
+            Some(byte) => {
+                self.bit_data = byte as u64;
+
+                set_state!(self, State::ChunkSize2, chunk_size2);
+                change_state_fast!(self, context);
+            },
+            None => {
+                exit_error!(self, context, ParserError::ChunkSize(ERR_CHUNK_SIZE, context.byte));
+            }
+        }
+    }
+
+    #[inline]
+    pub fn chunk_size2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize3, chunk_size3);
+    }
+
+    #[inline]
+    pub fn chunk_size3(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize4, chunk_size4);
+    }
+
+    #[inline]
+    pub fn chunk_size4(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize5, chunk_size5);
+    }
+
+    #[inline]
+    pub fn chunk_size5(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize6, chunk_size6);
+    }
+
+    #[inline]
+    pub fn chunk_size6(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize7, chunk_size7);
+    }
+
+    #[inline]
+    pub fn chunk_size7(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize8, chunk_size8);
+    }
+
+    #[inline]
+    pub fn chunk_size8(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize9, chunk_size9);
+    }
+
+    #[inline]
+    pub fn chunk_size9(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        chunk_size!(self, context, State::ChunkSize10, chunk_size10);
+    }
+
+    #[inline]
+    pub fn chunk_size10(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        // this must go back to itself in order to consume the
+        // remaining carriage return and finalize the chunk size
+        chunk_size!(self, context, State::ChunkSize10, chunk_size10);
     }
 
     #[inline]
@@ -1438,15 +1674,17 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_size_newline1(&mut self, context: &mut ParserContext<T>)
+    pub fn chunk_size_newline(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
-    }
+        exit_if_eof!(self, context);
+        next!(context);
 
-    #[inline]
-    pub fn chunk_size_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        if context.byte == b'\n' {
+            set_state!(self, State::ChunkData, chunk_data);
+            change_state!(self, context);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(ERR_CRLF_SEQUENCE, context.byte));
     }
 
     #[inline]

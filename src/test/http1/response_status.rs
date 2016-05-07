@@ -16,7 +16,6 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use Success;
 use handler::*;
 use http1::*;
 use test::*;

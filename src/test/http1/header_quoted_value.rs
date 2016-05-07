@@ -16,11 +16,9 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use Success;
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({

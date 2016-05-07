@@ -21,7 +21,7 @@
 /// Execute a callback and if it returns true, execute a block, otherwise exit with callback status.
 macro_rules! callback {
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
-        let slice = collected_bytes!($parser, $context);
+        let slice = collected_bytes!($context);
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
@@ -95,19 +95,12 @@ macro_rules! change_state_fast {
 
 /// Retrieve a slice of collected bytes.
 macro_rules! collected_bytes {
-    ($parser:expr, $context:expr) => (
+    ($context:expr) => (
         &$context.stream[$context.mark_index..$context.stream_index]
     );
 }
 
-/// Retrieve a slice of collected bytes forgetting the most recent byte.
-macro_rules! collected_bytes_forget {
-    ($parser:expr, $context:expr) => (
-        &$context.stream[$context.mark_index..$context.stream_index - 1]
-    );
-}
-
-/// Collect digits.
+/// Collect digits as a single numerical value.
 macro_rules! collect_digits {
     ($parser:expr, $context:expr, $digit:expr, $max:expr, $error:expr, $error_msg:expr,
      $eof_block:block) => ({

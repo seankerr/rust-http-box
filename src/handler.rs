@@ -28,79 +28,93 @@ use url::{ ParamHandler,
 use std::str;
 
 pub struct DebugHandler {
-    pub body:             Vec<u8>,
-    pub chunk_data:       Vec<u8>,
-    pub chunk_extension:  Vec<u8>,
-    pub chunk_size:       u64,
-    pub header_field:     Vec<u8>,
-    pub header_value:     Vec<u8>,
-    pub headers_finished: bool,
-    pub method:           Vec<u8>,
-    pub multipart_data:   Vec<u8>,
-    pub param_field:      Vec<u8>,
-    pub param_value:      Vec<u8>,
-    pub status:           Vec<u8>,
-    pub status_code:      u16,
-    pub url:              Vec<u8>,
-    pub url_fragment:     Vec<u8>,
-    pub url_host:         Vec<u8>,
-    pub url_path:         Vec<u8>,
-    pub url_port:         u16,
-    pub url_query_string: Vec<u8>,
-    pub url_scheme:       Vec<u8>,
-    pub version_major:    u16,
-    pub version_minor:    u16
+    pub body:              Vec<u8>,
+    pub chunk_data:        Vec<u8>,
+    pub chunk_extension:   Vec<u8>,
+    pub chunk_size:        u64,
+    pub content_type:      ContentType,
+    pub header_field:      Vec<u8>,
+    pub header_value:      Vec<u8>,
+    pub headers_finished:  bool,
+    pub method:            Vec<u8>,
+    pub multipart_data:    Vec<u8>,
+    pub param_field:       Vec<u8>,
+    pub param_value:       Vec<u8>,
+    pub status:            Vec<u8>,
+    pub status_code:       u16,
+    pub transfer_encoding: TransferEncoding,
+    pub url:               Vec<u8>,
+    pub url_fragment:      Vec<u8>,
+    pub url_host:          Vec<u8>,
+    pub url_path:          Vec<u8>,
+    pub url_port:          u16,
+    pub url_query_string:  Vec<u8>,
+    pub url_scheme:        Vec<u8>,
+    pub version_major:     u16,
+    pub version_minor:     u16
 }
 
 impl DebugHandler {
     pub fn new() -> DebugHandler {
-        DebugHandler{ body:             Vec::new(),
-                      chunk_data:       Vec::new(),
-                      chunk_extension:  Vec::new(),
-                      chunk_size:       0,
-                      header_field:     Vec::new(),
-                      header_value:     Vec::new(),
-                      headers_finished: false,
-                      method:           Vec::new(),
-                      multipart_data:   Vec::new(),
-                      param_field:      Vec::new(),
-                      param_value:      Vec::new(),
-                      status:           Vec::new(),
-                      status_code:      0,
-                      url:              Vec::new(),
-                      url_fragment:     Vec::new(),
-                      url_host:         Vec::new(),
-                      url_path:         Vec::new(),
-                      url_port:         0,
-                      url_query_string: Vec::new(),
-                      url_scheme:       Vec::new(),
-                      version_major:    0,
-                      version_minor:    0 }
+        DebugHandler{ body:              Vec::new(),
+                      chunk_data:        Vec::new(),
+                      chunk_extension:   Vec::new(),
+                      chunk_size:        0,
+                      content_type:      ContentType::None,
+                      header_field:      Vec::new(),
+                      header_value:      Vec::new(),
+                      headers_finished:  false,
+                      method:            Vec::new(),
+                      multipart_data:    Vec::new(),
+                      param_field:       Vec::new(),
+                      param_value:       Vec::new(),
+                      status:            Vec::new(),
+                      status_code:       0,
+                      transfer_encoding: TransferEncoding::None,
+                      url:               Vec::new(),
+                      url_fragment:      Vec::new(),
+                      url_host:          Vec::new(),
+                      url_path:          Vec::new(),
+                      url_port:          0,
+                      url_query_string:  Vec::new(),
+                      url_scheme:        Vec::new(),
+                      version_major:     0,
+                      version_minor:     0 }
     }
 
     pub fn reset(&mut self) {
-        self.body             = Vec::new();
-        self.chunk_data       = Vec::new();
-        self.chunk_extension  = Vec::new();
-        self.chunk_size       = 0;
-        self.header_field     = Vec::new();
-        self.header_value     = Vec::new();
-        self.headers_finished = false;
-        self.method           = Vec::new();
-        self.multipart_data   = Vec::new();
-        self.param_field      = Vec::new();
-        self.param_value      = Vec::new();
-        self.status           = Vec::new();
-        self.status_code      = 0;
-        self.url              = Vec::new();
-        self.url_fragment     = Vec::new();
-        self.url_host         = Vec::new();
-        self.url_path         = Vec::new();
-        self.url_port         = 0;
-        self.url_query_string = Vec::new();
-        self.url_scheme       = Vec::new();
-        self.version_major    = 0;
-        self.version_minor    = 0;
+        self.body              = Vec::new();
+        self.chunk_data        = Vec::new();
+        self.chunk_extension   = Vec::new();
+        self.chunk_size        = 0;
+        self.content_type      = ContentType::None;
+        self.header_field      = Vec::new();
+        self.header_value      = Vec::new();
+        self.headers_finished  = false;
+        self.method            = Vec::new();
+        self.multipart_data    = Vec::new();
+        self.param_field       = Vec::new();
+        self.param_value       = Vec::new();
+        self.status            = Vec::new();
+        self.status_code       = 0;
+        self.transfer_encoding = TransferEncoding::None;
+        self.url               = Vec::new();
+        self.url_fragment      = Vec::new();
+        self.url_host          = Vec::new();
+        self.url_path          = Vec::new();
+        self.url_port          = 0;
+        self.url_query_string  = Vec::new();
+        self.url_scheme        = Vec::new();
+        self.version_major     = 0;
+        self.version_minor     = 0;
+    }
+
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.content_type = content_type;
+    }
+
+    pub fn set_transfer_encoding(&mut self, transfer_encoding: TransferEncoding) {
+        self.transfer_encoding = transfer_encoding;
     }
 }
 
@@ -114,11 +128,53 @@ impl HttpHandler for DebugHandler {
     }
 
     fn get_content_type(&mut self) -> ContentType {
-        ContentType::None
+        match self.content_type {
+            ContentType::None => {
+                println!("get_content_type: ContentType::None");
+                ContentType::None
+            },
+            ContentType::Multipart(ref x) => {
+                println!("get_content_type: ContentType::Multipart({:?})", x);
+                ContentType::Multipart(x.to_owned())
+            },
+            ContentType::UrlEncoded => {
+                println!("get_content_type: ContentType::UrlEncoded");
+                ContentType::UrlEncoded
+            },
+            ContentType::Other(ref x) => {
+                println!("get_content_type: ContentType::Other({:?})", x);
+                ContentType::Other(x.to_owned())
+            },
+        }
     }
 
     fn get_transfer_encoding(&mut self) -> TransferEncoding {
-        TransferEncoding::None
+        match self.transfer_encoding {
+            TransferEncoding::None => {
+                println!("get_transfer_encoding: None");
+                TransferEncoding::None
+            },
+            TransferEncoding::Chunked => {
+                println!("get_transfer_encoding: Chunked");
+                TransferEncoding::Chunked
+            },
+            TransferEncoding::Compress => {
+                println!("get_transfer_encoding: Compress");
+                TransferEncoding::Compress
+            },
+            TransferEncoding::Deflate => {
+                println!("get_transfer_encoding: Deflate");
+                TransferEncoding::Deflate
+            },
+            TransferEncoding::Gzip => {
+                println!("get_transfer_encoding: Gzip");
+                TransferEncoding::Gzip
+            },
+            TransferEncoding::Other(ref x) => {
+                println!("get_transfer_encoding: Other({:?})", x);
+                TransferEncoding::Other(x.to_owned())
+            }
+        }
     }
 
     fn on_body(&mut self, body: &[u8]) -> bool {
