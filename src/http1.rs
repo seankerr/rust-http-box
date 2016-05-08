@@ -24,15 +24,35 @@ use byte::is_token;
 use url::ParamHandler;
 
 use std::fmt;
-use std::str;
 
-/// Maximum chunk extension byte count to process before returning
-/// `ParserError::MaxChunkExtensionLength`.
-pub const CFG_MAX_CHUNK_EXTENSION_LENGTH: u8 = 255;
+// State flag mask.
+const FLAG_MASK: u64 = 0x7F;
 
-/// Maximum multipart boundary byte count to process before returning
-/// `ParserError::MaxMultipartBoundaryLength`.
-pub const CFG_MAX_MULTIPART_BOUNDARY_LENGTH: u8 = 70;
+// State flag shift.
+const FLAG_SHIFT: u8 = 40;
+
+// Length mask.
+const LENGTH_MASK: u64 = 0xFFFFFFFFFF;
+
+// Major HTTP version shift.
+const MAJOR_SHIFT: u8 = 4;
+
+// Minor HTTP version mask.
+const MINOR_MASK: u64 = 0xF;
+
+// Parser type mask.
+const TYPE_MASK: u64 = 0x1;
+
+// Parser type shift.
+const TYPE_SHIFT: u8 = 41;
+
+// Maximum chunk extension byte count to process before returning
+// `ParserError::MaxChunkExtensionLength`.
+const CFG_MAX_CHUNK_EXTENSION_LENGTH: u8 = 255;
+
+// Maximum multipart boundary byte count to process before returning
+// `ParserError::MaxMultipartBoundaryLength`.
+const CFG_MAX_MULTIPART_BOUNDARY_LENGTH: u8 = 70;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -95,9 +115,6 @@ pub const ERR_VERSION: &'static str = "Invalid HTTP version";
 // Flags used to track state details.
 bitflags! {
     flags Flag: u64 {
-        // No flags.
-        const F_NONE = 0,
-
         // Parsing chunked transfer encoding.
         const F_CHUNKED = 1 << 0,
 
@@ -105,7 +122,7 @@ bitflags! {
         const F_CONTENT_LENGTH = 1 << 1,
 
         // Parsing multipart data.
-        const F_MULTIPART_DATA = 1 << 2
+        const F_MULTIPART = 1 << 2
     }
 }
 
@@ -115,9 +132,16 @@ bitflags! {
 #[derive(Clone,Copy,PartialEq)]
 #[repr(u8)]
 pub enum Connection {
+    /// No connection.
     None,
+
+    /// Close connection.
     Close,
+
+    /// Keep connection alive.
     KeepAlive,
+
+    /// Upgrade connection.
     Upgrade
 }
 
@@ -145,7 +169,10 @@ impl fmt::Display for Connection {
 /// Content length.
 #[derive(Clone,Copy,PartialEq)]
 pub enum ContentLength {
+    /// No content length.
     None,
+
+    /// Specified content length.
     Specified(u64)
 }
 
@@ -167,9 +194,16 @@ impl fmt::Display for ContentLength {
 /// Content type.
 #[derive(Clone,PartialEq)]
 pub enum ContentType {
+    /// No content type.
     None,
+
+    /// Multipart content type.
     Multipart(Vec<u8>),
+
+    /// URL encoded content type.
     UrlEncoded,
+
+    /// Other content type.
     Other(Vec<u8>),
 }
 
@@ -251,13 +285,13 @@ pub enum ParserError {
 
 /// Parser return values.
 pub enum ParserValue {
-    /// Exit the parser loop.
-    Exit(Success),
-
     /// Continue the parser loop.
     Continue,
 
-    /// Shift the stream slice over a specified length.
+    /// Exit the parser loop.
+    Exit(Success),
+
+    /// Shift the stream slice over by a specified length, and continue the parser loop.
     ShiftStream(usize)
 }
 
@@ -270,33 +304,41 @@ pub enum State {
     /// An error was returned from a call to `Parser::parse()`.
     Dead = 1,
 
-    /// Parser has finished successfully.
+    /// Parsing has finished successfully.
     Finished,
 
     // ---------------------------------------------------------------------------------------------
     // REQUEST
     // ---------------------------------------------------------------------------------------------
 
-    /// Stripping space before method.
+    /// Stripping linear white space before method.
     StripRequestMethod,
 
     /// Parsing request method.
     RequestMethod,
 
-    /// Stripping space before URL.
+    /// Stripping linear white space before URL.
     StripRequestUrl,
 
-    /// Determining if URL starts with a scheme, or is an absolute path
+    /// Parsing URL.
     RequestUrl,
 
-    /// Stripping space before request HTTP version.
+    /// Stripping linear white space before request HTTP version.
     StripRequestHttp,
 
-    /// Parsing request HTTP version.
+    /// Parsing request HTTP version byte 1.
     RequestHttp1,
+
+    /// Parsing request HTTP version byte 2.
     RequestHttp2,
+
+    /// Parsing request HTTP version byte 3.
     RequestHttp3,
+
+    /// Parsing request HTTP version byte 4.
     RequestHttp4,
+
+    /// Parsing request HTTP version byte 5.
     RequestHttp5,
 
     /// Parsing request HTTP major version.
@@ -309,14 +351,22 @@ pub enum State {
     // RESPONSE
     // ---------------------------------------------------------------------------------------------
 
-    /// Stripping space before response HTTP version.
+    /// Stripping linear white space before response HTTP version.
     StripResponseHttp,
 
-    /// Parsing response HTTP version.
+    /// Parsing response HTTP version byte 1.
     ResponseHttp1,
+
+    /// Parsing response HTTP version byte 2.
     ResponseHttp2,
+
+    /// Parsing response HTTP version byte 3.
     ResponseHttp3,
+
+    /// Parsing response HTTP version byte 4.
     ResponseHttp4,
+
+    /// Parsing response HTTP version byte 5.
     ResponseHttp5,
 
     /// Parsing response HTTP major version.
@@ -325,13 +375,13 @@ pub enum State {
     /// Parsing response HTTP minor version.
     ResponseVersionMinor,
 
-    /// Stripping space before response status code.
+    /// Stripping linear white space before response status code.
     StripResponseStatusCode,
 
     /// Parsing response status code.
     ResponseStatusCode,
 
-    /// Stripping space before response status.
+    /// Stripping linear white space before response status.
     StripResponseStatus,
 
     /// Parsing response status.
@@ -341,17 +391,21 @@ pub enum State {
     // HEADERS
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing pre-header CRLF[CR].
-    // note: these only exist purely to avoid the situation where a client can send an initial
-    //       request/response line, then CRLF[SPACE], and the parser would have assumed the next
-    //       piece of content is the second line of a multiline header value
+    // pre-header states:
+    //   These only exist purely to avoid the situation where a client can send an initial
+    //   request/response line then CRLF[SPACE], and the parser would have assumed the next
+    //   piece of content is the second line of a multiline header value.
     //
-    //       in addition to this, multiline header value support has been deprecated, but we'll keep
-    //       support for now: https://tools.ietf.org/html/rfc7230#section-3.2.4
+    //   In addition to this, multiline header value support has been deprecated, but we'll keep
+    //   support for now: https://tools.ietf.org/html/rfc7230#section-3.2.4
+
+    /// Parsing pre-header line feed.
     PreHeaders1,
+
+    /// Parsing pre-header potential carriage return.
     PreHeaders2,
 
-    /// Stripping space before header field.
+    /// Stripping linear white space before header field.
     StripHeaderField,
 
     /// Parsing first byte of header field.
@@ -360,7 +414,7 @@ pub enum State {
     /// Parsing header field.
     HeaderField,
 
-    /// Stripping space before header value.
+    /// Stripping linear white space before header value.
     StripHeaderValue,
 
     /// Parsing header value.
@@ -372,10 +426,16 @@ pub enum State {
     /// Parsing header quoted escaped value.
     QuotedEscapedHeaderValue,
 
-    /// CRLF[CRLF] after header value
+    /// Parsing first carriage return after header value.
     Newline1,
+
+    /// Parsing first line feed after header value.
     Newline2,
+
+    /// Parsing second carriage return after header value.
     Newline3,
+
+    /// Parsing second line feed after header value.
     Newline4,
 
     // ---------------------------------------------------------------------------------------------
@@ -421,25 +481,31 @@ pub enum State {
     /// Parsing chunk extension.
     ChunkExtension,
 
-    /// CRLF after chunk size.
+    /// Parsing line feed after chunk size.
     ChunkSizeNewline,
 
     /// Parsing chunk data.
     ChunkData,
 
-    /// CRLF after chunk data.
+    /// Parsing carriage return after chunk data.
     ChunkDataNewline1,
+
+    /// Parsing line feed after chunk data.
     ChunkDataNewline2,
 
-    /// Parsing hyphen's before and after multipart boundary.
+    /// Parsing first hyphen before and after multipart boundary.
     MultipartHyphen1,
+
+    /// Parsing second hyphen before and after multipart boundary.
     MultipartHyphen2,
 
     /// Parsing multipart boundary.
     MultipartBoundary,
 
-    /// CRLF after boundary.
+    /// Parsing carriage return after multipart boundary.
     MultipartNewline1,
+
+    /// Parsing line feed after multipart boundary.
     MultipartNewline2,
 
     /// Parsing multipart data.
@@ -454,7 +520,7 @@ pub enum State {
     /// Parsing URL encoded field hex sequence.
     UrlEncodedFieldHex,
 
-    /// Parsing URL encoded field plus.
+    /// Parsing URL encoded field plus sign.
     UrlEncodedFieldPlus,
 
     /// Parsing URL encoded value.
@@ -463,33 +529,35 @@ pub enum State {
     /// Parsing URL encoded value hex sequence.
     UrlEncodedValueHex,
 
-    /// Parsing URL encoded value plus.
+    /// Parsing URL encoded value plus sign.
     UrlEncodedValuePlus,
 
-    /// CRLF after URL encoded data.
+    /// Parsing carriage return after URL encoded data.
     UrlEncodedNewline1,
+
+    /// Parsing line feed after URL encoded data.
     UrlEncodedNewline2
-}
-
-/// Stream type.
-#[derive(Clone,Copy,PartialEq)]
-#[repr(u8)]
-pub enum StreamType {
-    /// Request stream type.
-    Request,
-
-    /// Response stream type.
-    Response
 }
 
 /// Transfer encoding.
 #[derive(Clone,PartialEq)]
 pub enum TransferEncoding {
+    /// No transfer encoding.
     None,
+
+    /// Chunked transfer encoding.
     Chunked,
+
+    /// Compress transfer encoding.
     Compress,
+
+    /// Deflate transfer encoding.
     Deflate,
+
+    /// Gzip transfer encoding.
     Gzip,
+
+    /// Other transfer encoding.
     Other(Vec<u8>)
 }
 
@@ -529,22 +597,22 @@ pub type StateFunction<T> = fn(&mut Parser<T>, &mut ParserContext<T>)
 /// Type that handles HTTP parser events.
 #[allow(unused_variables)]
 pub trait HttpHandler {
-    /// Retrieve the most recent Connection header value.
+    /// Retrieve the most recent Connection header.
     fn get_connection(&mut self) -> Connection {
         Connection::None
     }
 
-    /// Retrieve the most recent Content-Length header value in numeric representation.
+    /// Retrieve the most recent Content-Length header.
     fn get_content_length(&mut self) -> ContentLength {
         ContentLength::None
     }
 
-    /// Retrieve the most recent Content-Type header value.
+    /// Retrieve the most recent Content-Type header.
     fn get_content_type(&mut self) -> ContentType {
         ContentType::None
     }
 
-    /// Retrieve the most recent Transfer-Encoding header value.
+    /// Retrieve the most recent Transfer-Encoding header.
     fn get_transfer_encoding(&mut self) -> TransferEncoding {
         TransferEncoding::None
     }
@@ -689,7 +757,16 @@ impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
 /// Parser data.
 pub struct Parser<T: HttpHandler + ParamHandler> {
     // Bit data that stores parser bit details.
-    // Top 8 bits: state flags
+    //
+    // Bits 1-40: Used to store content length, chunk size, and HTTP major/minor versions.
+    //            Allows value up to 1,099,511,627,775 bytes, which is more than adequate.
+    //
+    // Bit 41: If flagged, parser is parsing a request, otherwise it's parsing a response.
+    //
+    // Bits 42-48: State flags that are checked when states have a dual purpose, such as when
+    //             header parsing is also used to parse chunked data trailers.
+    //
+    // Bits 49-64: Unused.
     bit_data: u64,
 
     // Total byte count processed for headers, and body.
@@ -714,30 +791,29 @@ macro_rules! chunk_size {
 
         match hex_to_byte(&[$context.byte]) {
             Some(byte) => {
-                $parser.bit_data <<= 4;
-                $parser.bit_data  += byte as u64;
+                set_length!($parser, get_length!($parser) << 4);
+                inc_length!($parser, byte as u64);
 
                 set_state!($parser, $state, $state_function);
                 change_state_fast!($parser, $context);
             },
             None => {
-                if $parser.bit_data == 0 {
+                if get_length!($parser) == 0 {
                     set_state!($parser, State::Newline2, newline2);
 
-                    callback_data!($parser, $context, $parser.bit_data & 0xFFFFFFFFFF,
-                                   on_chunk_size, {
+                    callback_data!($parser, $context, get_length!($parser), on_chunk_size, {
                         change_state!($parser, $context);
                     });
                 } else if $context.byte == b'\r' {
                     set_state!($parser, State::ChunkSizeNewline, chunk_size_newline);
 
-                    callback_data!($parser, $context, $parser.bit_data, on_chunk_size, {
+                    callback_data!($parser, $context, get_length!($parser), on_chunk_size, {
                         change_state!($parser, $context);
                     });
                 } else if $context.byte == b';' {
                     set_state!($parser, State::ChunkExtension, chunk_extension);
 
-                    callback_data!($parser, $context, $parser.bit_data, on_chunk_size, {
+                    callback_data!($parser, $context, get_length!($parser), on_chunk_size, {
                         change_state!($parser, $context);
                     });
                 } else {
@@ -749,31 +825,63 @@ macro_rules! chunk_size {
     });
 }
 
-// Indicates that a flag is set.
+// Retrieve the length bits.
+macro_rules! get_length {
+    ($parser:expr) => (
+        $parser.bit_data & LENGTH_MASK
+    );
+}
+
+// Indicates that a state flag bit is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
-        ($parser.bit_data >> 56) & $flag.bits == $flag.bits
+        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag.bits == $flag.bits
     });
 }
 
-// Set a flag.
+// Increment length bits.
+macro_rules! inc_length {
+    ($parser:expr, $length:expr) => ({
+        $parser.bit_data |= $length & LENGTH_MASK;
+    });
+}
+
+// Reset length bits.
+macro_rules! reset_length {
+    ($parser:expr) => ({
+        $parser.bit_data &= !LENGTH_MASK;
+    });
+}
+
+// Set a state flag bit.
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data |= $flag.bits << 56;
+        $parser.bit_data |= ($flag.bits & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
-// Unset a flag.
+// Set length bits.
+macro_rules! set_length {
+    ($parser:expr, $length:expr) => ({
+        $parser.bit_data |= $length & LENGTH_MASK;
+    });
+}
+
+// Unset a state flag bit.
 macro_rules! unset_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data &= !($flag.bits << 56);
+        $parser.bit_data &= !(($flag.bits & FLAG_MASK) << FLAG_SHIFT);
     });
 }
 
 impl<T: HttpHandler + ParamHandler> Parser<T> {
     /// Create a new `Parser`.
     pub fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
-        Parser{ bit_data:       0,
+        Parser{ bit_data:       if state == State::StripRequestMethod {
+                                    1 << TYPE_SHIFT
+                                } else {
+                                    0
+                                },
                 byte_count:     0,
                 content_type:   ContentType::None,
                 state:          state,
@@ -807,14 +915,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
     /// Parse HTTP data.
     ///
-    /// If `Ok()` is returned, one of two things have happened: parsing has finished, or
-    /// a callback function has preemptively stopped parsing. In either of these events, it
-    /// is ok to call `parse()` again with a new slice of data to continue where the parser
-    /// left off. `ParserError::Eof` is the only `ParserError` that allows `parse()` to
-    /// continue parsing. Any other `ParserError` is a protocol error.
-    ///
-    /// Returns the parsed byte count of the current slice when parsing completes, or when
-    /// a callback function preemptively stops parsing. Otherwise `ParserError`.
+    /// If `Success` is returned, you may resuming parsing data with an additional call to
+    /// `Parser::parse()`. If `ParserError` is returned, parsing cannot be resumed without a call
+    /// to `Parser::reset()`.
     #[inline]
     pub fn parse(&mut self, handler: &mut T, mut stream: &[u8]) -> Result<Success, ParserError> {
         let mut context = ParserContext::new(handler, stream);
@@ -824,6 +927,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 Ok(ParserValue::Continue) => {
                 },
                 Ok(ParserValue::ShiftStream(length)) => {
+                    stream = &stream[length..];
                 },
                 Ok(ParserValue::Exit(success)) => {
                     return Ok(success);
@@ -832,6 +936,22 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     return Err(error);
                 }
             }
+        }
+    }
+
+    /// Reset the `Parser` back to its original state.
+    pub fn reset(&mut self) {
+        self.byte_count   = 0;
+        self.content_type = ContentType::None;
+
+        if (self.bit_data >> TYPE_SHIFT) & TYPE_MASK == 1 {
+            self.bit_data       = 1 << TYPE_SHIFT;
+            self.state          = State::StripRequestMethod;
+            self.state_function = Parser::strip_request_method;
+        } else {
+            self.bit_data       = 0;
+            self.state          = State::StripResponseHttp;
+            self.state_function = Parser::strip_response_http;
         }
     }
 
@@ -895,7 +1015,33 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         if has_bytes!(context, 26) {
             // have enough bytes to compare common header fields immediately, without collecting
             // individual tokens
-            if context.byte == b'L' {
+            if context.byte == b'C' {
+                if b"Connection:" == peek_bytes!(context, 11) {
+                    field!(b"Connection", 11);
+                } else if b"Content-Type:" == peek_bytes!(context, 13) {
+                    field!(b"Content-Type", 13);
+                } else if b"Content-Length:" == peek_bytes!(context, 15) {
+                    field!(b"Content-Length", 15);
+                } else if b"Cookie:" == peek_bytes!(context, 7) {
+                    field!(b"Cookie", 7);
+                } else if b"Cache-Control:" == peek_bytes!(context, 14) {
+                    field!(b"Cache-Control", 14);
+                } else if b"Content-Security-Policy:" == peek_bytes!(context, 24) {
+                    field!(b"Content-Security-Policy", 24);
+                }
+            } else if context.byte == b'A' {
+                if b"Accept:" == peek_bytes!(context, 7) {
+                    field!(b"Accept", 7);
+                } else if b"Accept-Charset:" == peek_bytes!(context, 15) {
+                    field!(b"Accept-Charset", 15);
+                } else if b"Accept-Encoding:" == peek_bytes!(context, 16) {
+                    field!(b"Accept-Encoding", 16);
+                } else if b"Accept-Language:" == peek_bytes!(context, 16) {
+                    field!(b"Accept-Language", 16);
+                } else if b"Authorization:" == peek_bytes!(context, 14) {
+                    field!(b"Authorization", 14);
+                }
+            } else if context.byte == b'L' {
                 if b"Location:" == peek_bytes!(context, 9) {
                     field!(b"Location", 9);
                 } else if b"Last-Modified:" == peek_bytes!(context, 14) {
@@ -918,32 +1064,6 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     field!(b"User-Agent", 11);
                 } else if b"Upgrade:" == peek_bytes!(context, 8) {
                     field!(b"Upgrade", 8);
-                }
-            } else if context.byte == b'A' {
-                if b"Accept:" == peek_bytes!(context, 7) {
-                    field!(b"Accept", 7);
-                } else if b"Accept-Charset:" == peek_bytes!(context, 15) {
-                    field!(b"Accept-Charset", 15);
-                } else if b"Accept-Encoding:" == peek_bytes!(context, 16) {
-                    field!(b"Accept-Encoding", 16);
-                } else if b"Accept-Language:" == peek_bytes!(context, 16) {
-                    field!(b"Accept-Language", 16);
-                } else if b"Authorization:" == peek_bytes!(context, 14) {
-                    field!(b"Authorization", 14);
-                }
-            } else if context.byte == b'C' {
-                if b"Connection:" == peek_bytes!(context, 11) {
-                    field!(b"Connection", 11);
-                } else if b"Content-Type:" == peek_bytes!(context, 13) {
-                    field!(b"Content-Type", 13);
-                } else if b"Content-Length:" == peek_bytes!(context, 15) {
-                    field!(b"Content-Length", 15);
-                } else if b"Cookie:" == peek_bytes!(context, 7) {
-                    field!(b"Cookie", 7);
-                } else if b"Cache-Control:" == peek_bytes!(context, 14) {
-                    field!(b"Cache-Control", 14);
-                } else if b"Content-Security-Policy:" == peek_bytes!(context, 24) {
-                    field!(b"Content-Security-Policy", 24);
                 }
             } else if context.byte == b'X' {
                 if b"X-Powered-By:" == peek_bytes!(context, 13) {
@@ -1299,7 +1419,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'/' {
-            self.bit_data = 0;
+            reset_length!(self);
 
             set_state!(self, State::RequestVersionMajor, request_version_major);
             change_state_fast!(self, context);
@@ -1311,15 +1431,15 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn request_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = self.bit_data as u16;
+        let mut digit = get_length!(self) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
-            self.bit_data = digit as u64;
+            inc_length!(self, digit as u64);
 
             exit_eof!(self, context);
         });
 
-        self.bit_data = (digit as u64) << 4;
+        set_length!(self, (digit << MAJOR_SHIFT) as u64);
 
         if context.byte != b'.' {
             exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
@@ -1332,17 +1452,17 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn request_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit: u16 = (self.bit_data & 0xF) as u16;
+        let mut digit: u16 = (get_length!(self) & MINOR_MASK) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
-            self.bit_data += digit as u64;
+            inc_length!(self, digit as u64);
 
             exit_eof!(self, context);
         });
 
         set_state!(self, State::PreHeaders1, pre_headers1);
 
-        if context.handler.on_version((self.bit_data >> 4) as u16, digit) {
+        if context.handler.on_version((get_length!(self) >> MAJOR_SHIFT) as u16, digit) {
             change_state_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -1450,7 +1570,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'/' {
-            self.bit_data = 0;
+            reset_length!(self);
 
             set_state!(self, State::ResponseVersionMajor, response_version_major);
             change_state_fast!(self, context);
@@ -1462,15 +1582,15 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = self.bit_data as u16;
+        let mut digit = get_length!(self) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
-            self.bit_data = digit as u64;
+            set_length!(self, digit as u64);
 
             exit_eof!(self, context);
         });
 
-        self.bit_data = (digit as u64) << 4;
+        set_length!(self, (digit << MAJOR_SHIFT) as u64);
 
         if context.byte != b'.' {
             exit_error!(self, context, ParserError::Version(ERR_VERSION, context.byte));
@@ -1483,17 +1603,17 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit: u16 = (self.bit_data & 0xF) as u16;
+        let mut digit: u16 = (get_length!(self) & MINOR_MASK) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, ERR_VERSION, {
-            self.bit_data += digit as u64;
+            inc_length!(self, digit as u64);
 
             exit_eof!(self, context);
         });
 
         set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
-        if context.handler.on_version((self.bit_data >> 4) as u16, digit) {
+        if context.handler.on_version((get_length!(self) >> MAJOR_SHIFT) as u16, digit) {
             change_state_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -1511,7 +1631,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         replay!(context);
 
-        self.bit_data = 0;
+        set_length!(self, 0);
 
         set_state!(self, State::ResponseStatusCode, response_status_code);
         change_state_fast!(self, context);
@@ -1520,11 +1640,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = self.bit_data as u16;
+        let mut digit = get_length!(self) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::StatusCode, ERR_STATUS_CODE, {
-            self.bit_data = digit as u64;
-
+            set_length!(self, digit as u64);
             exit_eof!(self, context);
         });
 
@@ -1600,7 +1719,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         match hex_to_byte(&[context.byte]) {
             Some(byte) => {
-                self.bit_data = byte as u64;
+                set_length!(self, byte as u64);
 
                 set_state!(self, State::ChunkSize2, chunk_size2);
                 change_state_fast!(self, context);
