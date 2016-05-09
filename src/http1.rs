@@ -40,6 +40,9 @@ const MAJOR_SHIFT: u8 = 4;
 // Minor HTTP version mask.
 const MINOR_MASK: u64 = 0xF;
 
+// Top 16 bits shift.
+const TOP16_SHIFT: u8 = 48;
+
 // Parser type mask.
 const TYPE_MASK: u64 = 0x1;
 
@@ -593,6 +596,384 @@ pub type StateFunction<T> = fn(&mut Parser<T>, &mut ParserContext<T>)
     -> Result<ParserValue, ParserError>;
 
 // -------------------------------------------------------------------------------------------------
+// BIT DATA MACROS
+// -------------------------------------------------------------------------------------------------
+
+// Retrieve the length bits.
+macro_rules! get_length {
+    ($parser:expr) => (
+        $parser.bit_data & LENGTH_MASK
+    );
+}
+
+// Retrieve the top 16 bits.
+macro_rules! get_top16 {
+    ($parser:expr) => (
+        ($parser.bit_data >> TOP16_SHIFT)
+    );
+}
+
+// Indicates that a state flag bit.
+macro_rules! has_flag {
+    ($parser:expr, $flag:expr) => ({
+        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag.bits == $flag.bits
+    });
+}
+
+// Increment length bits.
+macro_rules! inc_length {
+    ($parser:expr, $length:expr) => ({
+        $parser.bit_data |= $length & LENGTH_MASK;
+    });
+}
+
+// Reset length bits.
+macro_rules! reset_length {
+    ($parser:expr) => ({
+        $parser.bit_data &= !LENGTH_MASK;
+    });
+}
+
+// Set a state flag bit.
+macro_rules! set_flag {
+    ($parser:expr, $flag:expr) => ({
+        $parser.bit_data |= ($flag.bits & FLAG_MASK) << FLAG_SHIFT;
+    });
+}
+
+// Set length bits.
+macro_rules! set_length {
+    ($parser:expr, $length:expr) => ({
+        $parser.bit_data |= $length & LENGTH_MASK;
+    });
+}
+
+// Set the top 16 bits.
+macro_rules! set_top16 {
+    ($parser:expr, $bits:expr) => ({
+        $parser.bit_data |= $bits << TOP16_SHIFT;
+    });
+}
+
+// Unset a state flag bit.
+macro_rules! unset_flag {
+    ($parser:expr, $flag:expr) => ({
+        $parser.bit_data &= !(($flag.bits & FLAG_MASK) << FLAG_SHIFT);
+    });
+}
+
+// -------------------------------------------------------------------------------------------------
+// STREAM MACROS
+// -------------------------------------------------------------------------------------------------
+
+// Execute a callback and if it returns true, execute a block, otherwise exit with callback status.
+macro_rules! callback {
+    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
+        let slice = collected_bytes!($context);
+
+        if slice.len() > 0 {
+            if $context.handler.$function(slice) {
+                $block
+            } else {
+                exit_callback!($parser, $context);
+            }
+        } else {
+            $block
+        }
+    });
+}
+
+// Execute a callback with specified data, and if it returns true, execute a block, otherwise exit
+// with callback status.
+macro_rules! callback_data {
+    ($parser:expr, $context:expr, $data:expr, $function:ident, $block:block) => ({
+        if $context.handler.$function($data) {
+            $block
+        } else {
+            exit_callback!($parser, $context);
+        }
+    });
+}
+
+// Execute a callback ignoring the last marked byte, and if it returns true, execute a block,
+// otherwise exit with callback status.
+macro_rules! callback_ignore {
+    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
+        let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
+
+        if slice.len() > 0 {
+            if $context.handler.$function(slice) {
+                $block
+            } else {
+                exit_callback!($parser, $context);
+            }
+        } else {
+            $block
+        }
+    });
+}
+
+// Execute a callback and if it returns true, exit with eof status, otherwise exit with callback
+// status.
+macro_rules! callback_or_eof {
+    ($parser:expr, $context:expr, $function:ident) => (
+        callback!($parser, $context, $function, {
+            exit_eof!($parser, $context);
+        });
+    );
+}
+
+// Change parser state.
+macro_rules! change_state {
+    ($parser:expr, $context:expr) => ({
+        $context.mark_index = $context.stream_index;
+
+        return Ok(ParserValue::Continue);
+    });
+}
+
+// Change parser state fast, without returning immediately.
+macro_rules! change_state_fast {
+    ($parser:expr, $context:expr) => ({
+        $context.mark_index = $context.stream_index;
+
+        return ($parser.state_function)($parser, $context);
+    });
+}
+
+// Retrieve a slice of collected bytes.
+macro_rules! collected_bytes {
+    ($context:expr) => (
+        &$context.stream[$context.mark_index..$context.stream_index]
+    );
+}
+
+// Collect digits as a single numerical value.
+macro_rules! collect_digits {
+    ($parser:expr, $context:expr, $digit:expr, $max:expr, $error:expr, $error_msg:expr,
+     $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            next!($context);
+
+            if is_digit!($context.byte) {
+                $digit *= 10;
+                $digit += ($context.byte - b'0') as u16;
+
+                if $digit > $max {
+                    exit_error!($parser, $context, $error($error_msg, $context.byte));
+                }
+            } else {
+                break;
+            }
+        }
+    });
+}
+
+// Collect all 7-bit non-control bytes.
+macro_rules! collect_safe {
+    ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $error:expr, $error_msg:expr,
+     $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            next!($context);
+
+            if $stop1 == $context.byte || $stop2 == $context.byte {
+                break;
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+                exit_error!($parser, $context, $error($error_msg, $context.byte));
+            }
+        }
+    });
+
+    ($parser:expr, $context:expr, $stop:expr, $error:expr, $error_msg:expr,
+     $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            next!($context);
+
+            if $stop == $context.byte {
+                break;
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+                exit_error!($parser, $context, $error($error_msg, $context.byte));
+            }
+        }
+    });
+}
+
+// Collect tokens.
+macro_rules! collect_tokens {
+    ($parser:expr, $context:expr, $stop:expr, $error:expr, $error_msg:expr,
+     $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            next!($context);
+
+            if $stop == $context.byte {
+                break;
+            } else if !is_token($context.byte) {
+                exit_error!($parser, $context, $error($error_msg, $context.byte));
+            }
+        }
+    });
+}
+
+// Collect tokens up until a certain limit.
+//
+// Use the top 16 bits to store the count of processed bytes, limiting $limit to 65536.
+macro_rules! collect_tokens_limit {
+    ($parser:expr, $context:expr, $stop:expr, $limit:expr, $error:expr, $error_msg:expr,
+     $limit_error:expr, $limit_error_msg:expr, $eof_block:block) => ({
+        loop {
+            if is_eof!($context) {
+                $eof_block
+            }
+
+            if get_top16!($parser) == $limit as u16 {
+                exit_error!($parser, $context, $limit_error($limit_error_msg, $context.byte));
+            }
+
+            set_top16!($parser, get_top16!($parser) + 1);
+
+            next!($context);
+
+            if $stop == $context.byte {
+                break;
+            } else if !is_token($context.byte) {
+                exit_error!($parser, $context, $error($error_msg, $context.byte));
+            }
+        }
+    });
+}
+
+// Consume spaces and tabs.
+macro_rules! consume_space_tab {
+    ($parser:expr, $context:expr) => ({
+        loop {
+            if is_eof!($context) {
+                exit_eof!($parser, $context);
+            }
+
+            next!($context);
+
+            if $context.byte != b' ' && $context.byte != b'\t' {
+                break;
+            }
+        }
+    });
+}
+
+// Exit parser function with a callback status.
+macro_rules! exit_callback {
+    ($parser:expr, $context:expr) => ({
+        $parser.byte_count += $context.stream_index;
+
+        return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
+    });
+}
+
+// Exit parser function with an EOF status.
+macro_rules! exit_eof {
+    ($parser:expr, $context:expr) => ({
+        $parser.byte_count += $context.stream_index;
+
+        return Ok(ParserValue::Exit(Success::Eof($context.stream_index)));
+    });
+}
+
+// Exit parser function with an error.
+macro_rules! exit_error {
+    ($parser:expr, $context:expr, $error:expr) => ({
+        $parser.byte_count += $context.stream_index;
+        $parser.state       = State::Dead;
+
+        return Err($error);
+    });
+}
+
+// Exit parser with finished status.
+macro_rules! exit_finished {
+    ($parser:expr, $context:expr) => ({
+        $parser.byte_count += $context.stream_index;
+        $parser.state       = State::Finished;
+
+        return Ok(ParserValue::Exit(Success::Finished($context.stream_index)));
+    });
+}
+
+// Exit parser function with an EOF status if the stream is EOF, otherwise do nothing.
+macro_rules! exit_if_eof {
+    ($parser:expr, $context:expr) => (
+        if is_eof!($context) {
+            exit_eof!($parser, $context);
+        }
+    );
+}
+
+// Indicates that a specified amount of bytes are available.
+macro_rules! has_bytes {
+    ($context:expr, $length:expr) => (
+        $context.stream_index + $length <= $context.stream.len()
+    );
+}
+
+// Indicates that we're at the end of the stream.
+macro_rules! is_eof {
+    ($context:expr) => (
+        $context.stream_index == $context.stream.len()
+    );
+}
+
+// Jump a specified amount of bytes.
+macro_rules! jump_bytes {
+    ($context:expr, $length:expr) => ({
+        $context.stream_index += $length;
+    });
+}
+
+// Advance the stream one byte.
+macro_rules! next {
+    ($context:expr) => ({
+        $context.stream_index += 1;
+        $context.byte   = $context.stream[$context.stream_index - 1]
+    });
+}
+
+// Peek at a slice of available bytes.
+macro_rules! peek_bytes {
+    ($context:expr, $length:expr) => (
+        &$context.stream[$context.stream_index..$context.stream_index + $length]
+    );
+}
+
+// Replay the most recent byte by rewinding the stream index 1 byte.
+macro_rules! replay {
+    ($context:expr) => (
+        $context.stream_index -= 1;
+    );
+}
+
+// Set state and state function.
+macro_rules! set_state {
+    ($parser:expr, $state:expr, $state_function:ident) => ({
+        $parser.state          = $state;
+        $parser.state_function = Parser::$state_function;
+    });
+}
+
+// -------------------------------------------------------------------------------------------------
 
 /// Type that handles HTTP parser events.
 #[allow(unused_variables)]
@@ -766,7 +1147,8 @@ pub struct Parser<T: HttpHandler + ParamHandler> {
     // Bits 42-48: State flags that are checked when states have a dual purpose, such as when
     //             header parsing is also used to parse chunked data trailers.
     //
-    // Bits 49-64: Unused.
+    // Bits 49-64: For the most part unused, except when parsing chunk extension this stores
+    //             the amount of parsed bytes, limiting chunk extensions to 255 bytes.
     bit_data: u64,
 
     // Total byte count processed for headers, and body.
@@ -825,49 +1207,63 @@ macro_rules! chunk_size {
     });
 }
 
-// Retrieve the length bits.
+// Retrieve the length bits of bit_data.
 macro_rules! get_length {
     ($parser:expr) => (
         $parser.bit_data & LENGTH_MASK
     );
 }
 
-// Indicates that a state flag bit is set.
+// Retrieve the top 16 bits of bit_data.
+macro_rules! get_top16 {
+    ($parser:expr) => (
+        ($parser.bit_data >> TOP16_SHIFT)
+    );
+}
+
+// Indicates that a state flag bit is set within bit_data.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
         (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag.bits == $flag.bits
     });
 }
 
-// Increment length bits.
+// Increment length bits of bit_data.
 macro_rules! inc_length {
     ($parser:expr, $length:expr) => ({
         $parser.bit_data |= $length & LENGTH_MASK;
     });
 }
 
-// Reset length bits.
+// Reset length bits of bit_data.
 macro_rules! reset_length {
     ($parser:expr) => ({
         $parser.bit_data &= !LENGTH_MASK;
     });
 }
 
-// Set a state flag bit.
+// Set a state flag bit in bit_data.
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
         $parser.bit_data |= ($flag.bits & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
-// Set length bits.
+// Set length bits in bit_data.
 macro_rules! set_length {
     ($parser:expr, $length:expr) => ({
         $parser.bit_data |= $length & LENGTH_MASK;
     });
 }
 
-// Unset a state flag bit.
+// Set the top 16 bits of bit_data.
+macro_rules! set_top16 {
+    ($parser:expr, $bits:expr) => ({
+        $parser.bit_data |= $bits << TOP16_SHIFT;
+    });
+}
+
+// Unset a state flag bit in bit_data.
 macro_rules! unset_flag {
     ($parser:expr, $flag:expr) => ({
         $parser.bit_data &= !(($flag.bits & FLAG_MASK) << FLAG_SHIFT);
