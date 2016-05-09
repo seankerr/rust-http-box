@@ -25,9 +25,6 @@
 extern crate bitflags;
 
 #[macro_use]
-mod stream;
-
-#[macro_use]
 pub mod byte;
 
 pub mod handler;
