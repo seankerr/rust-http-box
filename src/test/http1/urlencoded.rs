@@ -175,7 +175,7 @@ fn urlencoded_field_hex_illegal() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam%xx") {
-        Err(ParserError::UrlEncodedField(_,_)) => {
+        Err(ParserError::UrlEncodedField(_)) => {
             assert_eq!(p.get_state(), State::Dead);
             true
         },
@@ -275,7 +275,7 @@ fn urlencoded_value_hex_illegal() {
     let mut p = Parser::new(StreamType::Response);
 
     assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nParam=Value%xx") {
-        Err(ParserError::UrlEncodedValue(_,_)) => {
+        Err(ParserError::UrlEncodedValue(_)) => {
             assert_eq!(p.get_state(), State::Dead);
             true
         },

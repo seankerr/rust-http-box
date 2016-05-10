@@ -16,11 +16,11 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-/*
 mod chunk_data;
-*/
 
-//mod chunk_extension;
+mod chunk_extension_name;
+mod chunk_extension_quoted_value;
+mod chunk_extension_value;
 mod chunk_size;
 
 /*

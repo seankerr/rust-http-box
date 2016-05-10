@@ -28,85 +28,88 @@ use url::{ ParamHandler,
 use std::str;
 
 pub struct DebugHandler {
-    pub body:              Vec<u8>,
-    pub chunk_data:        Vec<u8>,
-    pub chunk_extension:   Vec<u8>,
-    pub chunk_size:        u64,
-    pub content_type:      ContentType,
-    pub header_field:      Vec<u8>,
-    pub header_value:      Vec<u8>,
-    pub headers_finished:  bool,
-    pub method:            Vec<u8>,
-    pub multipart_data:    Vec<u8>,
-    pub param_field:       Vec<u8>,
-    pub param_value:       Vec<u8>,
-    pub status:            Vec<u8>,
-    pub status_code:       u16,
-    pub transfer_encoding: TransferEncoding,
-    pub url:               Vec<u8>,
-    pub url_fragment:      Vec<u8>,
-    pub url_host:          Vec<u8>,
-    pub url_path:          Vec<u8>,
-    pub url_port:          u16,
-    pub url_query_string:  Vec<u8>,
-    pub url_scheme:        Vec<u8>,
-    pub version_major:     u16,
-    pub version_minor:     u16
+    pub body:                  Vec<u8>,
+    pub chunk_data:            Vec<u8>,
+    pub chunk_extension_name:  Vec<u8>,
+    pub chunk_extension_value: Vec<u8>,
+    pub chunk_size:            u64,
+    pub content_type:          ContentType,
+    pub header_field:          Vec<u8>,
+    pub header_value:          Vec<u8>,
+    pub headers_finished:      bool,
+    pub method:                Vec<u8>,
+    pub multipart_data:        Vec<u8>,
+    pub param_field:           Vec<u8>,
+    pub param_value:           Vec<u8>,
+    pub status:                Vec<u8>,
+    pub status_code:           u16,
+    pub transfer_encoding:     TransferEncoding,
+    pub url:                   Vec<u8>,
+    pub url_fragment:          Vec<u8>,
+    pub url_host:              Vec<u8>,
+    pub url_path:              Vec<u8>,
+    pub url_port:              u16,
+    pub url_query_string:      Vec<u8>,
+    pub url_scheme:            Vec<u8>,
+    pub version_major:         u16,
+    pub version_minor:         u16
 }
 
 impl DebugHandler {
     pub fn new() -> DebugHandler {
-        DebugHandler{ body:              Vec::new(),
-                      chunk_data:        Vec::new(),
-                      chunk_extension:   Vec::new(),
-                      chunk_size:        0,
-                      content_type:      ContentType::None,
-                      header_field:      Vec::new(),
-                      header_value:      Vec::new(),
-                      headers_finished:  false,
-                      method:            Vec::new(),
-                      multipart_data:    Vec::new(),
-                      param_field:       Vec::new(),
-                      param_value:       Vec::new(),
-                      status:            Vec::new(),
-                      status_code:       0,
-                      transfer_encoding: TransferEncoding::None,
-                      url:               Vec::new(),
-                      url_fragment:      Vec::new(),
-                      url_host:          Vec::new(),
-                      url_path:          Vec::new(),
-                      url_port:          0,
-                      url_query_string:  Vec::new(),
-                      url_scheme:        Vec::new(),
-                      version_major:     0,
-                      version_minor:     0 }
+        DebugHandler{ body:                  Vec::new(),
+                      chunk_data:            Vec::new(),
+                      chunk_extension_name:  Vec::new(),
+                      chunk_extension_value: Vec::new(),
+                      chunk_size:            0,
+                      content_type:          ContentType::None,
+                      header_field:          Vec::new(),
+                      header_value:          Vec::new(),
+                      headers_finished:      false,
+                      method:                Vec::new(),
+                      multipart_data:        Vec::new(),
+                      param_field:           Vec::new(),
+                      param_value:           Vec::new(),
+                      status:                Vec::new(),
+                      status_code:           0,
+                      transfer_encoding:     TransferEncoding::None,
+                      url:                   Vec::new(),
+                      url_fragment:          Vec::new(),
+                      url_host:              Vec::new(),
+                      url_path:              Vec::new(),
+                      url_port:              0,
+                      url_query_string:      Vec::new(),
+                      url_scheme:            Vec::new(),
+                      version_major:         0,
+                      version_minor:         0 }
     }
 
     pub fn reset(&mut self) {
-        self.body              = Vec::new();
-        self.chunk_data        = Vec::new();
-        self.chunk_extension   = Vec::new();
-        self.chunk_size        = 0;
-        self.content_type      = ContentType::None;
-        self.header_field      = Vec::new();
-        self.header_value      = Vec::new();
-        self.headers_finished  = false;
-        self.method            = Vec::new();
-        self.multipart_data    = Vec::new();
-        self.param_field       = Vec::new();
-        self.param_value       = Vec::new();
-        self.status            = Vec::new();
-        self.status_code       = 0;
-        self.transfer_encoding = TransferEncoding::None;
-        self.url               = Vec::new();
-        self.url_fragment      = Vec::new();
-        self.url_host          = Vec::new();
-        self.url_path          = Vec::new();
-        self.url_port          = 0;
-        self.url_query_string  = Vec::new();
-        self.url_scheme        = Vec::new();
-        self.version_major     = 0;
-        self.version_minor     = 0;
+        self.body                  = Vec::new();
+        self.chunk_data            = Vec::new();
+        self.chunk_extension_name  = Vec::new();
+        self.chunk_extension_value = Vec::new();
+        self.chunk_size            = 0;
+        self.content_type          = ContentType::None;
+        self.header_field          = Vec::new();
+        self.header_value          = Vec::new();
+        self.headers_finished      = false;
+        self.method                = Vec::new();
+        self.multipart_data        = Vec::new();
+        self.param_field           = Vec::new();
+        self.param_value           = Vec::new();
+        self.status                = Vec::new();
+        self.status_code           = 0;
+        self.transfer_encoding     = TransferEncoding::None;
+        self.url                   = Vec::new();
+        self.url_fragment          = Vec::new();
+        self.url_host              = Vec::new();
+        self.url_path              = Vec::new();
+        self.url_port              = 0;
+        self.url_query_string      = Vec::new();
+        self.url_scheme            = Vec::new();
+        self.version_major         = 0;
+        self.version_minor         = 0;
     }
 
     pub fn set_content_type(&mut self, content_type: ContentType) {
@@ -184,14 +187,28 @@ impl HttpHandler for DebugHandler {
     }
 
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        println!("on_chunk_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
         self.chunk_data.extend_from_slice(data);
+
+        for byte in data {
+            if *byte > 127 {
+                println!("on_chunk_data [{}]: *hidden*", data.len());
+                return true;
+            }
+        }
+
+        println!("on_chunk_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
         true
     }
 
-    fn on_chunk_extension(&mut self, extension: &[u8]) -> bool {
-        println!("on_chunk_extension [{}]: {:?}", extension.len(), str::from_utf8(extension).unwrap());
-        self.chunk_extension.extend_from_slice(extension);
+    fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
+        println!("on_chunk_extension_name [{}]: {:?}", name.len(), str::from_utf8(name).unwrap());
+        self.chunk_extension_name.extend_from_slice(name);
+        true
+    }
+
+    fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
+        println!("on_chunk_extension_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
+        self.chunk_extension_value.extend_from_slice(value);
         true
     }
 

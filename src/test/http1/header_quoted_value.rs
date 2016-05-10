@@ -33,9 +33,9 @@ fn escaped_multiple() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"\"Value", State::QuotedHeaderValue, 6);
+    assert_eof(&mut p, &mut h, b"\"Value", State::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
-    assert_eof(&mut p, &mut h, b"\\\"", State::QuotedHeaderValue, 2);
+    assert_eof(&mut p, &mut h, b"\\\"", State::HeaderQuotedValue, 2);
     assert_eq!(h.header_value, b"Value\"");
     assert_eof(&mut p, &mut h, b"Time\"", State::Newline1, 5);
     assert_eq!(h.header_value, b"Value\"Time");
@@ -59,7 +59,7 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"\"Value", State::QuotedHeaderValue, 6);
+    assert_eof(&mut p, &mut h, b"\"Value", State::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
     assert_eof(&mut p, &mut h, b"Time\"", State::Newline1, 5);
     assert_eq!(h.header_value, b"ValueTime");

@@ -36,7 +36,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::HeaderField(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::HeaderField(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();

@@ -28,7 +28,7 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
-        if let ParserError::Method(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::Method(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();

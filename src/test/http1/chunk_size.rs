@@ -19,12 +19,13 @@
 use handler::*;
 use http1::*;
 use test::*;
+use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         $handler.set_transfer_encoding(TransferEncoding::Chunked);
 
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\n", State::ChunkSize1);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\n", State::ChunkSize);
     });
 }
 
@@ -37,7 +38,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::ChunkSize(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::ChunkSize(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -51,12 +52,51 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ChunkSize2, 1);
+        assert_eof(&mut p, &mut h, &[byte], State::ChunkSize, 1);
     });
 }
 
 #[test]
-fn chunk_size1() {
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn get_transfer_encoding(&mut self) -> TransferEncoding {
+            TransferEncoding::Chunked
+        }
+
+        fn on_chunk_size(&mut self, _size: u64) -> bool {
+            false
+        }
+    }
+
+    impl ParamHandler for X {}
+
+    let mut h = X{};
+    let mut p = Parser::new_request();
+
+    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\n", State::ChunkSize);
+
+    assert_callback(&mut p, &mut h, b"F\r", State::ChunkSizeNewline, 2);
+}
+
+#[test]
+fn missing_size() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    if let ParserError::ChunkSize(x) = assert_error(&mut p, &mut h,
+                                                    b"\r").unwrap() {
+        assert_eq!(x, b'\r');
+    } else {
+        panic!();
+    }
+}
+
+#[test]
+fn size1() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -67,7 +107,7 @@ fn chunk_size1() {
 }
 
 #[test]
-fn chunk_size2() {
+fn size2() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -78,7 +118,7 @@ fn chunk_size2() {
 }
 
 #[test]
-fn chunk_size3() {
+fn size3() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -89,7 +129,7 @@ fn chunk_size3() {
 }
 
 #[test]
-fn chunk_size4() {
+fn size4() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -100,7 +140,7 @@ fn chunk_size4() {
 }
 
 #[test]
-fn chunk_size5() {
+fn size5() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -111,7 +151,7 @@ fn chunk_size5() {
 }
 
 #[test]
-fn chunk_size6() {
+fn size6() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -122,7 +162,7 @@ fn chunk_size6() {
 }
 
 #[test]
-fn chunk_size7() {
+fn size7() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -133,7 +173,7 @@ fn chunk_size7() {
 }
 
 #[test]
-fn chunk_size8() {
+fn size8() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -144,7 +184,7 @@ fn chunk_size8() {
 }
 
 #[test]
-fn chunk_size9() {
+fn size9() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -155,7 +195,7 @@ fn chunk_size9() {
 }
 
 #[test]
-fn chunk_size10() {
+fn size10() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
 
@@ -163,4 +203,19 @@ fn chunk_size10() {
 
     assert_eof(&mut p, &mut h, b"FFFFFFFFFF\r", State::ChunkSizeNewline, 11);
     assert_eq!(h.chunk_size, 1099511627775);
+}
+
+#[test]
+fn too_long() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    if let ParserError::ChunkSize(x) = assert_error(&mut p, &mut h,
+                                                    b"FFFFFFFFFF0").unwrap() {
+        assert_eq!(x, b'0');
+    } else {
+        panic!();
+    }
 }

@@ -36,7 +36,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::Url(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::Url(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -83,7 +83,7 @@ fn with_schema() {
 
     assert_eof(&mut p, &mut h, b"http://host.com:443/path?query_string#fragment ",
                State::StripRequestHttp, 47);
-    vec_eq(h.url, b"http://host.com:443/path?query_string#fragment");
+    vec_eq(&h.url, b"http://host.com:443/path?query_string#fragment");
 }
 
 #[test]
@@ -95,5 +95,5 @@ fn without_schema() {
 
     assert_eof(&mut p, &mut h, b"/path?query_string#fragment ",
                State::StripRequestHttp, 28);
-    vec_eq(h.url, b"/path?query_string#fragment");
+    vec_eq(&h.url, b"/path?query_string#fragment");
 }

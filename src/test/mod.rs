@@ -200,7 +200,7 @@ pub fn setup<T:HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut
     });
 }
 
-pub fn vec_eq<T: Debug + PartialEq>(vec: Vec<T>, slice: &[T]) {
+pub fn vec_eq<T: Debug + PartialEq>(vec: &[T], slice: &[T]) {
     assert_eq!(vec.len(), slice.len());
 
     for n in 0..vec.len() {

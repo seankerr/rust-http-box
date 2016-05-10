@@ -16,80 +16,65 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use Success;
+use handler::*;
 use http1::*;
-use url::*;
-use std::str;
+use test::*;
 
-struct H {
-    data: Vec<u8>
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        $handler.set_transfer_encoding(TransferEncoding::Chunked);
+
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nF;extension1=value1\r\n",
+              State::ChunkData);
+    });
 }
 
-impl HttpHandler for H {
-    fn get_transfer_encoding(&mut self) -> TransferEncoding {
-        println!("get_transfer_encoding: chunked");
-        TransferEncoding::Chunked
+#[test]
+fn byte_check() {
+    for byte in 0..255 {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[byte], State::ChunkData, 1);
     }
-
-    fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        println!("on_chunk_data: {:?}", str::from_utf8(data).unwrap());
-        self.data.extend_from_slice(data);
-        true
-    }
-}
-
-impl ParamHandler for H {}
-
-#[test]
-fn chunk_data_valid() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.data, b"Hello, world!");
-    assert_eq!(p.get_state(), State::ChunkDataNewline1);
 }
 
 #[test]
-fn chunk_data_multiple_pieces() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello,") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
+    setup!(p, h);
 
-    assert_eq!(h.data, b"Hello,");
-    assert_eq!(p.get_state(), State::ChunkData);
-
-    assert!(match p.parse(&mut h, b" world!") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert_eq!(h.data, b"Hello, world!");
-    assert_eq!(p.get_state(), State::ChunkDataNewline1);
+    assert_eof(&mut p, &mut h, b"abcdefg", State::ChunkData, 7);
+    assert_eq!(h.chunk_data, b"abcdefg");
+    assert_eof(&mut p, &mut h, b"hijklmno", State::ChunkDataNewline1, 8);
+    assert_eq!(h.chunk_data, b"abcdefghijklmno");
 }
 
 #[test]
-fn chunk_data_crlf() {
-    let mut h = H{data: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple_chunks() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!x") {
-        Err(ParserError::CrlfSequence(_,_)) => true,
-        _                                   => false
-    });
+    setup!(p, h);
 
-    p.reset();
+    assert_eof(&mut p, &mut h, b"abcdefghijklmno\r\n", State::ChunkSize, 17);
+    assert_eq!(h.chunk_data, b"abcdefghijklmno");
+    assert_eof(&mut p, &mut h, b"5\r\n", State::ChunkData, 3);
+    assert_eof(&mut p, &mut h, b"pqrst", State::ChunkDataNewline1, 5);
+    assert_eq!(h.chunk_data, b"abcdefghijklmnopqrst");
+}
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\rx") {
-        Err(ParserError::CrlfSequence(_,_)) => true,
-        _                                   => false
-    });
+#[test]
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"abcdefghijklmno", State::ChunkDataNewline1, 15);
+    assert_eq!(h.chunk_data, b"abcdefghijklmno");
 }

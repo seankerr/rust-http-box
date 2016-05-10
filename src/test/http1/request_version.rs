@@ -114,7 +114,7 @@ fn v1000_0 () {
 
     setup!(p, h);
 
-    if let ParserError::Version(_,x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
+    if let ParserError::Version(x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
         assert_eq!(x, b'0');
     } else {
         panic!();
@@ -128,7 +128,7 @@ fn v0_1000 () {
 
     setup!(p, h);
 
-    if let ParserError::Version(_,x) = assert_error(&mut p, &mut h, b"0.1000").unwrap() {
+    if let ParserError::Version(x) = assert_error(&mut p, &mut h, b"0.1000").unwrap() {
         assert_eq!(x, b'0');
     } else {
         panic!();

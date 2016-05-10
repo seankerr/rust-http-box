@@ -36,7 +36,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::StatusCode(_,x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::StatusCode(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -103,7 +103,7 @@ fn v1000 () {
 
     setup!(p, h);
 
-    if let ParserError::StatusCode(_,x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
+    if let ParserError::StatusCode(x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
         assert_eq!(x, b'0');
     } else {
         panic!();
