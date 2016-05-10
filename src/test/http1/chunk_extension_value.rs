@@ -19,6 +19,7 @@
 use handler::*;
 use http1::*;
 use test::*;
+use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -66,6 +67,30 @@ fn basic() {
 
     assert_eof(&mut p, &mut h, b"valid-value;", State::ChunkExtensionName, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
+}
+
+#[test]
+fn callback_exit() {
+    struct X;
+
+    impl HttpHandler for X {
+        fn get_transfer_encoding(&mut self) -> TransferEncoding {
+            TransferEncoding::Chunked
+        }
+
+        fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
+            false
+        }
+    }
+
+    impl ParamHandler for X {}
+
+    let mut h = X{};
+    let mut p = Parser::new_request();
+
+    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
+
+    assert_callback(&mut p, &mut h, b"ChunkExtension=ExtensionValue", State::ChunkExtensionValue, 29);
 }
 
 #[test]
