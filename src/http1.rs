@@ -676,63 +676,6 @@ pub type StateFunction<T> = fn(&mut Parser<T>, &mut ParserContext<T>)
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
 
-/*
-// Retrieve the length bits.
-macro_rules! get_length {
-    ($parser:expr) => ({
-        ($parser.bit_data >> LENGTH_SHIFT & LENGTH_MASK)
-    });
-}
-
-// Retrieve the top 16 bits.
-macro_rules! get_top16 {
-    ($parser:expr) => ({
-        (($parser.bit_data >> TOP16_SHIFT) as u16)
-    });
-}
-
-// Indicates that a state flag is set.
-macro_rules! has_flag {
-    ($parser:expr, $flag:expr) => ({
-        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag.bits == $flag.bits
-    });
-}
-
-// Set a state flag.
-macro_rules! set_flag {
-    ($parser:expr, $flag:expr) => ({
-        $parser.bit_data |= ($flag.bits & FLAG_MASK) << FLAG_SHIFT;
-    });
-}
-
-// Set the length bits.
-macro_rules! set_length {
-    ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
-
-        $parser.bit_data &= !LENGTH_MASK;
-        $parser.bit_data |= bits & LENGTH_MASK;
-    });
-}
-
-// Set the top 16 bits.
-macro_rules! set_top16 {
-    ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
-
-        $parser.bit_data &= !TOP16_MASK;
-        $parser.bit_data |= bits << TOP16_SHIFT;
-    });
-}
-
-// Unset a state flag.
-macro_rules! unset_flag {
-    ($parser:expr, $flag:expr) => ({
-        $parser.bit_data &= !(($flag.bits & FLAG_MASK) << FLAG_SHIFT);
-    });
-}
-*/
-
 // Retrieve the lower 8 bits.
 macro_rules! get_lower8 {
     ($parser:expr) => ({
