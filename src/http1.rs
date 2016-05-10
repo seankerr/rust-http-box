@@ -25,6 +25,14 @@ use url::ParamHandler;
 
 use std::fmt;
 
+// Maximum chunk extension byte count to process before returning
+// `ParserError::MaxChunkExtensionLength`.
+const CFG_MAX_CHUNK_EXTENSION_LENGTH: u16 = 255;
+
+// Maximum multipart boundary byte count to process before returning
+// `ParserError::MaxMultipartBoundaryLength`.
+const CFG_MAX_MULTIPART_BOUNDARY_LENGTH: u16 = 70;
+
 // State flag mask.
 const FLAG_MASK: u64 = 0x7F;
 
@@ -54,16 +62,6 @@ const UPPER40_MASK: u64 = 0xFFFFFFFFFF;
 
 // Upper 40 bits shift.
 const UPPER40_SHIFT: u8 = 24;
-
-// Maximum chunk extension byte count to process before returning
-// `ParserError::MaxChunkExtensionLength`.
-const CFG_MAX_CHUNK_EXTENSION_LENGTH: u16 = 255;
-
-// Maximum multipart boundary byte count to process before returning
-// `ParserError::MaxMultipartBoundaryLength`.
-const CFG_MAX_MULTIPART_BOUNDARY_LENGTH: u16 = 70;
-
-// -------------------------------------------------------------------------------------------------
 
 // Invalid chunk extension name.
 const ERR_CHUNK_EXTENSION_NAME: &'static str = "Invalid chunk extension name";
@@ -305,6 +303,8 @@ macro_rules! collected_bytes {
 }
 
 // Collect remaining data until content length is zero.
+//
+// Use the upper 40 bits as the content length.
 macro_rules! collect_content_length {
     ($parser:expr, $context:expr) => ({
         exit_if_eof!($parser, $context);
@@ -386,7 +386,7 @@ macro_rules! collect_safe {
 
 // Collect all 7-bit non-control bytes up until a certain limit.
 //
-// Use the top 16 bits to store the count of processed bytes, which has a maximum of 65536 bytes.
+// Use the lower 16 bits as the processed byte count.
 macro_rules! collect_safe_limit {
     ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $limit:expr, $byte_error:expr,
      $limit_error:expr, $eof_block:block) => ({
@@ -433,7 +433,7 @@ macro_rules! collect_tokens {
 
 // Collect tokens up until a certain limit.
 //
-// Use the top 16 bits to store the count of processed bytes, which has a maximum of 65536 bytes.
+// Use the lower 16 bits as the processed byte count.
 macro_rules! collect_tokens_limit {
     ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $stop3:expr, $limit:expr,
      $byte_error:expr, $limit_error:expr, $eof_block:block) => ({
