@@ -291,6 +291,21 @@ macro_rules! change_state_fast {
     });
 }
 
+// Collect base macro.
+macro_rules! collect {
+    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
+        loop {
+            if is_eof!($context) {
+                callback_or_eof!($parser, $context, $function);
+            }
+
+            if $block {
+                break;
+            }
+        }
+    });
+}
+
 // Retrieve a slice of collected bytes.
 macro_rules! collected_bytes {
     ($context:expr) => (
@@ -347,49 +362,41 @@ macro_rules! collect_digits {
 // Collect all 7-bit non-control bytes.
 macro_rules! collect_safe {
     ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $byte_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             next!($context);
 
             if $stop1 == $context.byte || $stop2 == $context.byte {
-                break;
+                true
             } else if is_control!($context.byte) || !is_ascii!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
+        });
     });
 
     ($parser:expr, $context:expr, $function:ident, $stop:expr, $byte_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             next!($context);
 
             if $stop == $context.byte {
-                break;
+                true
             } else if is_control!($context.byte) || !is_ascii!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
+        });
     });
 }
 
 // Collect all 7-bit non-control bytes up until a certain limit.
 //
-// Use the lower 16 bits as the processed byte count.
+// Use the lower 16 bits as the limit.
 macro_rules! collect_safe_limit {
     ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $limit:expr,
      $byte_error:expr, $limit_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             if get_lower16!($parser) == $limit {
                 exit_error!($parser, $context, $limit_error);
             }
@@ -399,44 +406,40 @@ macro_rules! collect_safe_limit {
             next!($context);
 
             if $stop1 == $context.byte || $stop2 == $context.byte {
-                break;
+                true
             } else if is_control!($context.byte) || !is_ascii!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
+        });
     });
 }
 
 // Collect tokens.
 macro_rules! collect_tokens {
     ($parser:expr, $context:expr, $function:ident, $stop:expr, $byte_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             next!($context);
 
             if $stop == $context.byte {
-                break;
+                true
             } else if !is_token($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
+        });
     });
 }
 
 // Collect tokens up until a certain limit.
 //
-// Use the lower 16 bits as the processed byte count.
+// Use the lower 16 bits as the limit.
 macro_rules! collect_tokens_limit {
     ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
      $limit:expr, $byte_error:expr, $limit_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             if get_lower16!($parser) == $limit {
                 exit_error!($parser, $context, $limit_error);
             }
@@ -446,43 +449,18 @@ macro_rules! collect_tokens_limit {
             next!($context);
 
             if $stop1 == $context.byte || $stop2 == $context.byte || $stop3 == $context.byte {
-                break;
+                true
             } else if !is_token($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
-    });
-
-    ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $limit:expr, $byte_error:expr,
-     $limit_error:expr, $function:ident) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
-            if get_lower16!($parser) == $limit {
-                exit_error!($parser, $context, $limit_error);
-            }
-
-            set_lower16!($parser, get_lower16!($parser) + 1);
-
-            next!($context);
-
-            if $stop1 == $context.byte || $stop2 == $context.byte {
-                break;
-            } else if !is_token($context.byte) {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            }
-        }
+        });
     });
 
     ($parser:expr, $context:expr, $function:ident, $stop:expr, $limit:expr, $byte_error:expr,
      $limit_error:expr) => ({
-        loop {
-            if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
-            }
-
+        collect!($parser, $context, $function, {
             if get_lower16!($parser) == $limit {
                 exit_error!($parser, $context, $limit_error);
             }
@@ -492,11 +470,13 @@ macro_rules! collect_tokens_limit {
             next!($context);
 
             if $stop == $context.byte {
-                break;
+                true
             } else if !is_token($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
             }
-        }
+        });
     });
 }
 
@@ -557,11 +537,11 @@ macro_rules! exit_finished {
 
 // Exit parser function with an EOF status if the stream is EOF, otherwise do nothing.
 macro_rules! exit_if_eof {
-    ($parser:expr, $context:expr) => (
+    ($parser:expr, $context:expr) => ({
         if is_eof!($context) {
             exit_eof!($parser, $context);
         }
-    );
+    });
 }
 
 // Indicates that a specified amount of bytes are available.
@@ -589,7 +569,7 @@ macro_rules! jump_bytes {
 macro_rules! next {
     ($context:expr) => ({
         $context.stream_index += 1;
-        $context.byte   = $context.stream[$context.stream_index - 1]
+        $context.byte          = $context.stream[$context.stream_index - 1];
     });
 }
 
@@ -602,9 +582,9 @@ macro_rules! peek_bytes {
 
 // Replay the most recent byte by rewinding the stream index 1 byte.
 macro_rules! replay {
-    ($context:expr) => (
+    ($context:expr) => ({
         $context.stream_index -= 1;
-    );
+    });
 }
 
 // Set state and state function.
