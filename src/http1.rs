@@ -222,6 +222,14 @@ macro_rules! unset_flag {
 
 // Execute a callback and if it returns true, execute a block, otherwise exit with callback status.
 macro_rules! callback {
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $block:block) => ({
+        if $context.handler.$function($data) {
+            $block
+        } else {
+            exit_callback!($parser, $context);
+        }
+    });
+
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
         let slice = collected_bytes!($context);
 
@@ -233,18 +241,6 @@ macro_rules! callback {
             }
         } else {
             $block
-        }
-    });
-}
-
-// Execute a callback with specified data, and if it returns true, execute a block, otherwise exit
-// with callback status.
-macro_rules! callback_data {
-    ($parser:expr, $context:expr, $data:expr, $function:ident, $block:block) => ({
-        if $context.handler.$function($data) {
-            $block
-        } else {
-            exit_callback!($parser, $context);
         }
     });
 }
@@ -1402,13 +1398,13 @@ macro_rules! chunk_size {
                 if get_upper40!($parser) == 0 {
                     set_state!($parser, State::Newline2, newline2);
 
-                    callback_data!($parser, $context, get_upper40!($parser), on_chunk_size, {
+                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
                         change_state!($parser, $context);
                     });
                 } else if $context.byte == b'\r' {
                     set_state!($parser, State::ChunkSizeNewline, chunk_size_newline);
 
-                    callback_data!($parser, $context, get_upper40!($parser), on_chunk_size, {
+                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
                         change_state!($parser, $context);
                     });
                 } else if $context.byte == b';' {
@@ -1416,7 +1412,7 @@ macro_rules! chunk_size {
 
                     set_state!($parser, State::ChunkExtensionName, chunk_extension_name);
 
-                    callback_data!($parser, $context, get_upper40!($parser), on_chunk_size, {
+                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
                         change_state!($parser, $context);
                     });
                 } else {
@@ -1559,7 +1555,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             ($header:expr, $length:expr) => ({
                 jump_bytes!(context, $length);
                 set_state!(self, State::StripHeaderValue, strip_header_value);
-                callback_data!(self, context, $header, on_header_field, {
+                callback!(self, context, on_header_field, $header, {
                     change_state_fast!(self, context);
                 });
             });
@@ -1701,7 +1697,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         exit_if_eof!(self, context);
         next!(context);
         set_state!(self, State::HeaderQuotedValue, header_quoted_value);
-        callback_data!(self, context, &[context.byte], on_header_value, {
+        callback!(self, context, on_header_value, &[context.byte], {
             change_state!(self, context);
         });
     }
@@ -1750,7 +1746,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             change_state_fast!(self, context);
         } else if context.byte == b' ' || context.byte == b'\t' {
             set_state!(self, State::StripHeaderValue, strip_header_value);
-            callback_data!(self, context, b" ", on_header_value, {
+            callback!(self, context, on_header_value, b" ", {
                 change_state!(self, context);
             });
         } else {
@@ -1805,7 +1801,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             ($method:expr, $length:expr) => (
                 jump_bytes!(context, $length);
                 set_state!(self, State::StripRequestUrl, strip_request_url);
-                callback_data!(self, context, $method, on_method, {
+                callback!(self, context, on_method, $method, {
                     change_state_fast!(self, context);
                 });
             );
@@ -2341,7 +2337,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         if is_ascii!(context.byte) && !is_control!(context.byte) {
             set_state!(self, State::ChunkExtensionQuotedValue, chunk_extension_quoted_value);
-            callback_data!(self, context, &[context.byte], on_chunk_extension_value, {
+            callback!(self, context, on_chunk_extension_value, &[context.byte], {
                 change_state_fast!(self, context);
             });
         }
