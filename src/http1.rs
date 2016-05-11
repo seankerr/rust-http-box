@@ -410,10 +410,10 @@ macro_rules! collect_safe_limit {
 
 // Collect tokens.
 macro_rules! collect_tokens {
-    ($parser:expr, $context:expr, $stop:expr, $byte_error:expr, $eof_block:block) => ({
+    ($parser:expr, $context:expr, $stop:expr, $byte_error:expr, $function:ident) => ({
         loop {
             if is_eof!($context) {
-                $eof_block
+                callback_or_eof!($parser, $context, $context.handler.$function);
             }
 
             next!($context);
@@ -432,10 +432,10 @@ macro_rules! collect_tokens {
 // Use the lower 16 bits as the processed byte count.
 macro_rules! collect_tokens_limit {
     ($parser:expr, $context:expr, $stop1:expr, $stop2:expr, $stop3:expr, $limit:expr,
-     $byte_error:expr, $limit_error:expr, $eof_block:block) => ({
+     $byte_error:expr, $limit_error:expr, $function:ident) => ({
         loop {
             if is_eof!($context) {
-                $eof_block
+                callback_or_eof!($parser, $context, $context.handler.$function);
             }
 
             if get_lower16!($parser) == $limit {
@@ -1635,9 +1635,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(self, context, b':', ParserError::HeaderField, {
-            callback_or_eof!(self, context, on_header_field);
-        });
+        collect_tokens!(self, context,
+                        b':',
+                        ParserError::HeaderField,
+                        on_header_field);
 
         set_state!(self, State::StripHeaderValue, strip_header_value);
         callback_ignore!(self, context, on_header_field, {
@@ -1836,9 +1837,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             }
         }
 
-        collect_tokens!(self, context, b' ', ParserError::Method, {
-            callback_or_eof!(self, context, on_method);
-        });
+        collect_tokens!(self, context,
+                        b' ',
+                        ParserError::Method,
+                        on_method);
 
         replay!(context);
         set_state!(self, State::StripRequestUrl, strip_request_url);
@@ -2270,11 +2272,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens_limit!(self, context, b'=', CFG_MAX_CHUNK_EXTENSION_LENGTH,
+        collect_tokens_limit!(self, context,
+                              b'=',
+                              CFG_MAX_CHUNK_EXTENSION_LENGTH,
                               ParserError::ChunkExtensionName,
-                              ParserError::MaxChunkExtensionLength, {
-            callback_or_eof!(self, context, on_chunk_extension_name);
-        });
+                              ParserError::MaxChunkExtensionLength,
+                              on_chunk_extension_name);
 
         set_state!(self, State::ChunkExtensionValue, chunk_extension_value);
         callback_ignore!(self, context, on_chunk_extension_name, {
@@ -2287,9 +2290,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         collect_tokens_limit!(self, context, b'\r', b';', b'"', CFG_MAX_CHUNK_EXTENSION_LENGTH,
                               ParserError::ChunkExtensionValue,
-                              ParserError::MaxChunkExtensionLength, {
-            callback_or_eof!(self, context, on_chunk_extension_value);
-        });
+                              ParserError::MaxChunkExtensionLength,
+                              on_chunk_extension_value);
 
         if context.byte == b'\r' {
             set_state!(self, State::ChunkSizeNewline, chunk_size_newline);
