@@ -123,6 +123,20 @@ const ERR_URL_ENCODED_VALUE: &'static str = "Invalid URL encoded value";
 // Invalid version.
 const ERR_VERSION: &'static str = "Invalid HTTP version";
 
+// Flags used to track state details.
+bitflags! {
+    flags Flag: u64 {
+        // Parsing chunked transfer encoding.
+        const F_CHUNKED = 1 << 0,
+
+        // Parsing data that needs to check against content length.
+        const F_CONTENT_LENGTH = 1 << 1,
+
+        // Parsing multipart data.
+        const F_MULTIPART = 1 << 2
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
@@ -231,7 +245,7 @@ macro_rules! callback {
     });
 
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
-        let slice = collected_bytes!($context);
+        let slice = &$context.stream[$context.mark_index..$context.stream_index];
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
@@ -263,17 +277,8 @@ macro_rules! callback_ignore {
     });
 }
 
-// Execute a callback and if it returns true, exit with eof status, otherwise exit with callback
-// status.
-macro_rules! callback_or_eof {
-    ($parser:expr, $context:expr, $function:ident) => (
-        callback!($parser, $context, $function, {
-            exit_eof!($parser, $context);
-        });
-    );
-}
-
-// Change parser state.
+// Change parser state by returning to the beginning of the state loop and then processing
+// the next state.
 macro_rules! change_state {
     ($parser:expr, $context:expr) => ({
         $context.mark_index = $context.stream_index;
@@ -282,7 +287,7 @@ macro_rules! change_state {
     });
 }
 
-// Change parser state fast, without returning immediately.
+// Change parser state by directly calling the next state function.
 macro_rules! change_state_fast {
     ($parser:expr, $context:expr) => ({
         $context.mark_index = $context.stream_index;
@@ -296,7 +301,9 @@ macro_rules! collect {
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
         loop {
             if is_eof!($context) {
-                callback_or_eof!($parser, $context, $function);
+                callback!($parser, $context, $function, {
+                    exit_eof!($parser, $context);
+                });
             }
 
             if $block {
@@ -306,13 +313,6 @@ macro_rules! collect {
     });
 }
 
-// Retrieve a slice of collected bytes.
-macro_rules! collected_bytes {
-    ($context:expr) => (
-        &$context.stream[$context.mark_index..$context.stream_index]
-    );
-}
-
 // Collect remaining data until content length is zero.
 //
 // Use the upper 40 bits as the content length.
@@ -320,18 +320,19 @@ macro_rules! collect_content_length {
     ($parser:expr, $context:expr) => ({
         exit_if_eof!($parser, $context);
 
-        let slice = if has_bytes!($context, get_upper40!($parser) as usize) {
-            &$context.stream[$context.stream_index..$context.stream_index +
-                                                    get_upper40!($parser) as usize]
+        if has_bytes!($context, get_upper40!($parser) as usize) {
+            $context.stream_index += get_upper40!($parser) as usize;
+
+            set_upper40!($parser, 0);
+
+            true
         } else {
-            &$context.stream[$context.stream_index..$context.stream.len()]
-        };
+            $context.stream_index += $context.stream.len();
 
-        set_upper40!($parser, get_upper40!($parser) as usize - slice.len());
+            set_upper40!($parser, get_upper40!($parser) as usize - $context.stream.len());
 
-        $context.stream_index += slice.len();
-
-        get_upper40!($parser) == 0
+            false
+        }
     });
 }
 
@@ -424,10 +425,10 @@ macro_rules! collect_tokens {
 
             if $stop == $context.byte {
                 true
-            } else if !is_token($context.byte) {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            } else {
+            } else if is_token($context.byte) {
                 false
+            } else {
+                exit_error!($parser, $context, $byte_error($context.byte));
             }
         });
     });
@@ -450,10 +451,10 @@ macro_rules! collect_tokens_limit {
 
             if $stop1 == $context.byte || $stop2 == $context.byte || $stop3 == $context.byte {
                 true
-            } else if !is_token($context.byte) {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            } else {
+            } else if is_token($context.byte) {
                 false
+            } else {
+                exit_error!($parser, $context, $byte_error($context.byte));
             }
         });
     });
@@ -471,10 +472,10 @@ macro_rules! collect_tokens_limit {
 
             if $stop == $context.byte {
                 true
-            } else if !is_token($context.byte) {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            } else {
+            } else if is_token($context.byte) {
                 false
+            } else {
+                exit_error!($parser, $context, $byte_error($context.byte));
             }
         });
     });
@@ -490,7 +491,9 @@ macro_rules! consume_space_tab {
 
             next!($context);
 
-            if $context.byte != b' ' && $context.byte != b'\t' {
+            if $context.byte == b' ' || $context.byte == b'\t' {
+                continue;
+            } else {
                 break;
             }
         }
@@ -593,22 +596,6 @@ macro_rules! set_state {
         $parser.state          = $state;
         $parser.state_function = Parser::$state_function;
     });
-}
-
-// -------------------------------------------------------------------------------------------------
-
-// Flags used to track state details.
-bitflags! {
-    flags Flag: u64 {
-        // Parsing chunked transfer encoding.
-        const F_CHUNKED = 1 << 0,
-
-        // Parsing data that needs to check against content length.
-        const F_CONTENT_LENGTH = 1 << 1,
-
-        // Parsing multipart data.
-        const F_MULTIPART = 1 << 2
-    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1968,18 +1955,18 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_lower16!(self, digit);
 
-        if context.byte != b'.' {
-            exit_error!(self, context, ParserError::Version(context.byte));
+        if context.byte == b'.' {
+            set_state!(self, State::RequestVersionMinor, request_version_minor);
+            change_state_fast!(self, context);
         }
 
-        set_state!(self, State::RequestVersionMinor, request_version_minor);
-        change_state_fast!(self, context);
+        exit_error!(self, context, ParserError::Version(context.byte));
     }
 
     #[inline]
     pub fn request_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit: u16 = get_upper40!(self) as u16;
+        let mut digit = get_upper40!(self) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
             set_upper40!(self, digit);
@@ -2119,18 +2106,18 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_lower16!(self, digit);
 
-        if context.byte != b'.' {
-            exit_error!(self, context, ParserError::Version(context.byte));
+        if context.byte == b'.' {
+            set_state!(self, State::ResponseVersionMinor, response_version_minor);
+            change_state_fast!(self, context);
         }
 
-        set_state!(self, State::ResponseVersionMinor, response_version_minor);
-        change_state_fast!(self, context);
+        exit_error!(self, context, ParserError::Version(context.byte));
     }
 
     #[inline]
     pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit: u16 = get_upper40!(self) as u16;
+        let mut digit = get_upper40!(self) as u16;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
             set_upper40!(self, digit);
@@ -2196,19 +2183,17 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        loop {
-            if is_eof!(context) {
-                callback_or_eof!(self, context, on_status);
-            }
-
+        collect!(self, context, on_status, {
             next!(context);
 
             if context.byte == b'\r' {
-                break;
-            } else if context.byte != b' ' && context.byte != b'\t' && !is_token(context.byte) {
+                true
+            } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
+                false
+            } else {
                 exit_error!(self, context, ParserError::Status(context.byte));
             }
-        }
+        });
 
         set_state!(self, State::PreHeaders1, pre_headers1);
         callback_ignore!(self, context, on_status, {
