@@ -259,40 +259,87 @@ macro_rules! callback {
     });
 }
 
-// Execute a callback ignoring the last marked byte, and if it returns true, execute a block,
-// otherwise exit with callback status.
-macro_rules! callback_ignore {
-    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
+// Execute a callback ignoring the last marked byte, and if it returns true, transition to the next
+// state, otherwise exit with callback status.
+macro_rules! callback_ignore_transition {
+    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
         let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
+
+        set_state!($parser, $state, $state_function);
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
-                $block
+                transition!($parser, $context);
             } else {
                 exit_callback!($parser, $context);
             }
         } else {
-            $block
+            transition!($parser, $context);
         }
     });
 }
 
-// Change parser state by returning to the beginning of the state loop and then processing
-// the next state.
-macro_rules! change_state {
-    ($parser:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
+// Execute a callback ignoring the last marked byte, and if it returns true, transition to the next
+// state, otherwise exit with callback status.
+macro_rules! callback_ignore_transition_fast {
+    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+        let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
 
-        return Ok(ParserValue::Continue);
+        set_state!($parser, $state, $state_function);
+
+        if slice.len() > 0 {
+            if $context.handler.$function(slice) {
+                transition_fast!($parser, $context);
+            } else {
+                exit_callback!($parser, $context);
+            }
+        } else {
+            transition_fast!($parser, $context);
+        }
     });
 }
 
-// Change parser state by directly calling the next state function.
-macro_rules! change_state_fast {
-    ($parser:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
+// Execute a callback and if it returns true, transition to the next state using transition!(),
+// otherwise exit with callback status.
+//
+// This macro exists to enforce the design decision that after each callback, state must either
+// change, or the parser exits with callback status.
+macro_rules! callback_transition {
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
+     $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+        callback!($parser, $context, $function, $data, {
+            transition!($parser, $context);
+        });
+    });
 
-        return ($parser.state_function)($parser, $context);
+    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+        callback!($parser, $context, $function, {
+            transition!($parser, $context);
+        });
+    });
+}
+
+// Execute a callback and if it returns true, transition to the next state using transition_fast!(),
+// otherwise exit with callback status.
+//
+// This macro exists to enforce the design decision that after each callback, state must either
+// change, or the parser exits with callback status.
+macro_rules! callback_transition_fast {
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
+     $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+        callback!($parser, $context, $function, $data, {
+            transition_fast!($parser, $context);
+        });
+    });
+
+    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+        callback!($parser, $context, $function, {
+            transition_fast!($parser, $context);
+        });
     });
 }
 
@@ -595,6 +642,41 @@ macro_rules! set_state {
     ($parser:expr, $state:expr, $state_function:ident) => ({
         $parser.state          = $state;
         $parser.state_function = Parser::$state_function;
+    });
+}
+
+// Transition to a new state by returning to the beginning of the state loop and then processing
+// the next state.
+macro_rules! transition {
+    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        $context.mark_index = $context.stream_index;
+
+        return Ok(ParserValue::Continue);
+    });
+
+    ($parser:expr, $context:expr) => ({
+        $context.mark_index = $context.stream_index;
+
+        return Ok(ParserValue::Continue);
+    });
+}
+
+// Transition to a new state by directly calling the next state function.
+macro_rules! transition_fast {
+    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        $context.mark_index = $context.stream_index;
+
+        return ($parser.state_function)($parser, $context);
+    });
+
+    ($parser:expr, $context:expr) => ({
+        $context.mark_index = $context.stream_index;
+
+        return ($parser.state_function)($parser, $context);
     });
 }
 
@@ -1352,8 +1434,7 @@ macro_rules! chunk_size {
                 set_upper40!($parser, get_upper40!($parser) + byte as u64);
                 set_lower8!($parser, get_lower8!($parser) + 1);
 
-                set_state!($parser, State::ChunkSize, chunk_size);
-                change_state_fast!($parser, $context);
+                transition_fast!($parser, $context, State::ChunkSize, chunk_size);
             },
             None => {
                 if get_lower8!($parser) == 0 {
@@ -1362,25 +1443,19 @@ macro_rules! chunk_size {
                 }
 
                 if get_upper40!($parser) == 0 {
-                    set_state!($parser, State::Newline2, newline2);
-
-                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
-                        change_state!($parser, $context);
-                    });
+                    callback_transition_fast!($parser, $context,
+                                              on_chunk_size, get_upper40!($parser),
+                                              State::Newline2, newline2);
                 } else if $context.byte == b'\r' {
-                    set_state!($parser, State::ChunkSizeNewline, chunk_size_newline);
-
-                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
-                        change_state!($parser, $context);
-                    });
+                    callback_transition_fast!($parser, $context,
+                                              on_chunk_size, get_upper40!($parser),
+                                              State::ChunkSizeNewline, chunk_size_newline);
                 } else if $context.byte == b';' {
                     set_lower16!($parser, 1);
 
-                    set_state!($parser, State::ChunkExtensionName, chunk_extension_name);
-
-                    callback!($parser, $context, on_chunk_size, get_upper40!($parser), {
-                        change_state!($parser, $context);
-                    });
+                    callback_transition_fast!($parser, $context,
+                                              on_chunk_size, get_upper40!($parser),
+                                              State::ChunkExtensionName, chunk_extension_name);
                 } else {
                     exit_error!($parser, $context, ParserError::ChunkSize($context.byte));
                 }
@@ -1481,11 +1556,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\n' {
-            set_state!(self, State::PreHeaders2, pre_headers2);
-            change_state_fast!(self, context);
-        } else {
-            exit_error!(self, context, ParserError::CrlfSequence(context.byte));
+            transition_fast!(self, context, State::PreHeaders2, pre_headers2);
         }
+
+        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
     }
 
     #[inline]
@@ -1495,12 +1569,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, State::Newline4, newline4);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::Newline4, newline4);
         } else {
             replay!(context);
-            set_state!(self, State::StripHeaderField, strip_header_field);
-            change_state_fast!(self, context);
+
+            transition_fast!(self, context, State::StripHeaderField, strip_header_field);
         }
     }
 
@@ -1509,8 +1582,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::FirstHeaderField, first_header_field);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::FirstHeaderField, first_header_field);
     }
 
     #[inline]
@@ -1520,10 +1593,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! field {
             ($header:expr, $length:expr) => ({
                 jump_bytes!(context, $length);
-                set_state!(self, State::StripHeaderValue, strip_header_value);
-                callback!(self, context, on_header_field, $header, {
-                    change_state_fast!(self, context);
-                });
+
+                callback_transition_fast!(self, context,
+                                          on_header_field, $header,
+                                          State::StripHeaderValue, strip_header_value);
             });
         }
 
@@ -1593,9 +1666,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             }
         }
 
-        exit_if_eof!(self, context);
-        set_state!(self, State::HeaderField, header_field);
-        change_state_fast!(self, context);
+        transition_fast!(self, context, State::HeaderField, header_field);
     }
 
     #[inline]
@@ -1605,10 +1676,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         b':',
                         ParserError::HeaderField);
 
-        set_state!(self, State::StripHeaderValue, strip_header_value);
-        callback_ignore!(self, context, on_header_field, {
-            change_state_fast!(self, context);
-        });
+        callback_ignore_transition_fast!(self, context,
+                                         on_header_field,
+                                         State::StripHeaderValue, strip_header_value);
     }
 
     #[inline]
@@ -1617,13 +1687,12 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         consume_space_tab!(self, context);
 
         if context.byte == b'"' {
-            set_state!(self, State::HeaderQuotedValue, header_quoted_value);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::HeaderQuotedValue, header_quoted_value);
         }
 
         replay!(context);
-        set_state!(self, State::HeaderValue, header_value);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::HeaderValue, header_value);
     }
 
     #[inline]
@@ -1633,10 +1702,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                       b'\r',
                       ParserError::HeaderValue);
 
-        set_state!(self, State::Newline2, newline2);
-        callback_ignore!(self, context, on_header_value, {
-            change_state_fast!(self, context);
-        });
+        callback_ignore_transition_fast!(self, context,
+                                         on_header_value,
+                                         State::Newline2, newline2);
     }
 
     #[inline]
@@ -1647,14 +1715,14 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                       ParserError::HeaderValue);
 
         if context.byte == b'"' {
-            set_state!(self, State::Newline1, newline1);
+            callback_ignore_transition_fast!(self, context,
+                                             on_header_value,
+                                             State::Newline1, newline1);
         } else {
-            set_state!(self, State::HeaderEscapedValue, header_escaped_value);
+            callback_ignore_transition_fast!(self, context,
+                                             on_header_value,
+                                             State::HeaderEscapedValue, header_escaped_value);
         }
-
-        callback_ignore!(self, context, on_header_value, {
-            change_state!(self, context);
-        });
     }
 
     #[inline]
@@ -1662,26 +1730,24 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
-        set_state!(self, State::HeaderQuotedValue, header_quoted_value);
-        callback!(self, context, on_header_value, &[context.byte], {
-            change_state!(self, context);
-        });
+
+        callback_transition!(self, context,
+                             on_header_value, &[context.byte],
+                             State::HeaderQuotedValue, header_quoted_value);
     }
 
     #[inline]
     pub fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if has_bytes!(context, 2) && b"\r\n" == peek_bytes!(context, 2) {
-            set_state!(self, State::Newline3, newline3);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::Newline3, newline3);
         }
 
         exit_if_eof!(self, context);
         next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, State::Newline2, newline2);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::Newline2, newline2);
         }
 
         exit_error!(self, context, ParserError::CrlfSequence(context.byte));
@@ -1694,8 +1760,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\n' {
-            set_state!(self, State::Newline3, newline3);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::Newline3, newline3);
         }
 
         exit_error!(self, context, ParserError::CrlfSequence(context.byte));
@@ -1708,17 +1773,14 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, State::Newline4, newline4);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::Newline4, newline4);
         } else if context.byte == b' ' || context.byte == b'\t' {
-            set_state!(self, State::StripHeaderValue, strip_header_value);
-            callback!(self, context, on_header_value, b" ", {
-                change_state!(self, context);
-            });
+            callback_transition!(self, context,
+                                 on_header_value, b" ",
+                                 State::StripHeaderValue, strip_header_value);
         } else {
             replay!(context);
-            set_state!(self, State::StripHeaderField, strip_header_field);
-            change_state!(self, context);
+            transition!(self, context, State::StripHeaderField, strip_header_field);
         }
     }
 
@@ -1736,7 +1798,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                     exit_finished!(self, context);
                 }
 
-                change_state_fast!(self, context);
+                transition_fast!(self, context);
             } else if has_flag!(self, F_CHUNKED) {
                 exit_finished!(self, context);
             } else {
@@ -1756,8 +1818,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::RequestMethod, request_method);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::RequestMethod, request_method);
     }
 
     #[inline]
@@ -1766,10 +1828,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         macro_rules! method {
             ($method:expr, $length:expr) => (
                 jump_bytes!(context, $length);
-                set_state!(self, State::StripRequestUrl, strip_request_url);
-                callback!(self, context, on_method, $method, {
-                    change_state_fast!(self, context);
-                });
+
+                callback_transition_fast!(self, context,
+                                          on_method, $method,
+                                          State::StripRequestUrl, strip_request_url);
             );
         }
 
@@ -1807,10 +1869,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                         ParserError::Method);
 
         replay!(context);
-        set_state!(self, State::StripRequestUrl, strip_request_url);
-        callback!(self, context, on_method, {
-            change_state_fast!(self, context);
-        });
+
+        callback_transition_fast!(self, context,
+                                  on_method,
+                                  State::StripRequestUrl, strip_request_url);
     }
 
     #[inline]
@@ -1818,8 +1880,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::RequestUrl, request_url);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::RequestUrl, request_url);
     }
 
     #[inline]
@@ -1830,10 +1892,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                       ParserError::Url);
 
         replay!(context);
-        set_state!(self, State::StripRequestHttp, strip_request_http);
-        callback!(self, context, on_url, {
-            change_state_fast!(self, context);
-        });
+
+        callback_transition_fast!(self, context,
+                                  on_url,
+                                  State::StripRequestHttp, strip_request_http);
     }
 
     #[inline]
@@ -1841,8 +1903,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::RequestHttp1, request_http1);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::RequestHttp1, request_http1);
     }
 
     #[inline]
@@ -1854,7 +1916,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 set_state!(self, State::PreHeaders1, pre_headers1);
 
                 if context.handler.on_version($major, $minor) {
-                    change_state_fast!(self, context);
+                    transition_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
                 }
@@ -1877,8 +1939,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'H' || context.byte == b'h' {
-            set_state!(self, State::RequestHttp2, request_http2);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestHttp2, request_http2);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -1891,8 +1952,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
-            set_state!(self, State::RequestHttp3, request_http3);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestHttp3, request_http3);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -1905,8 +1965,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
-            set_state!(self, State::RequestHttp4, request_http4);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestHttp4, request_http4);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -1919,8 +1978,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'P' || context.byte == b'p' {
-            set_state!(self, State::RequestHttp5, request_http5);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestHttp5, request_http5);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -1935,8 +1993,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         if context.byte == b'/' {
             set_upper40!(self, 0);
 
-            set_state!(self, State::RequestVersionMajor, request_version_major);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestVersionMajor, request_version_major);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -1956,8 +2013,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         set_lower16!(self, digit);
 
         if context.byte == b'.' {
-            set_state!(self, State::RequestVersionMinor, request_version_minor);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::RequestVersionMinor, request_version_minor);
         }
 
         exit_error!(self, context, ParserError::Version(context.byte));
@@ -1977,7 +2033,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         set_state!(self, State::PreHeaders1, pre_headers1);
 
         if context.handler.on_version(get_lower16!(self), digit) {
-            change_state_fast!(self, context);
+            transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
         }
@@ -1992,8 +2048,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::ResponseHttp1, response_http1);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::ResponseHttp1, response_http1);
     }
 
     #[inline]
@@ -2005,7 +2061,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                 set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
                 if context.handler.on_version($major, $minor) {
-                    change_state_fast!(self, context);
+                    transition_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
                 }
@@ -2028,8 +2084,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'H' || context.byte == b'h' {
-            set_state!(self, State::ResponseHttp2, response_http2);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseHttp2, response_http2);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -2042,8 +2097,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
-            set_state!(self, State::ResponseHttp3, response_http3);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseHttp3, response_http3);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -2056,8 +2110,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
-            set_state!(self, State::ResponseHttp4, response_http4);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseHttp4, response_http4);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -2070,8 +2123,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'P' || context.byte == b'p' {
-            set_state!(self, State::ResponseHttp5, response_http5);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseHttp5, response_http5);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -2086,8 +2138,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         if context.byte == b'/' {
             set_upper40!(self, 0);
 
-            set_state!(self, State::ResponseVersionMajor, response_version_major);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
         } else {
             exit_error!(self, context, ParserError::Version(context.byte));
         }
@@ -2107,8 +2158,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         set_lower16!(self, digit);
 
         if context.byte == b'.' {
-            set_state!(self, State::ResponseVersionMinor, response_version_minor);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ResponseVersionMinor, response_version_minor);
         }
 
         exit_error!(self, context, ParserError::Version(context.byte));
@@ -2128,7 +2178,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
         if context.handler.on_version(get_lower16!(self), digit) {
-            change_state_fast!(self, context);
+            transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
         }
@@ -2147,8 +2197,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_upper40!(self, 0);
 
-        set_state!(self, State::ResponseStatusCode, response_status_code);
-        change_state_fast!(self, context);
+        transition_fast!(self, context, State::ResponseStatusCode, response_status_code);
     }
 
     #[inline]
@@ -2164,8 +2213,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         replay!(context);
         set_state!(self, State::StripResponseStatus, strip_response_status);
 
-        if context.handler.on_status_code(digit as u16) {
-            change_state_fast!(self, context);
+        if context.handler.on_status_code(digit) {
+            transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
         }
@@ -2176,8 +2225,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         consume_space_tab!(self, context);
         replay!(context);
-        set_state!(self, State::ResponseStatus, response_status);
-        change_state_fast!(self, context);
+
+        transition_fast!(self, context, State::ResponseStatus, response_status);
     }
 
     #[inline]
@@ -2195,10 +2244,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             }
         });
 
-        set_state!(self, State::PreHeaders1, pre_headers1);
-        callback_ignore!(self, context, on_status, {
-            change_state_fast!(self, context);
-        });
+        callback_ignore_transition_fast!(self, context,
+                                         on_status,
+                                         State::PreHeaders1, pre_headers1);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2212,8 +2260,8 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             set_upper40!(self, 0);
             set_lower8!(self, 0);
             set_flag!(self, F_CHUNKED);
-            set_state!(self, State::ChunkSize, chunk_size);
-            change_state!(self, context);
+
+            transition!(self, context, State::ChunkSize, chunk_size);
         }
 
         exit_eof!(self, context);
@@ -2240,10 +2288,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                               ParserError::ChunkExtensionName,
                               ParserError::MaxChunkExtensionLength);
 
-        set_state!(self, State::ChunkExtensionValue, chunk_extension_value);
-        callback_ignore!(self, context, on_chunk_extension_name, {
-            change_state_fast!(self, context);
-        });
+        callback_ignore_transition_fast!(self, context,
+                                         on_chunk_extension_name,
+                                         State::ChunkExtensionValue, chunk_extension_value);
     }
 
     #[inline]
@@ -2256,18 +2303,16 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                               ParserError::MaxChunkExtensionLength);
 
         if context.byte == b'\r' {
-            set_state!(self, State::ChunkSizeNewline, chunk_size_newline);
-            callback_ignore!(self, context, on_chunk_extension_value, {
-                change_state_fast!(self, context);
-            });
+            callback_ignore_transition_fast!(self, context,
+                                             on_chunk_extension_value,
+                                             State::ChunkSizeNewline, chunk_size_newline);
         } else if context.byte == b';' {
-            set_state!(self, State::ChunkExtensionName, chunk_extension_name);
-            callback_ignore!(self, context, on_chunk_extension_value, {
-                change_state_fast!(self, context);
-            });
+            callback_ignore_transition_fast!(self, context,
+                                             on_chunk_extension_value,
+                                             State::ChunkExtensionName, chunk_extension_name);
         } else {
-            set_state!(self, State::ChunkExtensionQuotedValue, chunk_extension_quoted_value);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ChunkExtensionQuotedValue,
+                             chunk_extension_quoted_value);
         }
     }
 
@@ -2281,15 +2326,15 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
                             ParserError::MaxChunkExtensionLength);
 
         if context.byte == b'"' {
-            set_state!(self, State::ChunkExtensionSemiColon, chunk_extension_semi_colon);
-            callback_ignore!(self, context, on_chunk_extension_value, {
-                change_state_fast!(self, context);
-            });
+            callback_ignore_transition_fast!(self, context,
+                                             on_chunk_extension_value,
+                                             State::ChunkExtensionSemiColon,
+                                             chunk_extension_semi_colon);
         } else {
-            set_state!(self, State::ChunkExtensionEscapedValue, chunk_extension_escaped_value);
-            callback_ignore!(self, context, on_chunk_extension_value, {
-                change_state_fast!(self, context);
-            });
+            callback_ignore_transition_fast!(self, context,
+                                             on_chunk_extension_value,
+                                             State::ChunkExtensionEscapedValue,
+                                             chunk_extension_escaped_value);
         }
     }
 
@@ -2300,10 +2345,10 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if is_ascii!(context.byte) && !is_control!(context.byte) {
-            set_state!(self, State::ChunkExtensionQuotedValue, chunk_extension_quoted_value);
-            callback!(self, context, on_chunk_extension_value, &[context.byte], {
-                change_state_fast!(self, context);
-            });
+            callback_transition_fast!(self, context,
+                                      on_chunk_extension_value, &[context.byte],
+                                      State::ChunkExtensionQuotedValue,
+                                      chunk_extension_quoted_value);
         }
 
         exit_error!(self, context, ParserError::ChunkExtensionValue(context.byte));
@@ -2316,11 +2361,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b';' {
-            set_state!(self, State::ChunkExtensionName, chunk_extension_name);
-            change_state!(self, context);
+            transition!(self, context, State::ChunkExtensionName, chunk_extension_name);
         } else if context.byte == b'\r' {
-            set_state!(self, State::ChunkSizeNewline, chunk_size_newline);
-            change_state_fast!(self, context);
+            transition!(self, context, State::ChunkSizeNewline, chunk_size_newline);
         }
 
         exit_error!(self, context, ParserError::ChunkExtensionName(context.byte));
@@ -2333,8 +2376,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\n' {
-            set_state!(self, State::ChunkData, chunk_data);
-            change_state!(self, context);
+            transition!(self, context, State::ChunkData, chunk_data);
         }
 
         exit_error!(self, context, ParserError::CrlfSequence(context.byte));
@@ -2344,12 +2386,14 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     pub fn chunk_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if collect_content_length!(self, context) {
-            set_state!(self, State::ChunkDataNewline1, chunk_data_newline1);
+            callback_transition!(self, context,
+                                 on_chunk_data,
+                                 State::ChunkDataNewline1, chunk_data_newline1);
+        } else {
+            callback_transition!(self, context,
+                                 on_chunk_data,
+                                 State::ChunkData, chunk_data);
         }
-
-        callback!(self, context, on_chunk_data, {
-            change_state!(self, context);
-        });
     }
 
     #[inline]
@@ -2359,8 +2403,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, State::ChunkDataNewline2, chunk_data_newline2);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ChunkDataNewline2, chunk_data_newline2);
         }
 
         exit_error!(self, context, ParserError::CrlfSequence(context.byte));
@@ -2373,8 +2416,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
         next!(context);
 
         if context.byte == b'\n' {
-            set_state!(self, State::ChunkSize, chunk_size);
-            change_state_fast!(self, context);
+            transition_fast!(self, context, State::ChunkSize, chunk_size);
         }
 
         exit_error!(self, context, ParserError::CrlfSequence(context.byte));
