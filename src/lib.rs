@@ -34,8 +34,6 @@ pub mod url;
 #[cfg(test)]
 mod test;
 
-// -------------------------------------------------------------------------------------------------
-
 /// Crate major version.
 pub const VERSION_MAJOR: &'static str = env!("CARGO_PKG_VERSION_MAJOR");
 
@@ -44,8 +42,6 @@ pub const VERSION_MINOR: &'static str = env!("CARGO_PKG_VERSION_MINOR");
 
 /// Crate patch version.
 pub const VERSION_PATCH: &'static str = env!("CARGO_PKG_VERSION_PATCH");
-
-// -------------------------------------------------------------------------------------------------
 
 /// Success response types.
 #[derive(Clone,Copy,PartialEq)]

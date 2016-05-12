@@ -63,66 +63,6 @@ const UPPER40_MASK: u64 = 0xFFFFFFFFFF;
 // Upper 40 bits shift.
 const UPPER40_SHIFT: u8 = 24;
 
-// Invalid chunk extension name.
-const ERR_CHUNK_EXTENSION_NAME: &'static str = "Invalid chunk extension name";
-
-// Invalid chunk extension value.
-const ERR_CHUNK_EXTENSION_VALUE: &'static str = "Invalid chunk extension value";
-
-// Invalid chunk size.
-const ERR_CHUNK_SIZE: &'static str = "Invalid chunk size";
-
-// Invalid CRLF sequence.
-const ERR_CRLF_SEQUENCE: &'static str = "Invalid CRLF sequence";
-
-// Last `Parser::parse()` call returned an `Error` and cannot continue.
-const ERR_DEAD: &'static str = "Parser is dead";
-
-// Invalid header field.
-const ERR_HEADER_FIELD: &'static str = "Invalid header field";
-
-// Invalid header value.
-const ERR_HEADER_VALUE: &'static str = "Invalid header byte";
-
-// Invalid hex sequence.
-const ERR_HEX_SEQUENCE: &'static str = "Invalid hex byte";
-
-// Maximum chunk extension length has been met.
-const ERR_MAX_CHUNK_EXTENSION_LENGTH: &'static str = "Maximum chunk extension length";
-
-// Maximum content length has been met.
-const ERR_MAX_CONTENT_LENGTH: &'static str = "Maximum content length";
-
-// Maximum multipart boundary length.
-const ERR_MAX_MULTIPART_BOUNDARY_LENGTH: &'static str = "Maximum multipart boundary length";
-
-// Invalid method.
-const ERR_METHOD: &'static str = "Invalid method";
-
-// Missing content length header.
-const ERR_MISSING_CONTENT_LENGTH: &'static str = "Missing Content-Length header";
-
-// Invalid multipart boundary.
-const ERR_MULTIPART_BOUNDARY: &'static str = "Invalid multipart boundary";
-
-// Invalid status.
-const ERR_STATUS: &'static str = "Invalid status";
-
-// Invalid status code.
-const ERR_STATUS_CODE: &'static str = "Invalid status code";
-
-// Invalid URL.
-const ERR_URL: &'static str = "Invalid URL";
-
-// Invalid URL encoded field.
-const ERR_URL_ENCODED_FIELD: &'static str = "Invalid URL encoded field";
-
-// Invalid URL encoded value.
-const ERR_URL_ENCODED_VALUE: &'static str = "Invalid URL encoded value";
-
-// Invalid version.
-const ERR_VERSION: &'static str = "Invalid HTTP version";
-
 // Flags used to track state details.
 bitflags! {
     flags Flag: u64 {
@@ -850,64 +790,64 @@ impl fmt::Display for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParserError::ChunkExtensionName(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_CHUNK_EXTENSION_NAME, byte)
+                write!(formatter, "Invalid chunk extension name at byte {}", byte)
             },
             ParserError::ChunkExtensionValue(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_CHUNK_EXTENSION_VALUE, byte)
+                write!(formatter, "Invalid chunk extension value at byte {}", byte)
             },
             ParserError::ChunkSize(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_CHUNK_SIZE, byte)
+                write!(formatter, "Invalid chunk size at byte {}", byte)
             },
             ParserError::CrlfSequence(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_CRLF_SEQUENCE, byte)
+                write!(formatter, "Invalid CRLF sequence at byte {}", byte)
             },
             ParserError::Dead => {
-                write!(formatter, "{}", ERR_DEAD)
+                write!(formatter, "Parser is dead")
             },
             ParserError::HeaderField(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_HEADER_FIELD, byte)
+                write!(formatter, "Invalid header field at byte {}", byte)
             },
             ParserError::HeaderValue(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_HEADER_VALUE, byte)
+                write!(formatter, "Invalid header value at byte {}", byte)
             },
             ParserError::HexSequence(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_HEX_SEQUENCE, byte)
+                write!(formatter, "Invalid hex sequence at byte {}", byte)
             },
             ParserError::MaxChunkExtensionLength => {
-                write!(formatter, "{}", ERR_MAX_CHUNK_EXTENSION_LENGTH)
+                write!(formatter, "Maximum chunk extension length exceeded")
             },
             ParserError::MaxContentLength => {
-                write!(formatter, "{}", ERR_MAX_CONTENT_LENGTH)
+                write!(formatter, "Maximum content length exceeded")
             },
             ParserError::MaxMultipartBoundaryLength => {
-                write!(formatter, "{}", ERR_MAX_MULTIPART_BOUNDARY_LENGTH)
+                write!(formatter, "Maximum multipart boundary size exceeded")
             },
             ParserError::MissingContentLength => {
-                write!(formatter, "{}", ERR_MISSING_CONTENT_LENGTH)
+                write!(formatter, "Missing content length")
             },
             ParserError::Method(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_METHOD, byte)
+                write!(formatter, "Invalid message at byte {}", byte)
             },
             ParserError::MultipartBoundary(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_MULTIPART_BOUNDARY, byte)
+                write!(formatter, "Invalid multipart boundary at byte {}", byte)
             },
             ParserError::Status(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_STATUS, byte)
+                write!(formatter, "Invalid status at byte {}", byte)
             },
             ParserError::StatusCode(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_STATUS_CODE, byte)
+                write!(formatter, "Invalid status code at byte {}", byte)
             },
             ParserError::Url(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_URL, byte)
+                write!(formatter, "Invalid URL at byte {}", byte)
             },
             ParserError::UrlEncodedField(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_URL_ENCODED_FIELD, byte)
+                write!(formatter, "Invalid URL encoded field at byte {}", byte)
             },
             ParserError::UrlEncodedValue(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_URL_ENCODED_VALUE, byte)
+                write!(formatter, "Invalid URL encoded value at byte {}", byte)
             },
             ParserError::Version(ref byte) => {
-                write!(formatter, "{} at byte {}", ERR_VERSION, byte)
+                write!(formatter, "Invalid HTTP version at byte {}", byte)
             }
         }
     }
