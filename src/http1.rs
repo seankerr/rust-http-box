@@ -826,7 +826,7 @@ impl fmt::Display for ParserError {
                 write!(formatter, "Missing content length")
             },
             ParserError::Method(ref byte) => {
-                write!(formatter, "Invalid message at byte {}", byte)
+                write!(formatter, "Invalid method at byte {}", byte)
             },
             ParserError::MultipartBoundary(ref byte) => {
                 write!(formatter, "Invalid multipart boundary at byte {}", byte)
