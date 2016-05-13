@@ -81,6 +81,17 @@ fn callback_exit() {
 }
 
 #[test]
+fn finished() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_finished(&mut p, &mut h, b"Value\r\n", State::Finished, 7);
+    assert_eq!(h.param_value, b"Value");
+}
+
+#[test]
 fn value() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();

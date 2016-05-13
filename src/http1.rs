@@ -1783,7 +1783,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             if has_flag!(self, F_CHUNKED) {
                 context.handler.on_headers_finished();
 
-                exit_finished!(self, context);
+                transition_fast!(self, context, State::Finished, finished);
             }
 
             set_state!(self, State::Body, body);
@@ -2629,7 +2629,6 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
-
+        exit_finished!(self, context);
     }
 }

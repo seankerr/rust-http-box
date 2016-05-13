@@ -68,6 +68,18 @@ pub fn assert_error<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handl
     }
 }
 
+pub fn assert_finished<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
+                                                      stream: &[u8], state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Finished(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
 pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
