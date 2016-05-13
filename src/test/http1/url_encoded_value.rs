@@ -92,6 +92,20 @@ fn finished() {
 }
 
 #[test]
+fn hex_error() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    if let ParserError::HexSequence(x) = assert_error(&mut p, &mut h, b"%2z").unwrap() {
+        assert_eq!(x, b'%');
+    } else {
+        panic!();
+    }
+}
+
+#[test]
 fn value() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
