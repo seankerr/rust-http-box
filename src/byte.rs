@@ -104,10 +104,10 @@ macro_rules! is_upper {
 pub fn byte_to_hex(byte: u8) -> [u8; 2] {
     if byte > 15 {
         [b"0123456789ABCDEF"[(byte >> 4) as usize],
-         b"0123456789ABCDEF"[(byte & 0x0F) as usize]]
+         b"0123456789ABCDEF"[(byte & 0xF) as usize]]
     } else {
         [b'0',
-         b"0123456789ABCDEF"[(byte & 0x0F) as usize]]
+         b"0123456789ABCDEF"[(byte & 0xF) as usize]]
     }
 }
 
