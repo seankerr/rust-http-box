@@ -2329,11 +2329,11 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             callback_transition!(self, context,
                                  on_chunk_data,
                                  State::ChunkDataNewline1, chunk_data_newline1);
-        } else {
-            callback_transition!(self, context,
-                                 on_chunk_data,
-                                 State::ChunkData, chunk_data);
         }
+
+        callback_transition!(self, context,
+                             on_chunk_data,
+                             State::ChunkData, chunk_data);
     }
 
     #[inline]
