@@ -22,10 +22,7 @@ mod chunk_extension_name;
 mod chunk_extension_quoted_value;
 mod chunk_extension_value;
 mod chunk_size;
-
-/*
 mod chunk_trailer;
-*/
 
 mod header_field;
 mod header_quoted_value;

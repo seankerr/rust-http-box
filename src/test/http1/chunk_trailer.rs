@@ -17,109 +17,54 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use Success;
+use handler::*;
 use http1::*;
-use url::*;
-use std::str;
+use test::*;
 
-struct H {
-    field:    Vec<u8>,
-    finished: bool,
-    size:     u64,
-    value:    Vec<u8>
-}
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        $handler.set_transfer_encoding(TransferEncoding::Chunked);
 
-impl HttpHandler for H {
-    fn get_transfer_encoding(&mut self) -> TransferEncoding {
-        println!("get_transfer_encoding: chunked");
-        TransferEncoding::Chunked
-    }
-
-    fn on_chunk_size(&mut self, size: u64) -> bool {
-        println!("on_chunk_size: {}", size);
-        self.size = size;
-        true
-    }
-
-    fn on_header_field(&mut self, data: &[u8]) -> bool {
-        println!("on_header_field: {:?}", str::from_utf8(data).unwrap());
-        self.field.extend_from_slice(data);
-        true
-    }
-
-    fn on_header_value(&mut self, data: &[u8]) -> bool {
-        println!("on_header_value: {:?}", str::from_utf8(data).unwrap());
-        self.value.extend_from_slice(data);
-        true
-    }
-
-    fn on_headers_finished(&mut self) -> bool {
-        println!("on_headers_finished");
-        self.finished = true;
-        true
-    }
-}
-
-impl ParamHandler for H {}
-
-#[test]
-fn trailer_single() {
-    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
-
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\nTrailer: Value\r\n\r\n") {
-        Ok(_) => true,
-        _ => false
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\n", State::ChunkSize);
     });
-
-    assert!(h.finished);
-    assert_eq!(h.field, b"Trailer");
-    assert_eq!(h.value, b"Value");
-    assert_eq!(p.get_state(), State::Done);
 }
 
 #[test]
-fn trailer_multiple() {
-    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn multiple() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\n") {
-        Ok(Success::Eof(_)) => true,
+    setup!(p, h);
+
+    h.headers_finished = false;
+
+    assert!(match p.parse(&mut h, b"0\r\nField1: Value1\r\nField2: Value2\r\n\r\n") {
+        Ok(Success::Finished(37)) => {
+            assert!(h.headers_finished);
+            assert_eq!(h.header_field, b"Field1Field2");
+            assert_eq!(h.header_value, b"Value1Value2");
+            true
+        },
         _ => false
     });
-
-    h.finished = false;
-
-    assert!(match p.parse(&mut h, b"D\r\nHello, world!\r\n0\r\nTrailer1: Value1\r\n") {
-        Ok(Success::Eof(_)) => true,
-        _ => false
-    });
-
-    assert!(!h.finished);
-    assert_eq!(h.field, b"Trailer1");
-    assert_eq!(h.value, b"Value1");
-    assert_eq!(p.get_state(), State::Newline3);
-
-    assert!(match p.parse(&mut h, b"Trailer2: Value2\r\n\r\n") {
-        Ok(_) => true,
-        _ => false
-    });
-
-    assert!(h.finished);
-    assert_eq!(h.field, b"Trailer1Trailer2");
-    assert_eq!(h.value, b"Value1Value2");
-    assert_eq!(p.get_state(), State::Done);
 }
 
 #[test]
-fn trailer_no_trailers() {
-    let mut h = H{field: Vec::new(), finished: false, size: 0, value: Vec::new()};
-    let mut p = Parser::new(StreamType::Response);
+fn single() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
 
-    assert!(match p.parse(&mut h, b"HTTP/1.1 200 OK\r\n\r\nD\r\nHello, world!\r\n0\r\n\r\n") {
-        Ok(_) => true,
+    setup!(p, h);
+
+    h.headers_finished = false;
+
+    assert!(match p.parse(&mut h, b"0\r\nField: Value\r\n\r\n") {
+        Ok(Success::Finished(19)) => {
+            assert!(h.headers_finished);
+            assert_eq!(h.header_field, b"Field");
+            assert_eq!(h.header_value, b"Value");
+            true
+        },
         _ => false
     });
-
-    assert!(h.finished);
-    assert_eq!(p.get_state(), State::Done);
 }
