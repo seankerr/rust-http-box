@@ -368,6 +368,24 @@ macro_rules! collect_safe {
         });
     });
 
+    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
+     $stop4:expr, $byte_error:expr) => ({
+        collect!($parser, $context, $function, {
+            next!($context);
+
+            if $stop1 == $context.byte
+            || $stop2 == $context.byte
+            || $stop3 == $context.byte
+            || $stop4 == $context.byte {
+                true
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+                exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
+            }
+        });
+    });
+
     ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $byte_error:expr) => ({
         collect!($parser, $context, $function, {
             next!($context);
@@ -902,9 +920,6 @@ pub enum State {
     /// An error was returned from a call to `Parser::parse()`.
     Dead = 1,
 
-    /// Parsing has finished successfully.
-    Finished,
-
     // ---------------------------------------------------------------------------------------------
     // REQUEST
     // ---------------------------------------------------------------------------------------------
@@ -1115,8 +1130,18 @@ pub enum State {
     /// Parsing URL encoded value plus sign.
     UrlEncodedValuePlus,
 
-    /// Parsing line feed after URL encoded data.
-    UrlEncodedNewline
+    // ---------------------------------------------------------------------------------------------
+    // FINISHED
+    // ---------------------------------------------------------------------------------------------
+
+    /// Parsing carriage return at end of message.
+    FinishedNewline1,
+
+    /// Parsing line feed at end of message.
+    FinishedNewline2,
+
+    /// Parsing has finished successfully.
+    Finished
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -2470,7 +2495,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             _ => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_param_field,
-                                                 State::UrlEncodedNewline, url_encoded_newline);
+                                                 State::FinishedNewline2, finished_newline2);
             }
         }
     }
@@ -2508,30 +2533,103 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn url_encoded_field_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        callback_transition!(self, context,
+                             on_param_field, b" ",
+                             State::UrlEncodedField, url_encoded_field);
     }
 
     #[inline]
     pub fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        collect_safe!(self, context, on_param_value,
+                      b'%', b'&', b'+', b'\r',
+                      ParserError::UrlEncodedValue);
+
+        match context.byte {
+            b'%' => {
+                callback_ignore_transition_fast!(self, context,
+                                                 on_param_value,
+                                                 State::UrlEncodedValueHex, url_encoded_value_hex);
+            },
+            b'&' => {
+                callback_ignore_transition!(self, context,
+                                            on_param_value,
+                                            State::UrlEncodedField,
+                                            url_encoded_field);
+            },
+            b'+' => {
+                callback_ignore_transition_fast!(self, context,
+                                                 on_param_value,
+                                                 State::UrlEncodedValuePlus,
+                                                 url_encoded_value_plus);
+            },
+            _ => {
+                callback_ignore_transition_fast!(self, context,
+                                                 on_param_value,
+                                                 State::FinishedNewline2, finished_newline2);
+            }
+        }
     }
 
     #[inline]
     pub fn url_encoded_value_hex(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
+        if has_bytes!(context, 2) {
+            jump_bytes!(context, 2);
+
+            match hex_to_byte(collected_bytes!(context)) {
+                Some(byte) => {
+                    callback_transition!(self, context,
+                                         on_param_value, &[byte],
+                                         State::UrlEncodedValue, url_encoded_value);
+                },
+                _ => {
+                    exit_error!(self, context, ParserError::HexSequence(context.byte));
+                }
+            }
+        }
+
         exit_eof!(self, context);
     }
 
     #[inline]
     pub fn url_encoded_value_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        callback_transition!(self, context,
+                             on_param_value, b" ",
+                             State::UrlEncodedValue, url_encoded_value);
     }
 
     #[inline]
-    pub fn url_encoded_newline(&mut self, context: &mut ParserContext<T>)
+    pub fn finished_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context, State::FinishedNewline2, finished_newline2);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
+    }
+
+    #[inline]
+    pub fn finished_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\n' {
+            transition_fast!(self, context, State::Finished, finished);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
+    }
+
+    #[inline]
+    pub fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
+
     }
 }

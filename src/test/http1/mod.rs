@@ -17,7 +17,6 @@
 // +-----------------------------------------------------------------------------------------------+
 
 mod chunk_data;
-
 mod chunk_extension_name;
 mod chunk_extension_quoted_value;
 mod chunk_extension_value;
@@ -45,4 +44,5 @@ mod response_version;
 mod response_status_code;
 mod response_status;
 
-//mod urlencoded;
+mod url_encoded_field;
+mod url_encoded_value;
