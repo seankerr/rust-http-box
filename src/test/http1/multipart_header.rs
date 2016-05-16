@@ -18,11 +18,8 @@
 
 use Success;
 use http1::*;
-use url::*;
 
 struct H {
 }
 
 impl HttpHandler for H {}
-
-impl ParamHandler for H {}

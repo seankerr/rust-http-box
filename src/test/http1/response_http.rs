@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 #[test]
 fn callback_exit() {
@@ -30,8 +29,6 @@ fn callback_exit() {
             false
         }
     }
-
-    impl ParamHandler for X {}
 
     let mut h = X{};
     let mut p = Parser::new_response();

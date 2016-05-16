@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -83,30 +82,12 @@ fn callback_exit() {
         }
     }
 
-    impl ParamHandler for X {}
-
     let mut h = X{};
     let mut p = Parser::new_request();
 
     setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
 
     assert_callback(&mut p, &mut h, b"ChunkExtension=ExtensionValue", State::ChunkExtensionValue, 29);
-}
-
-#[test]
-fn maximum_length() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
-
-    setup!(p, h);
-
-    assert_eof(&mut p, &mut h, &[b'a'; 244], State::ChunkExtensionValue, 244);
-    vec_eq(&h.chunk_extension_value, &[b'a'; 244]);
-
-    if let ParserError::MaxChunkExtensionLength = assert_error(&mut p, &mut h, &[b'a']).unwrap() {
-    } else {
-        panic!();
-    }
 }
 
 #[test]

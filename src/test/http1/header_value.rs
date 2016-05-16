@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -30,7 +29,7 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_unsafe(b"\r\t", |byte| {
+    loop_non_visible(b"\r\t ", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -44,7 +43,7 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_safe(b" \"", |byte| {
+    loop_visible(b"\"", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -63,8 +62,6 @@ fn callback_exit() {
             false
         }
     }
-
-    impl ParamHandler for X {}
 
     let mut h = X{};
     let mut p = Parser::new_request();
@@ -96,8 +93,8 @@ fn multiple() {
 
     assert_eof(&mut p, &mut h, b"Value", State::HeaderValue, 5);
     assert_eq!(h.header_value, b"Value");
-    assert_eof(&mut p, &mut h, b" Time\r", State::Newline2, 6);
-    assert_eq!(h.header_value, b"Value Time");
+    assert_eof(&mut p, &mut h, b"Time\r", State::Newline2, 5);
+    assert_eq!(h.header_value, b"ValueTime");
 }
 
 #[test]
@@ -107,6 +104,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value Time\r", State::Newline2, 11);
-    assert_eq!(h.header_value, b"Value Time");
+    assert_eof(&mut p, &mut h, b"ValueTime\r", State::Newline2, 10);
+    assert_eq!(h.header_value, b"ValueTime");
 }

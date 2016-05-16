@@ -20,5 +20,5 @@ mod byte_to_hex;
 mod decode;
 mod encode;
 mod hex_to_byte;
-mod parse_query_string;
-mod parse_url;
+//mod parse_query_string;
+//mod parse_url;

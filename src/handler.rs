@@ -23,8 +23,7 @@ use http1::{ Connection,
              ContentType,
              HttpHandler,
              TransferEncoding };
-use url::{ ParamHandler,
-           UrlHandler };
+
 use std::str;
 
 pub struct DebugHandler {
@@ -39,12 +38,12 @@ pub struct DebugHandler {
     pub headers_finished:      bool,
     pub method:                Vec<u8>,
     pub multipart_data:        Vec<u8>,
-    pub param_field:           Vec<u8>,
-    pub param_value:           Vec<u8>,
     pub status:                Vec<u8>,
     pub status_code:           u16,
     pub transfer_encoding:     TransferEncoding,
     pub url:                   Vec<u8>,
+    pub url_encoded_field:     Vec<u8>,
+    pub url_encoded_value:     Vec<u8>,
     pub url_fragment:          Vec<u8>,
     pub url_host:              Vec<u8>,
     pub url_path:              Vec<u8>,
@@ -68,12 +67,12 @@ impl DebugHandler {
                       headers_finished:      false,
                       method:                Vec::new(),
                       multipart_data:        Vec::new(),
-                      param_field:           Vec::new(),
-                      param_value:           Vec::new(),
                       status:                Vec::new(),
                       status_code:           0,
                       transfer_encoding:     TransferEncoding::None,
                       url:                   Vec::new(),
+                      url_encoded_field:     Vec::new(),
+                      url_encoded_value:     Vec::new(),
                       url_fragment:          Vec::new(),
                       url_host:              Vec::new(),
                       url_path:              Vec::new(),
@@ -96,12 +95,12 @@ impl DebugHandler {
         self.headers_finished      = false;
         self.method                = Vec::new();
         self.multipart_data        = Vec::new();
-        self.param_field           = Vec::new();
-        self.param_value           = Vec::new();
         self.status                = Vec::new();
         self.status_code           = 0;
         self.transfer_encoding     = TransferEncoding::None;
         self.url                   = Vec::new();
+        self.url_encoded_field     = Vec::new();
+        self.url_encoded_value     = Vec::new();
         self.url_fragment          = Vec::new();
         self.url_host              = Vec::new();
         self.url_path              = Vec::new();
@@ -266,29 +265,18 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_version(&mut self, major: u16, minor: u16) -> bool {
-        println!("on_version: {}.{}", major, minor);
-        self.version_major = major;
-        self.version_minor = minor;
-        true
-    }
-}
-
-impl ParamHandler for DebugHandler {
-    fn on_param_field(&mut self, field: &[u8]) -> bool {
-        println!("on_param_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
-        self.param_field.extend_from_slice(field);
+    fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
+        println!("on_url_encoded_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
+        self.url_encoded_field.extend_from_slice(field);
         true
     }
 
-    fn on_param_value(&mut self, value: &[u8]) -> bool {
-        println!("on_param_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
-        self.param_value.extend_from_slice(value);
+    fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
+        println!("on_url_encoded_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
+        self.url_encoded_value.extend_from_slice(value);
         true
     }
-}
 
-impl UrlHandler for DebugHandler {
     fn on_url_fragment(&mut self, fragment: &[u8]) -> bool {
         println!("on_url_fragment [{}]: {:?}", fragment.len(), str::from_utf8(fragment).unwrap());
         self.url_fragment.extend_from_slice(fragment);
@@ -323,6 +311,13 @@ impl UrlHandler for DebugHandler {
     fn on_url_scheme(&mut self, scheme: &[u8]) -> bool {
         println!("on_url_scheme [{}]: {:?}", scheme.len(), str::from_utf8(scheme).unwrap());
         self.url_scheme.extend_from_slice(scheme);
+        true
+    }
+
+    fn on_version(&mut self, major: u16, minor: u16) -> bool {
+        println!("on_version: {}.{}", major, minor);
+        self.version_major = major;
+        self.version_minor = minor;
         true
     }
 }

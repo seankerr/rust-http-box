@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -30,7 +29,7 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b"\r \t", |byte| {
+    loop_non_tokens(b"\r\t ", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_response();
 
@@ -63,8 +62,6 @@ fn callback_exit() {
             false
         }
     }
-
-    impl ParamHandler for X {}
 
     let mut h = X{};
     let mut p = Parser::new_response();

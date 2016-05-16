@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -36,8 +35,6 @@ fn callback_exit() {
             false
         }
     }
-
-    impl ParamHandler for X {}
 
     let mut h = X{};
     let mut p = Parser::new_request();

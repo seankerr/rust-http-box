@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -32,7 +31,7 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_unsafe(b"\r", |byte| {
+    loop_non_visible(b"\r", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -46,7 +45,7 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_safe(b"&%", |byte| {
+    loop_visible(b"&%", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -64,10 +63,8 @@ fn callback_exit() {
         fn get_content_type(&mut self) -> ContentType {
             ContentType::UrlEncoded
         }
-    }
 
-    impl ParamHandler for X {
-        fn on_param_value(&mut self, _value: &[u8]) -> bool {
+        fn on_url_encoded_value(&mut self, _value: &[u8]) -> bool {
             false
         }
     }
@@ -88,7 +85,7 @@ fn finished() {
     setup!(p, h);
 
     assert_finished(&mut p, &mut h, b"Value\r\n", State::Finished, 7);
-    assert_eq!(h.param_value, b"Value");
+    assert_eq!(h.url_encoded_value, b"Value");
 }
 
 #[test]
@@ -113,7 +110,7 @@ fn value() {
     setup!(p, h);
 
     assert_eof(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
-    assert_eq!(h.param_value, b"Value");
+    assert_eq!(h.url_encoded_value, b"Value");
 }
 
 #[test]
@@ -124,7 +121,7 @@ fn value_ending_ampersand() {
     setup!(p, h);
 
     assert_eof(&mut p, &mut h, b"Value&", State::UrlEncodedField, 6);
-    assert_eq!(h.param_value, b"Value");
+    assert_eq!(h.url_encoded_value, b"Value");
 }
 
 #[test]
@@ -135,7 +132,7 @@ fn value_ending_percent() {
     setup!(p, h);
 
     assert_eof(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 6);
-    assert_eq!(h.param_value, b"Value");
+    assert_eq!(h.url_encoded_value, b"Value");
 }
 
 #[test]
@@ -146,7 +143,7 @@ fn value_ending_plus() {
     setup!(p, h);
 
     assert_eof(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 6);
-    assert_eq!(h.param_value, b"Value ");
+    assert_eq!(h.url_encoded_value, b"Value ");
 }
 
 #[test]
@@ -157,5 +154,5 @@ fn value_hex() {
     setup!(p, h);
 
     assert_eof(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 8);
-    assert_eq!(h.param_value, b"Value!");
+    assert_eq!(h.url_encoded_value, b"Value!");
 }

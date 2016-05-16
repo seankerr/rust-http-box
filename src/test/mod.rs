@@ -22,15 +22,14 @@ use http1::{ HttpHandler,
              Parser,
              ParserError,
              State };
-use url::ParamHandler;
 use std::fmt::Debug;
 
 mod byte;
 mod http1;
 mod url;
 
-pub fn assert_callback<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
-                                                      stream: &[u8], state: State, length: usize) {
+pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                       state: State, length: usize) {
     assert!(match parser.parse(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -41,8 +40,8 @@ pub fn assert_callback<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, ha
     });
 }
 
-pub fn assert_eof<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
-                                                 stream: &[u8], state: State, length: usize) {
+pub fn assert_eof<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                  state: State, length: usize) {
     assert!(match parser.parse(handler, stream) {
         Ok(Success::Eof(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -53,8 +52,7 @@ pub fn assert_eof<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler
     });
 }
 
-pub fn assert_error<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
-                                                   stream: &[u8])
+pub fn assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
     match parser.parse(handler, stream) {
         Err(error) => {
@@ -68,8 +66,8 @@ pub fn assert_error<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handl
     }
 }
 
-pub fn assert_finished<T: HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T,
-                                                      stream: &[u8], state: State, length: usize) {
+pub fn assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                       state: State, length: usize) {
     assert!(match parser.parse(handler, stream) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -140,6 +138,22 @@ pub fn loop_non_hex<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
+pub fn loop_non_quoted<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_control!(n1) || !is_ascii!(n1) {
+            function(n1 as u8);
+        }
+    }
+}
+
+
 pub fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
@@ -155,7 +169,22 @@ pub fn loop_non_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-pub fn loop_safe<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn loop_non_visible<F>(skip: &[u8], function: F) where F : Fn(u8) {
+    'outer:
+    for n1 in 0..255 {
+        for n2 in skip {
+            if n1 == *n2 {
+                continue 'outer;
+            }
+        }
+
+        if is_control!(n1) || !is_ascii!(n1) || n1 == b' ' {
+            function(n1 as u8);
+        }
+    }
+}
+
+pub fn loop_quoted<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -185,7 +214,7 @@ pub fn loop_tokens<F>(skip: &[u8], function: F) where F : Fn(u8) {
     }
 }
 
-pub fn loop_unsafe<F>(skip: &[u8], function: F) where F : Fn(u8) {
+pub fn loop_visible<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
     for n1 in 0..255 {
         for n2 in skip {
@@ -194,14 +223,13 @@ pub fn loop_unsafe<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if is_control!(n1) || !is_ascii!(n1) {
+        if !is_control!(n1) && is_ascii!(n1) && n1 != b' ' {
             function(n1 as u8);
         }
     }
 }
 
-pub fn setup<T:HttpHandler + ParamHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                           state: State) {
+pub fn setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
     assert!(match parser.parse(handler, stream) {
         Ok(Success::Eof(length)) => {
             assert_eq!(length, stream.len());

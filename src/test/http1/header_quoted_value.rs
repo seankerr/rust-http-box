@@ -27,6 +27,37 @@ macro_rules! setup {
 }
 
 #[test]
+fn byte_check() {
+    // invalid bytes
+    loop_non_quoted(b"\r;\"\\", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[b'"'], State::HeaderQuotedValue, 1);
+
+        if let ParserError::HeaderValue(x) = assert_error(&mut p, &mut h,
+                                                          &[byte]).unwrap() {
+            assert_eq!(x, byte);
+        } else {
+            panic!();
+        }
+    });
+
+    // valid bytes
+    loop_quoted(b"\"\\", |byte| {
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new_request();
+
+        setup!(p, h);
+
+        assert_eof(&mut p, &mut h, &[b'"'], State::HeaderQuotedValue, 1);
+        assert_eof(&mut p, &mut h, &[byte], State::HeaderQuotedValue, 1);
+    });
+}
+
+#[test]
 fn escaped_multiple() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();

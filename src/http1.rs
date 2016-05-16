@@ -21,13 +21,8 @@
 use super::Success;
 use byte::hex_to_byte;
 use byte::is_token;
-use url::ParamHandler;
 
 use std::fmt;
-
-// Maximum chunk extension byte count to process before returning
-// `ParserError::MaxChunkExtensionLength`.
-const CFG_MAX_CHUNK_EXTENSION_LENGTH: u16 = 255;
 
 // Maximum multipart boundary byte count to process before returning
 // `ParserError::MaxMultipartBoundaryLength`.
@@ -300,7 +295,7 @@ macro_rules! collect {
     });
 }
 
-// Collect remaining data until content length is zero.
+// Collect remaining bytes until content length is zero.
 //
 // Use the upper 40 bits as the content length.
 macro_rules! collect_content_length {
@@ -335,7 +330,7 @@ macro_rules! collect_digits {
 
             if is_digit!($context.byte) {
                 $digit *= 10;
-                $digit += ($context.byte - b'0') as u16;
+                $digit += ($context.byte - b'0') as u64;
 
                 if $digit > $max {
                     exit_error!($parser, $context, $byte_error($context.byte));
@@ -347,8 +342,60 @@ macro_rules! collect_digits {
     });
 }
 
-// Collect all 7-bit non-control bytes.
-macro_rules! collect_safe {
+// Collect all bytes that are allowed within a quoted value.
+macro_rules! collect_quoted {
+    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $byte_error:expr) => ({
+        collect!($parser, $context, $function, {
+            next!($context);
+
+            if $stop1 == $context.byte
+            || $stop2 == $context.byte {
+                true
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+                exit_error!($parser, $context, $byte_error($context.byte));
+            } else {
+                false
+            }
+        });
+    });
+}
+
+// Collect all bytes that are considered token.
+macro_rules! collect_tokens {
+    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
+     $byte_error:expr) => ({
+        collect!($parser, $context, $function, {
+            next!($context);
+
+            if $stop1 == $context.byte
+            || $stop2 == $context.byte
+            || $stop3 == $context.byte {
+                true
+            } else if is_token($context.byte) {
+                false
+            } else {
+                exit_error!($parser, $context, $byte_error($context.byte));
+            }
+        });
+    });
+
+    ($parser:expr, $context:expr, $function:ident, $stop:expr, $byte_error:expr) => ({
+        collect!($parser, $context, $function, {
+            next!($context);
+
+            if $stop == $context.byte {
+                true
+            } else if is_token($context.byte) {
+                false
+            } else {
+                exit_error!($parser, $context, $byte_error($context.byte));
+            }
+        });
+    });
+}
+
+// Collect all visible 7-bit bytes, which is any non-control byte with the exception of space.
+macro_rules! collect_visible {
     ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
      $stop4:expr, $stop5:expr, $byte_error:expr) => ({
         collect!($parser, $context, $function, {
@@ -360,7 +407,7 @@ macro_rules! collect_safe {
             || $stop4 == $context.byte
             || $stop5 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -378,7 +425,7 @@ macro_rules! collect_safe {
             || $stop3 == $context.byte
             || $stop4 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -392,7 +439,7 @@ macro_rules! collect_safe {
 
             if $stop1 == $context.byte || $stop2 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -406,100 +453,22 @@ macro_rules! collect_safe {
 
             if $stop == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
             }
         });
     });
-}
 
-// Collect all 7-bit non-control bytes up until a certain limit.
-//
-// Use the lower 16 bits as the limit.
-macro_rules! collect_safe_limit {
-    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $limit:expr,
-     $byte_error:expr, $limit_error:expr) => ({
-        collect!($parser, $context, $function, {
-            if get_lower16!($parser) == $limit {
-                exit_error!($parser, $context, $limit_error);
-            }
-
-            set_lower16!($parser, get_lower16!($parser) + 1);
-
-            next!($context);
-
-            if $stop1 == $context.byte || $stop2 == $context.byte {
-                true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            } else {
-                false
-            }
-        });
-    });
-}
-
-// Collect tokens.
-macro_rules! collect_tokens {
-    ($parser:expr, $context:expr, $function:ident, $stop:expr, $byte_error:expr) => ({
+    ($parser:expr, $context:expr, $function:ident, $byte_error:expr) => ({
         collect!($parser, $context, $function, {
             next!($context);
 
-            if $stop == $context.byte {
-                true
-            } else if is_token($context.byte) {
-                false
-            } else {
+            if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
-            }
-        });
-    });
-}
-
-// Collect tokens up until a certain limit.
-//
-// Use the lower 16 bits as the limit.
-macro_rules! collect_tokens_limit {
-    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
-     $limit:expr, $byte_error:expr, $limit_error:expr) => ({
-        collect!($parser, $context, $function, {
-            if get_lower16!($parser) == $limit {
-                exit_error!($parser, $context, $limit_error);
-            }
-
-            set_lower16!($parser, get_lower16!($parser) + 1);
-
-            next!($context);
-
-            if $stop1 == $context.byte || $stop2 == $context.byte || $stop3 == $context.byte {
-                true
-            } else if is_token($context.byte) {
-                false
             } else {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            }
-        });
-    });
-
-    ($parser:expr, $context:expr, $function:ident, $stop:expr, $limit:expr, $byte_error:expr,
-     $limit_error:expr) => ({
-        collect!($parser, $context, $function, {
-            if get_lower16!($parser) == $limit {
-                exit_error!($parser, $context, $limit_error);
-            }
-
-            set_lower16!($parser, get_lower16!($parser) + 1);
-
-            next!($context);
-
-            if $stop == $context.byte {
-                true
-            } else if is_token($context.byte) {
                 false
-            } else {
-                exit_error!($parser, $context, $byte_error($context.byte));
             }
         });
     });
@@ -512,8 +481,8 @@ macro_rules! collected_bytes {
     );
 }
 
-// Consume spaces and tabs.
-macro_rules! consume_space_tab {
+// Consume all linear white space until a non-linear white space byte is found.
+macro_rules! consume_linear_space {
     ($parser:expr, $context:expr) => ({
         loop {
             if is_eof!($context) {
@@ -826,6 +795,24 @@ pub enum ParserError {
     /// Invalid URL encoded value.
     UrlEncodedValue(u8),
 
+    /// Invalid URL fragment.
+    UrlFragment(u8),
+
+    /// Invalid URL host.
+    UrlHost(u8),
+
+    /// Invalid URL path.
+    UrlPath(u8),
+
+    /// Invalid URL port.
+    UrlPort(u8),
+
+    /// Invalid URL query string.
+    UrlQueryString(u8),
+
+    /// Invalid URL scheme.
+    UrlScheme(u8),
+
     /// Invalid HTTP version.
     Version(u8),
 }
@@ -889,6 +876,24 @@ impl fmt::Display for ParserError {
             },
             ParserError::UrlEncodedValue(ref byte) => {
                 write!(formatter, "Invalid URL encoded value at byte {}", byte)
+            },
+            ParserError::UrlFragment(ref byte) => {
+                write!(formatter, "Invalid URL fragment at byte {}", byte)
+            },
+            ParserError::UrlHost(ref byte) => {
+                write!(formatter, "Invalid URL host at byte {}", byte)
+            },
+            ParserError::UrlPath(ref byte) => {
+                write!(formatter, "Invalid URL path at byte {}", byte)
+            },
+            ParserError::UrlPort(ref byte) => {
+                write!(formatter, "Invalid URL port at byte {}", byte)
+            },
+            ParserError::UrlQueryString(ref byte) => {
+                write!(formatter, "Invalid URL query string at byte {}", byte)
+            },
+            ParserError::UrlScheme(ref byte) => {
+                write!(formatter, "Invalid URL scheme at byte {}", byte)
             },
             ParserError::Version(ref byte) => {
                 write!(formatter, "Invalid HTTP version at byte {}", byte)
@@ -1131,6 +1136,34 @@ pub enum State {
     UrlEncodedValuePlus,
 
     // ---------------------------------------------------------------------------------------------
+    // URL
+    // ---------------------------------------------------------------------------------------------
+
+    /// Parsing URL scheme.
+    UrlScheme,
+
+    /// Parsing first forward slash after scheme.
+    UrlSlash1,
+
+    /// Parsing second forward slash after scheme.
+    UrlSlash2,
+
+    /// Parsing URL host.
+    UrlHost,
+
+    /// Parsing URL port.
+    UrlPort,
+
+    /// Parsing URL path.
+    UrlPath,
+
+    /// Parsing URL query string.
+    UrlQueryString,
+
+    /// Parsing URL fragment.
+    UrlFragment,
+
+    // ---------------------------------------------------------------------------------------------
     // FINISHED
     // ---------------------------------------------------------------------------------------------
 
@@ -1329,6 +1362,78 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when a URL encoded field or query string field has been located.
+    ///
+    /// This may be executed multiple times in order to supply the entire field.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when a URL encoded value or query string value has been located.
+    ///
+    /// This may be executed multiple times in order to supply the entire value.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL fragment has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire fragment.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_fragment(&mut self, fragment: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL host has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire fragment.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_host(&mut self, host: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL path has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire path.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_path(&mut self, path: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL port has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire port.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_port(&mut self, port: u16) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL query string has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire query string.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_query_string(&mut self, query_string: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing a URL scheme has completed.
+    ///
+    /// This may be executed multiple times in order to supply the entire scheme.
+    ///
+    /// Returns `true` when parsing should continue. Otherwise `false`.
+    fn on_url_scheme(&mut self, scheme: &[u8]) -> bool {
+        true
+    }
+
     /// Callback that is executed when the HTTP major version has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
@@ -1340,7 +1445,7 @@ pub trait HttpHandler {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser context data.
-pub struct ParserContext<'a, T: HttpHandler + ParamHandler + 'a> {
+pub struct ParserContext<'a, T: HttpHandler + 'a> {
     // Current byte.
     byte: u8,
 
@@ -1357,7 +1462,7 @@ pub struct ParserContext<'a, T: HttpHandler + ParamHandler + 'a> {
     stream_index: usize
 }
 
-impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
+impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
     /// Create a new `ParserContext`.
     pub fn new(handler: &'a mut T, stream: &'a [u8]) -> ParserContext<'a, T> {
         ParserContext{ byte:         0,
@@ -1371,7 +1476,7 @@ impl<'a, T: HttpHandler + ParamHandler + 'a> ParserContext<'a, T> {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser data.
-pub struct Parser<T: HttpHandler + ParamHandler> {
+pub struct Parser<T: HttpHandler> {
     // Bit data that stores parser bit details.
     //
     // Bit 1:  If flagged, parser is parsing a request, otherwise a response.
@@ -1452,7 +1557,7 @@ macro_rules! chunk_size {
     });
 }
 
-impl<T: HttpHandler + ParamHandler> Parser<T> {
+impl<T: HttpHandler> Parser<T> {
     /// Create a new `Parser`.
     pub fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
         Parser{ bit_data:       if state == State::StripRequestMethod {
@@ -1568,7 +1673,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::FirstHeaderField, first_header_field);
@@ -1672,7 +1777,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
 
         if context.byte == b'"' {
             transition_fast!(self, context, State::HeaderQuotedValue, header_quoted_value);
@@ -1686,9 +1791,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe!(self, context, on_header_value,
-                      b'\r',
-                      ParserError::HeaderValue);
+        collect_visible!(self, context, on_header_value,
+                         b'\r',
+                         ParserError::HeaderValue);
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_value,
@@ -1698,9 +1803,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe!(self, context, on_header_value,
-                      b'"', b'\\',
-                      ParserError::HeaderValue);
+        collect_quoted!(self, context, on_header_value,
+                        b'"', b'\\',
+                        ParserError::HeaderValue);
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
@@ -1805,7 +1910,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_request_method(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::RequestMethod, request_method);
@@ -1867,7 +1972,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::RequestUrl, request_url);
@@ -1876,9 +1981,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe!(self, context, on_url,
-                      b' ',
-                      ParserError::Url);
+        collect_visible!(self, context, on_url,
+                         b' ',
+                         ParserError::Url);
 
         replay!(context);
 
@@ -1890,7 +1995,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_request_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::RequestHttp1, request_http1);
@@ -1991,15 +2096,15 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn request_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_lower16!(self);
+        let mut digit = get_lower16!(self) as u64;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
-            set_lower16!(self, digit);
+            set_lower16!(self, digit as u16);
 
             exit_eof!(self, context);
         });
 
-        set_lower16!(self, digit);
+        set_lower16!(self, digit as u16);
 
         if context.byte == b'.' {
             transition_fast!(self, context, State::RequestVersionMinor, request_version_minor);
@@ -2011,7 +2116,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn request_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self) as u16;
+        let mut digit = get_upper40!(self);
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
             set_upper40!(self, digit);
@@ -2021,7 +2126,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_state!(self, State::PreHeaders1, pre_headers1);
 
-        if context.handler.on_version(get_lower16!(self), digit) {
+        if context.handler.on_version(get_lower16!(self), digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2035,7 +2140,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_response_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::ResponseHttp1, response_http1);
@@ -2136,15 +2241,15 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_lower16!(self);
+        let mut digit = get_lower16!(self) as u64;
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
-            set_lower16!(self, digit);
+            set_lower16!(self, digit as u16);
 
             exit_eof!(self, context);
         });
 
-        set_lower16!(self, digit);
+        set_lower16!(self, digit as u16);
 
         if context.byte == b'.' {
             transition_fast!(self, context, State::ResponseVersionMinor, response_version_minor);
@@ -2156,7 +2261,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self) as u16;
+        let mut digit = get_upper40!(self);
 
         collect_digits!(self, context, digit, 999, ParserError::Version, {
             set_upper40!(self, digit);
@@ -2166,7 +2271,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
 
         set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
-        if context.handler.on_version(get_lower16!(self), digit) {
+        if context.handler.on_version(get_lower16!(self), digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2176,7 +2281,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
 
         if !is_digit!(context.byte) {
             exit_error!(self, context, ParserError::StatusCode(context.byte));
@@ -2192,17 +2297,17 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self) as u16;
+        let mut digit = get_upper40!(self);
 
         collect_digits!(self, context, digit, 999, ParserError::StatusCode, {
-            set_upper40!(self, digit as u64);
+            set_upper40!(self, digit);
             exit_eof!(self, context);
         });
 
         replay!(context);
         set_state!(self, State::StripResponseStatus, strip_response_status);
 
-        if context.handler.on_status_code(digit) {
+        if context.handler.on_status_code(digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2212,7 +2317,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn strip_response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_space_tab!(self, context);
+        consume_linear_space!(self, context);
         replay!(context);
 
         transition_fast!(self, context, State::ResponseStatus, response_status);
@@ -2282,11 +2387,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens_limit!(self, context, on_chunk_extension_name,
-                              b'=',
-                              CFG_MAX_CHUNK_EXTENSION_LENGTH,
-                              ParserError::ChunkExtensionName,
-                              ParserError::MaxChunkExtensionLength);
+        collect_tokens!(self, context, on_chunk_extension_name,
+                        b'=',
+                        ParserError::ChunkExtensionName);
 
         callback_ignore_transition_fast!(self, context,
                                          on_chunk_extension_name,
@@ -2296,11 +2399,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens_limit!(self, context, on_chunk_extension_value,
-                              b'\r', b';', b'"',
-                              CFG_MAX_CHUNK_EXTENSION_LENGTH,
-                              ParserError::ChunkExtensionValue,
-                              ParserError::MaxChunkExtensionLength);
+        collect_tokens!(self, context, on_chunk_extension_value,
+                        b'\r', b';', b'"',
+                        ParserError::ChunkExtensionValue);
 
         match context.byte {
             b'\r' => {
@@ -2323,11 +2424,9 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe_limit!(self, context, on_chunk_extension_value,
-                            b'"', b'\\',
-                            CFG_MAX_CHUNK_EXTENSION_LENGTH,
-                            ParserError::ChunkExtensionValue,
-                            ParserError::MaxChunkExtensionLength);
+        collect_quoted!(self, context, on_chunk_extension_value,
+                        b'"', b'\\',
+                        ParserError::ChunkExtensionValue);
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
@@ -2465,36 +2564,36 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     #[inline]
     pub fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe!(self, context, on_param_field,
-                      b'=', b'%', b'&', b'+', b'\r',
-                      ParserError::UrlEncodedField);
+        collect_visible!(self, context, on_url_encoded_field,
+                         b'=', b'%', b'&', b'+', b'\r',
+                         ParserError::UrlEncodedField);
 
         match context.byte {
             b'=' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_field,
+                                                 on_url_encoded_field,
                                                  State::UrlEncodedValue, url_encoded_value);
             },
             b'%' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_field,
+                                                 on_url_encoded_field,
                                                  State::UrlEncodedFieldHex, url_encoded_field_hex);
             },
             b'&' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_field,
+                                                 on_url_encoded_field,
                                                  State::UrlEncodedFieldAmpersand,
                                                  url_encoded_field_ampersand);
             },
             b'+' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_field,
+                                                 on_url_encoded_field,
                                                  State::UrlEncodedFieldPlus,
                                                  url_encoded_field_plus);
             },
             _ => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_field,
+                                                 on_url_encoded_field,
                                                  State::FinishedNewline2, finished_newline2);
             }
         }
@@ -2505,7 +2604,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         // param field without a value, so send an empty array
         callback_transition!(self, context,
-                             on_param_value, b"",
+                             on_url_encoded_value, b"",
                              State::UrlEncodedField, url_encoded_field);
     }
 
@@ -2518,7 +2617,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             match hex_to_byte(collected_bytes!(context)) {
                 Some(byte) => {
                     callback_transition!(self, context,
-                                         on_param_field, &[byte],
+                                         on_url_encoded_field, &[byte],
                                          State::UrlEncodedField, url_encoded_field);
                 },
                 _ => {
@@ -2534,38 +2633,38 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     pub fn url_encoded_field_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
-                             on_param_field, b" ",
+                             on_url_encoded_field, b" ",
                              State::UrlEncodedField, url_encoded_field);
     }
 
     #[inline]
     pub fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_safe!(self, context, on_param_value,
-                      b'%', b'&', b'+', b'\r',
-                      ParserError::UrlEncodedValue);
+        collect_visible!(self, context, on_url_encoded_value,
+                         b'%', b'&', b'+', b'\r',
+                         ParserError::UrlEncodedValue);
 
         match context.byte {
             b'%' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_value,
+                                                 on_url_encoded_value,
                                                  State::UrlEncodedValueHex, url_encoded_value_hex);
             },
             b'&' => {
                 callback_ignore_transition!(self, context,
-                                            on_param_value,
+                                            on_url_encoded_value,
                                             State::UrlEncodedField,
                                             url_encoded_field);
             },
             b'+' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_value,
+                                                 on_url_encoded_value,
                                                  State::UrlEncodedValuePlus,
                                                  url_encoded_value_plus);
             },
             _ => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_param_value,
+                                                 on_url_encoded_value,
                                                  State::FinishedNewline2, finished_newline2);
             }
         }
@@ -2580,7 +2679,7 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
             match hex_to_byte(collected_bytes!(context)) {
                 Some(byte) => {
                     callback_transition!(self, context,
-                                         on_param_value, &[byte],
+                                         on_url_encoded_value, &[byte],
                                          State::UrlEncodedValue, url_encoded_value);
                 },
                 _ => {
@@ -2596,8 +2695,126 @@ impl<T: HttpHandler + ParamHandler> Parser<T> {
     pub fn url_encoded_value_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
-                             on_param_value, b" ",
+                             on_url_encoded_value, b" ",
                              State::UrlEncodedValue, url_encoded_value);
+    }
+
+    #[inline]
+    pub fn url_scheme(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_visible!(self, context, on_url_scheme,
+                         b':',
+                         ParserError::UrlScheme);
+
+        callback_ignore_transition_fast!(self, context, on_url_scheme,
+                                         State::UrlSlash1, url_slash1);
+    }
+
+    #[inline]
+    pub fn url_slash1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if has_bytes!(context, 2) && b"//" == peek_bytes!(context, 2) {
+            set_state!(self, State::UrlHost, url_host);
+            transition_fast!(self, context);
+        }
+
+        if context.byte == b'/' {
+            set_state!(self, State::UrlSlash2, url_slash2);
+            transition_fast!(self, context);
+        }
+
+        exit_error!(self, context, ParserError::UrlScheme(context.byte));
+    }
+
+    #[inline]
+    pub fn url_slash2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'/' {
+            set_state!(self, State::UrlHost, url_host);
+            transition_fast!(self, context);
+        }
+
+        exit_error!(self, context, ParserError::UrlScheme(context.byte));
+    }
+
+    #[inline]
+    pub fn url_host(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_visible!(self, context, on_url_host,
+                         b'/', b':',
+                         ParserError::UrlHost);
+
+        if context.byte == b'/' {
+            callback_ignore_transition_fast!(self, context, on_url_scheme,
+                                             State::UrlPath, url_path);
+        }
+
+        set_upper40!(self, 0);
+
+        callback_ignore_transition_fast!(self, context, on_url_scheme,
+                                             State::UrlPort, url_port);
+    }
+
+    #[inline]
+    pub fn url_port(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+       let mut digit = get_upper40!(self);
+
+        collect_digits!(self, context, digit, 65535, ParserError::UrlPort, {
+            set_upper40!(self, digit);
+
+            exit_eof!(self, context);
+        });
+
+        if context.byte == b'/' {
+            callback_transition_fast!(self, context,
+                                      on_url_port, digit as u16,
+                                      State::UrlPath, url_path);
+        }
+
+        exit_error!(self, context, ParserError::UrlPort(context.byte));
+    }
+
+    #[inline]
+    pub fn url_path(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_visible!(self, context, on_url_path,
+                         b'?', b'#',
+                         ParserError::UrlPath);
+
+        if context.byte == b'?' {
+            callback_transition_fast!(self, context, on_url_path,
+                                      State::UrlQueryString, url_query_string);
+        } else {
+            callback_transition_fast!(self, context, on_url_path,
+                                      State::UrlFragment, url_fragment);
+        }
+    }
+
+    #[inline]
+    pub fn url_query_string(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_visible!(self, context, on_url_query_string,
+                         b'#',
+                         ParserError::UrlQueryString);
+
+        callback_transition_fast!(self, context, on_url_query_string,
+                                  State::UrlFragment, url_fragment);
+    }
+
+    #[inline]
+    pub fn url_fragment(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_visible!(self, context, on_url_fragment,
+                         ParserError::UrlFragment);
+
+        transition_fast!(self, context, State::Finished, finished);
     }
 
     #[inline]

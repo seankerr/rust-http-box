@@ -19,7 +19,6 @@
 use handler::*;
 use http1::*;
 use test::*;
-use url::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -31,9 +30,20 @@ macro_rules! setup {
 }
 
 #[test]
-fn byte_check_unquoted() {
+fn basic() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eof(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
+    assert_eq!(h.chunk_extension_value, b"valid-value");
+}
+
+#[test]
+fn byte_check() {
     // invalid bytes
-    loop_unsafe(b"\r;\"\\", |byte| {
+    loop_non_quoted(b"\r;\"\\", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -50,7 +60,7 @@ fn byte_check_unquoted() {
     });
 
     // valid bytes
-    loop_safe(b"\"\\", |byte| {
+    loop_quoted(b"\"\\", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -59,17 +69,6 @@ fn byte_check_unquoted() {
         assert_eof(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
         assert_eof(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
     });
-}
-
-#[test]
-fn basic() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
-
-    setup!(p, h);
-
-    assert_eof(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
-    assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
 #[test]
@@ -85,8 +84,6 @@ fn callback_exit() {
             false
         }
     }
-
-    impl ParamHandler for X {}
 
     let mut h = X{};
     let mut p = Parser::new_request();
@@ -106,22 +103,6 @@ fn escaped() {
 
     assert_eof(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkSizeNewline, 23);
     assert_eq!(h.chunk_extension_value, b"valid \"value\" here");
-}
-
-#[test]
-fn maximum_length() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
-
-    setup!(p, h);
-
-    assert_eof(&mut p, &mut h, &[b'a'; 243], State::ChunkExtensionValue, 243);
-    vec_eq(&h.chunk_extension_value, &[b'a'; 243]);
-
-    if let ParserError::MaxChunkExtensionLength = assert_error(&mut p, &mut h, &[b'a']).unwrap() {
-    } else {
-        panic!();
-    }
 }
 
 #[test]
