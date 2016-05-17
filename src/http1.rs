@@ -18,15 +18,10 @@
 
 //! Zero-copy streaming HTTP parser.
 
-use super::Success;
 use byte::hex_to_byte;
 use byte::is_token;
 
 use std::fmt;
-
-// Maximum multipart boundary byte count to process before returning
-// `ParserError::MaxMultipartBoundaryLength`.
-const CFG_MAX_MULTIPART_BOUNDARY_LENGTH: u16 = 70;
 
 // State flag mask.
 const FLAG_MASK: u64 = 0x7F;
@@ -910,10 +905,7 @@ pub enum ParserValue {
     Continue,
 
     /// Exit the parser loop.
-    Exit(Success),
-
-    /// Shift the stream slice over by a specified length, and continue the parser loop.
-    ShiftStream(usize)
+    Exit(Success)
 }
 
 /// Parser states.
@@ -1138,6 +1130,9 @@ pub enum State {
     // ---------------------------------------------------------------------------------------------
     // URL
     // ---------------------------------------------------------------------------------------------
+
+    /// Detect URL format.
+    UrlFormat,
 
     /// Parsing URL scheme.
     UrlScheme,
@@ -1479,10 +1474,7 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 pub struct Parser<T: HttpHandler> {
     // Bit data that stores parser bit details.
     //
-    // Bit 1:  If flagged, parser is parsing a request, otherwise a response.
-    // Macros: set_type!()
-    //
-    // Bits 2-8: State flags that are checked when states have a dual purpose, such as when header
+    // Bits 1-8: State flags that are checked when states have a dual purpose, such as when header
     //           parsing states also parse chunk encoding trailers.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
@@ -1602,20 +1594,67 @@ impl<T: HttpHandler> Parser<T> {
     /// `Parser::parse()`. If `ParserError` is returned, parsing cannot be resumed without a call
     /// to `Parser::reset()`.
     #[inline]
-    pub fn parse(&mut self, handler: &mut T, mut stream: &[u8]) -> Result<Success, ParserError> {
+    pub fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
         let mut context = ParserContext::new(handler, stream);
 
         loop {
             match (self.state_function)(self, &mut context) {
                 Ok(ParserValue::Continue) => {
                 },
-                Ok(ParserValue::ShiftStream(length)) => {
-                    stream = &stream[length..];
-                },
                 Ok(ParserValue::Exit(success)) => {
                     return Ok(success);
                 },
                 Err(error) => {
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    /// Parse a URL.
+    #[inline]
+    pub fn parse_url(&mut self, handler: &mut T, url: &[u8]) -> Result<Success, ParserError> {
+        let mut context = ParserContext::new(handler, url);
+
+        // record old state information so we can reset it afterwards
+        let byte_count     = self.byte_count;
+        let state          = self.state;
+        let state_function = self.state_function;
+
+        self.state          = State::UrlFormat;
+        self.state_function = Parser::url_format;
+
+        loop {
+            match (self.state_function)(self, &mut context) {
+                Ok(ParserValue::Continue) => {
+                },
+                Ok(ParserValue::Exit(ref success)) => {
+                    match *success {
+                        Success::Callback(length) => {
+                            // put old state details back and rewind the byte count
+                            self.byte_count     = byte_count;
+                            self.state          = state;
+                            self.state_function = state_function;
+
+                            return Ok(Success::Callback(length));
+                        },
+                        Success::Eof(length) | Success::Finished(length) => {
+                            // put old state details back and rewind the byte count
+                            self.byte_count     = byte_count;
+                            self.state          = state;
+                            self.state_function = state_function;
+
+                            // eof == finished
+                            return Ok(Success::Finished(length));
+                        }
+                    }
+                },
+                Err(error) => {
+                    // put old state details back and rewind the byte count
+                    self.byte_count     = byte_count;
+                    self.state          = state;
+                    self.state_function = state_function;
+
                     return Err(error);
                 }
             }
@@ -2699,6 +2738,24 @@ impl<T: HttpHandler> Parser<T> {
                              State::UrlEncodedValue, url_encoded_value);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // URL STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    pub fn url_format(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+        replay!(context);
+
+        if context.byte == b'/' {
+            transition_fast!(self, context, State::UrlPath, url_path);
+        }
+
+        transition_fast!(self, context, State::UrlScheme, url_scheme);
+    }
+
     #[inline]
     pub fn url_scheme(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
@@ -2714,12 +2771,15 @@ impl<T: HttpHandler> Parser<T> {
     pub fn url_slash1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
-        next!(context);
 
         if has_bytes!(context, 2) && b"//" == peek_bytes!(context, 2) {
+            jump_bytes!(context, 2);
+
             set_state!(self, State::UrlHost, url_host);
             transition_fast!(self, context);
         }
+
+        next!(context);
 
         if context.byte == b'/' {
             set_state!(self, State::UrlSlash2, url_slash2);
@@ -2751,14 +2811,16 @@ impl<T: HttpHandler> Parser<T> {
                          ParserError::UrlHost);
 
         if context.byte == b'/' {
-            callback_ignore_transition_fast!(self, context, on_url_scheme,
-                                             State::UrlPath, url_path);
+            replay!(context);
+
+            callback_transition_fast!(self, context, on_url_host,
+                                      State::UrlPath, url_path);
         }
 
         set_upper40!(self, 0);
 
-        callback_ignore_transition_fast!(self, context, on_url_scheme,
-                                             State::UrlPort, url_port);
+        callback_ignore_transition_fast!(self, context, on_url_host,
+                                         State::UrlPort, url_port);
     }
 
     #[inline]
@@ -2789,11 +2851,11 @@ impl<T: HttpHandler> Parser<T> {
                          ParserError::UrlPath);
 
         if context.byte == b'?' {
-            callback_transition_fast!(self, context, on_url_path,
-                                      State::UrlQueryString, url_query_string);
+            callback_ignore_transition_fast!(self, context, on_url_path,
+                                             State::UrlQueryString, url_query_string);
         } else {
-            callback_transition_fast!(self, context, on_url_path,
-                                      State::UrlFragment, url_fragment);
+            callback_ignore_transition_fast!(self, context, on_url_path,
+                                             State::UrlFragment, url_fragment);
         }
     }
 
@@ -2804,8 +2866,8 @@ impl<T: HttpHandler> Parser<T> {
                          b'#',
                          ParserError::UrlQueryString);
 
-        callback_transition_fast!(self, context, on_url_query_string,
-                                  State::UrlFragment, url_fragment);
+        callback_ignore_transition_fast!(self, context, on_url_query_string,
+                                         State::UrlFragment, url_fragment);
     }
 
     #[inline]
@@ -2816,6 +2878,10 @@ impl<T: HttpHandler> Parser<T> {
 
         transition_fast!(self, context, State::Finished, finished);
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // FINISHED STATES
+    // ---------------------------------------------------------------------------------------------
 
     #[inline]
     pub fn finished_newline1(&mut self, context: &mut ParserContext<T>)
@@ -2847,5 +2913,36 @@ impl<T: HttpHandler> Parser<T> {
     pub fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Success response types.
+#[derive(Clone,Copy,PartialEq)]
+pub enum Success {
+    /// Callback returned false.
+    Callback(usize),
+
+    /// Additional data expected.
+    Eof(usize),
+
+    /// Finished successfully.
+    Finished(usize)
+}
+
+impl fmt::Display for Success {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Success::Callback(length) => {
+                write!(formatter, "Success::Callback({})", length)
+            },
+            Success::Eof(length) => {
+                write!(formatter, "Success::Eof({})", length)
+            },
+            Success::Finished(length) => {
+                write!(formatter, "Success::Finished({})", length)
+            }
+        }
     }
 }
