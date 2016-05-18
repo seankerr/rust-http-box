@@ -1611,18 +1611,20 @@ impl<T: HttpHandler> Parser<T> {
         }
     }
 
-    /// Parse a URL.
+    /// Non-HTTP base parsing function.
     #[inline]
-    pub fn parse_url(&mut self, handler: &mut T, url: &[u8]) -> Result<Success, ParserError> {
-        let mut context = ParserContext::new(handler, url);
+    fn parse_base(&mut self, handler: &mut T, stream: &[u8], state: State,
+                  state_function: StateFunction<T>)
+    -> Result<Success, ParserError> {
+        let mut context = ParserContext::new(handler, stream);
 
         // record old state information so we can reset it afterwards
-        let byte_count     = self.byte_count;
-        let state          = self.state;
-        let state_function = self.state_function;
+        let orig_byte_count     = self.byte_count;
+        let orig_state          = self.state;
+        let orig_state_function = self.state_function;
 
-        self.state          = State::UrlFormat;
-        self.state_function = Parser::url_format;
+        self.state          = state;
+        self.state_function = state_function;
 
         loop {
             match (self.state_function)(self, &mut context) {
@@ -1631,18 +1633,16 @@ impl<T: HttpHandler> Parser<T> {
                 Ok(ParserValue::Exit(ref success)) => {
                     match *success {
                         Success::Callback(length) => {
-                            // put old state details back and rewind the byte count
-                            self.byte_count     = byte_count;
-                            self.state          = state;
-                            self.state_function = state_function;
+                            self.byte_count     = orig_byte_count;
+                            self.state          = orig_state;
+                            self.state_function = orig_state_function;
 
                             return Ok(Success::Callback(length));
                         },
                         Success::Eof(length) | Success::Finished(length) => {
-                            // put old state details back and rewind the byte count
-                            self.byte_count     = byte_count;
-                            self.state          = state;
-                            self.state_function = state_function;
+                            self.byte_count     = orig_byte_count;
+                            self.state          = orig_state;
+                            self.state_function = orig_state_function;
 
                             // eof == finished
                             return Ok(Success::Finished(length));
@@ -1650,13 +1650,74 @@ impl<T: HttpHandler> Parser<T> {
                     }
                 },
                 Err(error) => {
-                    // put old state details back and rewind the byte count
-                    self.byte_count     = byte_count;
-                    self.state          = state;
-                    self.state_function = state_function;
+                    self.byte_count     = orig_byte_count;
+                    self.state          = orig_state;
+                    self.state_function = orig_state_function;
 
                     return Err(error);
                 }
+            }
+        }
+    }
+
+    /// Parse a query string.
+    ///
+    /// Because this function uses URL decoding states for parsing, which may allow an ending carriage
+    /// return, it is important to note that parsing a query string via
+    /// `Parser::parse_query_string()` with an ending carriage return may yield undetermined
+    /// results.
+    #[inline]
+    pub fn parse_query_string(&mut self, handler: &mut T, query_string: &[u8])
+    -> Result<Success, ParserError> {
+        match self.parse_base(handler, query_string, State::UrlEncodedField,
+                              Parser::url_encoded_field) {
+            Ok(Success::Finished(ref length)) => {
+                // must check for what would otherwise be a Success::Eof response within
+                // Parser::parse(), but must execute differently from Parser::parse_query_string()
+                if query_string.len() == 0 {
+                    return Ok(Success::Finished(0));
+                }
+
+                if query_string[query_string.len() - 1] == b'=' {
+                    // ending hyphen, so we must manually send an empty value
+                    if handler.on_url_encoded_value(b"") {
+                        Ok(Success::Finished(*length))
+                    } else {
+                        Ok(Success::Callback(*length))
+                    }
+                } else if query_string.len() > 2 {
+                    // possible ending unprocessed hex sequence
+                    if query_string[query_string.len() - 1] == b'%' {
+                        Err(ParserError::HexSequence(query_string[query_string.len() - 1]))
+                    } else if query_string[query_string.len() - 2] == b'%' {
+                        Err(ParserError::HexSequence(query_string[query_string.len() - 2]))
+                    } else {
+                        Ok(Success::Finished(*length))
+                    }
+                } else if query_string[query_string.len() - 1] == b'%' {
+                    Err(ParserError::HexSequence(query_string[query_string.len() - 1]))
+                } else {
+                    Ok(Success::Finished(*length))
+                }
+            },
+            result @ _ => {
+                result
+            }
+        }
+    }
+
+    /// Parse a URL.
+    ///
+    /// This function verifies that a URL consists of only visible 7-bit ASCII bytes, and parses
+    /// out each segment. This function does not validate the format of any segment.
+    #[inline]
+    pub fn parse_url(&mut self, handler: &mut T, url: &[u8]) -> Result<Success, ParserError> {
+        match self.parse_base(handler, url, State::UrlFormat, Parser::url_format) {
+            Ok(Success::Eof(ref length)) => {
+                Ok(Success::Finished(*length))
+            },
+            result @ _ => {
+                result
             }
         }
     }
