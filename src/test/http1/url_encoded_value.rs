@@ -45,7 +45,7 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_visible(b"&%", |byte| {
+    loop_visible(b"&%=", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 
@@ -75,6 +75,20 @@ fn callback_exit() {
     setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nValue=", State::UrlEncodedValue);
 
     assert_callback(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
+}
+
+#[test]
+fn equal_error() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    if let ParserError::UrlEncodedValue(x) = assert_error(&mut p, &mut h, b"=").unwrap() {
+        assert_eq!(x, b'=');
+    } else {
+        panic!();
+    }
 }
 
 #[test]

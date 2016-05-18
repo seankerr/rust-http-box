@@ -18,6 +18,8 @@
 
 //! Zero-copy streaming HTTP parser.
 
+#![allow(dead_code)]
+
 use byte::hex_to_byte;
 use byte::is_token;
 
@@ -1551,7 +1553,7 @@ macro_rules! chunk_size {
 
 impl<T: HttpHandler> Parser<T> {
     /// Create a new `Parser`.
-    pub fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
+    fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
         Parser{ bit_data:       if state == State::StripRequestMethod {
                                     1
                                 } else {
@@ -1662,10 +1664,37 @@ impl<T: HttpHandler> Parser<T> {
 
     /// Parse a query string.
     ///
-    /// Because this function uses URL decoding states for parsing, which may allow an ending carriage
-    /// return, it is important to note that parsing a query string via
+    /// `Parser::parse_query_string()` may be called after `Parser::new_request()` or
+    /// `Parser::new_response()`. The parser type is irrelevant.
+    ///
+    /// Because this function uses URL encoded parsing states for parsing, which may allow an ending
+    /// carriage return, it is important to note that parsing a query string via
     /// `Parser::parse_query_string()` with an ending carriage return may yield undetermined
     /// results.
+    ///
+    /// ```
+    /// # use http_box::http1::*;
+    /// use std::str;
+    ///
+    /// struct QueryString {}
+    ///
+    /// impl HttpHandler for QueryString {
+    ///     fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
+    ///         println!("Received field data: {:?}", str::from_utf8(field).unwrap());
+    ///         true
+    ///     }
+    ///
+    ///     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
+    ///         println!("Received value data: {:?}", str::from_utf8(value).unwrap());
+    ///         true
+    ///     }
+    /// }
+    ///
+    /// let mut handler = QueryString{};
+    /// let mut parser  = Parser::new_request();
+    ///
+    /// parser.parse_query_string(&mut handler, b"field1=value1&field2=value2");
+    /// ```
     #[inline]
     pub fn parse_query_string(&mut self, handler: &mut T, query_string: &[u8])
     -> Result<Success, ParserError> {
@@ -1673,7 +1702,8 @@ impl<T: HttpHandler> Parser<T> {
                               Parser::url_encoded_field) {
             Ok(Success::Finished(ref length)) => {
                 // must check for what would otherwise be a Success::Eof response within
-                // Parser::parse(), but must execute differently from Parser::parse_query_string()
+                // Parser::parse(), but possibly should return an error from
+                // Parser::parse_query_string()
                 if query_string.len() == 0 {
                     return Ok(Success::Finished(0));
                 }
@@ -1700,7 +1730,7 @@ impl<T: HttpHandler> Parser<T> {
                     Ok(Success::Finished(*length))
                 }
             },
-            result @ _ => {
+            result => {
                 result
             }
         }
@@ -1716,7 +1746,7 @@ impl<T: HttpHandler> Parser<T> {
             Ok(Success::Eof(ref length)) => {
                 Ok(Success::Finished(*length))
             },
-            result @ _ => {
+            result => {
                 result
             }
         }
@@ -1743,7 +1773,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn pre_headers1(&mut self, context: &mut ParserContext<T>)
+    fn pre_headers1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -1756,7 +1786,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn pre_headers2(&mut self, context: &mut ParserContext<T>)
+    fn pre_headers2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -1771,7 +1801,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_header_field(&mut self, context: &mut ParserContext<T>)
+    fn strip_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -1781,7 +1811,7 @@ impl<T: HttpHandler> Parser<T> {
 
     #[inline]
     #[cfg_attr(test, allow(cyclomatic_complexity))]
-    pub fn first_header_field(&mut self, context: &mut ParserContext<T>)
+    fn first_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! field {
             ($header:expr, $length:expr) => ({
@@ -1863,7 +1893,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn header_field(&mut self, context: &mut ParserContext<T>)
+    fn header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(self, context, on_header_field,
                         b':',
@@ -1875,7 +1905,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_header_value(&mut self, context: &mut ParserContext<T>)
+    fn strip_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
 
@@ -1889,7 +1919,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn header_value(&mut self, context: &mut ParserContext<T>)
+    fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_header_value,
                          b'\r',
@@ -1901,7 +1931,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
+    fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_quoted!(self, context, on_header_value,
                         b'"', b'\\',
@@ -1919,7 +1949,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn header_escaped_value(&mut self, context: &mut ParserContext<T>)
+    fn header_escaped_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -1930,7 +1960,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn newline1(&mut self, context: &mut ParserContext<T>)
+    fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if has_bytes!(context, 2) && b"\r\n" == peek_bytes!(context, 2) {
             transition_fast!(self, context, State::Newline3, newline3);
@@ -1947,7 +1977,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn newline2(&mut self, context: &mut ParserContext<T>)
+    fn newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -1960,7 +1990,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn newline3(&mut self, context: &mut ParserContext<T>)
+    fn newline3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -1979,7 +2009,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn newline4(&mut self, context: &mut ParserContext<T>)
+    fn newline4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2008,7 +2038,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn strip_request_method(&mut self, context: &mut ParserContext<T>)
+    fn strip_request_method(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -2017,7 +2047,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_method(&mut self, context: &mut ParserContext<T>)
+    fn request_method(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! method {
             ($method:expr, $length:expr) => (
@@ -2070,7 +2100,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_request_url(&mut self, context: &mut ParserContext<T>)
+    fn strip_request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -2079,7 +2109,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_url(&mut self, context: &mut ParserContext<T>)
+    fn request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url,
                          b' ',
@@ -2093,7 +2123,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_request_http(&mut self, context: &mut ParserContext<T>)
+    fn strip_request_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -2102,7 +2132,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_http1(&mut self, context: &mut ParserContext<T>)
+    fn request_http1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
@@ -2140,7 +2170,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_http2(&mut self, context: &mut ParserContext<T>)
+    fn request_http2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2153,7 +2183,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_http3(&mut self, context: &mut ParserContext<T>)
+    fn request_http3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2166,7 +2196,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_http4(&mut self, context: &mut ParserContext<T>)
+    fn request_http4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2179,7 +2209,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_http5(&mut self, context: &mut ParserContext<T>)
+    fn request_http5(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2194,7 +2224,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_version_major(&mut self, context: &mut ParserContext<T>)
+    fn request_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower16!(self) as u64;
 
@@ -2214,7 +2244,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn request_version_minor(&mut self, context: &mut ParserContext<T>)
+    fn request_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper40!(self);
 
@@ -2238,7 +2268,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn strip_response_http(&mut self, context: &mut ParserContext<T>)
+    fn strip_response_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -2247,7 +2277,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_http1(&mut self, context: &mut ParserContext<T>)
+    fn response_http1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
@@ -2285,7 +2315,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_http2(&mut self, context: &mut ParserContext<T>)
+    fn response_http2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2298,7 +2328,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_http3(&mut self, context: &mut ParserContext<T>)
+    fn response_http3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2311,7 +2341,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_http4(&mut self, context: &mut ParserContext<T>)
+    fn response_http4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2324,7 +2354,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_http5(&mut self, context: &mut ParserContext<T>)
+    fn response_http5(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2339,7 +2369,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_version_major(&mut self, context: &mut ParserContext<T>)
+    fn response_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower16!(self) as u64;
 
@@ -2359,7 +2389,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_version_minor(&mut self, context: &mut ParserContext<T>)
+    fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper40!(self);
 
@@ -2379,7 +2409,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
+    fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
 
@@ -2395,7 +2425,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_status_code(&mut self, context: &mut ParserContext<T>)
+    fn response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper40!(self);
 
@@ -2415,7 +2445,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn strip_response_status(&mut self, context: &mut ParserContext<T>)
+    fn strip_response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
         replay!(context);
@@ -2424,7 +2454,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn response_status(&mut self, context: &mut ParserContext<T>)
+    fn response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect!(self, context, on_status, {
             next!(context);
@@ -2448,7 +2478,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn body(&mut self, context: &mut ParserContext<T>)
+    fn body(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if context.handler.get_transfer_encoding() == TransferEncoding::Chunked {
             set_upper40!(self, 0);
@@ -2473,19 +2503,19 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn content(&mut self, context: &mut ParserContext<T>)
+    fn content(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn chunk_size(&mut self, context: &mut ParserContext<T>)
+    fn chunk_size(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         chunk_size!(self, context);
     }
 
     #[inline]
-    pub fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(self, context, on_chunk_extension_name,
                         b'=',
@@ -2497,7 +2527,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(self, context, on_chunk_extension_value,
                         b'\r', b';', b'"',
@@ -2522,7 +2552,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_quoted!(self, context, on_chunk_extension_value,
                         b'"', b'\\',
@@ -2542,7 +2572,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_extension_escaped_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_escaped_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2558,7 +2588,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_extension_semi_colon(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_semi_colon(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2573,7 +2603,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_size_newline(&mut self, context: &mut ParserContext<T>)
+    fn chunk_size_newline(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2586,7 +2616,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_data(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if collect_content_length!(self, context) {
             callback_transition!(self, context,
@@ -2600,7 +2630,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_data_newline1(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2613,7 +2643,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn chunk_data_newline2(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2626,43 +2656,43 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
+    fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
+    fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
+    fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
+    fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
+    fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn multipart_data(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eof!(self, context);
     }
 
     #[inline]
-    pub fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_encoded_field,
                          b'=', b'%', b'&', b'+', b'\r',
@@ -2700,7 +2730,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_encoded_field_ampersand(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_field_ampersand(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         // param field without a value, so send an empty array
         callback_transition!(self, context,
@@ -2709,7 +2739,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_encoded_field_hex(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_field_hex(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if has_bytes!(context, 2) {
             jump_bytes!(context, 2);
@@ -2730,7 +2760,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_encoded_field_plus(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_field_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
                              on_url_encoded_field, b" ",
@@ -2738,10 +2768,10 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_encoded_value,
-                         b'%', b'&', b'+', b'\r',
+                         b'%', b'&', b'+', b'\r', b'=',
                          ParserError::UrlEncodedValue);
 
         match context.byte {
@@ -2762,16 +2792,19 @@ impl<T: HttpHandler> Parser<T> {
                                                  State::UrlEncodedValuePlus,
                                                  url_encoded_value_plus);
             },
-            _ => {
+            b'\r' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_url_encoded_value,
                                                  State::FinishedNewline2, finished_newline2);
+            },
+            _ => {
+                exit_error!(self, context, ParserError::UrlEncodedValue(context.byte));
             }
         }
     }
 
     #[inline]
-    pub fn url_encoded_value_hex(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_hex(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if has_bytes!(context, 2) {
             jump_bytes!(context, 2);
@@ -2792,7 +2825,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_encoded_value_plus(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
                              on_url_encoded_value, b" ",
@@ -2804,7 +2837,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn url_format(&mut self, context: &mut ParserContext<T>)
+    fn url_format(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2818,7 +2851,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_scheme(&mut self, context: &mut ParserContext<T>)
+    fn url_scheme(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_scheme,
                          b':',
@@ -2829,7 +2862,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_slash1(&mut self, context: &mut ParserContext<T>)
+    fn url_slash1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
 
@@ -2851,7 +2884,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_slash2(&mut self, context: &mut ParserContext<T>)
+    fn url_slash2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2865,7 +2898,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_host(&mut self, context: &mut ParserContext<T>)
+    fn url_host(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_host,
                          b'/', b':',
@@ -2885,7 +2918,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_port(&mut self, context: &mut ParserContext<T>)
+    fn url_port(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
        let mut digit = get_upper40!(self);
 
@@ -2905,7 +2938,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_path(&mut self, context: &mut ParserContext<T>)
+    fn url_path(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_path,
                          b'?', b'#',
@@ -2921,7 +2954,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_query_string(&mut self, context: &mut ParserContext<T>)
+    fn url_query_string(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_query_string,
                          b'#',
@@ -2932,7 +2965,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn url_fragment(&mut self, context: &mut ParserContext<T>)
+    fn url_fragment(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(self, context, on_url_fragment,
                          ParserError::UrlFragment);
@@ -2945,7 +2978,7 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    pub fn finished_newline1(&mut self, context: &mut ParserContext<T>)
+    fn finished_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2958,7 +2991,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn finished_newline2(&mut self, context: &mut ParserContext<T>)
+    fn finished_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eof!(self, context);
         next!(context);
@@ -2971,7 +3004,7 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     #[inline]
-    pub fn finished(&mut self, context: &mut ParserContext<T>)
+    fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
     }

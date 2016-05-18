@@ -18,7 +18,6 @@
 
 use handler::*;
 use http1::*;
-use test::*;
 
 #[test]
 fn basic() {
@@ -155,22 +154,6 @@ fn value_ending_ampersand() {
 }
 
 #[test]
-fn value_ending_equal() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
-
-    assert!(match p.parse_query_string(&mut h, b"Field=Value=") {
-        Ok(Success::Finished(length)) => {
-            assert_eq!(length, 12);
-            assert_eq!(h.url_encoded_field, b"Field");
-            assert_eq!(h.url_encoded_value, b"Value=");
-            true
-        },
-        _ => false
-    });
-}
-
-#[test]
 fn value_ending_hex() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new_request();
@@ -224,4 +207,16 @@ fn value_ending_plus() {
         },
         _ => false
     });
+}
+
+#[test]
+fn value_equal_error() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    if let Err(ParserError::UrlEncodedValue(byte)) = p.parse_query_string(&mut h, b"Field=Value=") {
+        assert_eq!(byte, b'=');
+    } else {
+        panic!();
+    }
 }
