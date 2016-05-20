@@ -29,6 +29,7 @@ pub mod byte;
 
 pub mod handler;
 pub mod http1;
+pub mod url;
 
 #[cfg(test)]
 mod test;

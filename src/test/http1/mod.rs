@@ -34,8 +34,6 @@ mod multipart_data;
 mod multipart_header;
 */
 
-mod query_string;
-
 mod request_method;
 mod request_url;
 mod request_http;

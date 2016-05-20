@@ -45,7 +45,7 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_visible(b"=%", |byte| {
+    loop_visible(b"=%&", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new_request();
 

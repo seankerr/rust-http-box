@@ -26,6 +26,7 @@ use std::fmt::Debug;
 
 mod byte;
 mod http1;
+mod url;
 
 pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                        state: State, length: usize) {

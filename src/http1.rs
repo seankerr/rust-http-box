@@ -345,10 +345,9 @@ macro_rules! collect_quoted {
         collect!($parser, $context, $function, {
             next!($context);
 
-            if $stop1 == $context.byte
-            || $stop2 == $context.byte {
+            if $stop1 == $context.byte || $stop2 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) {
+            } else if is_non_visible!($context.byte) && $context.byte != b' ' {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -404,25 +403,7 @@ macro_rules! collect_visible {
             || $stop4 == $context.byte
             || $stop5 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
-                exit_error!($parser, $context, $byte_error($context.byte));
-            } else {
-                false
-            }
-        });
-    });
-
-    ($parser:expr, $context:expr, $function:ident, $stop1:expr, $stop2:expr, $stop3:expr,
-     $stop4:expr, $byte_error:expr) => ({
-        collect!($parser, $context, $function, {
-            next!($context);
-
-            if $stop1 == $context.byte
-            || $stop2 == $context.byte
-            || $stop3 == $context.byte
-            || $stop4 == $context.byte {
-                true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
+            } else if is_non_visible!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -436,7 +417,7 @@ macro_rules! collect_visible {
 
             if $stop1 == $context.byte || $stop2 == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
+            } else if is_non_visible!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -450,7 +431,7 @@ macro_rules! collect_visible {
 
             if $stop == $context.byte {
                 true
-            } else if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
+            } else if is_non_visible!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -462,7 +443,7 @@ macro_rules! collect_visible {
         collect!($parser, $context, $function, {
             next!($context);
 
-            if is_control!($context.byte) || !is_ascii!($context.byte) || $context.byte == b' ' {
+            if is_non_visible!($context.byte) {
                 exit_error!($parser, $context, $byte_error($context.byte));
             } else {
                 false
@@ -1662,80 +1643,6 @@ impl<T: HttpHandler> Parser<T> {
         }
     }
 
-    /// Parse a query string.
-    ///
-    /// `Parser::parse_query_string()` may be called after `Parser::new_request()` or
-    /// `Parser::new_response()`. The parser type is irrelevant.
-    ///
-    /// Because this function uses URL encoded parsing states for parsing, which may allow an ending
-    /// carriage return, it is important to note that parsing a query string via
-    /// `Parser::parse_query_string()` with an ending carriage return may yield undetermined
-    /// results.
-    ///
-    /// ```
-    /// # use http_box::http1::*;
-    /// use std::str;
-    ///
-    /// struct QueryString {}
-    ///
-    /// impl HttpHandler for QueryString {
-    ///     fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
-    ///         println!("Received field data: {:?}", str::from_utf8(field).unwrap());
-    ///         true
-    ///     }
-    ///
-    ///     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
-    ///         println!("Received value data: {:?}", str::from_utf8(value).unwrap());
-    ///         true
-    ///     }
-    /// }
-    ///
-    /// let mut handler = QueryString{};
-    /// let mut parser  = Parser::new_request();
-    ///
-    /// parser.parse_query_string(&mut handler, b"field1=value1&field2=value2");
-    /// ```
-    #[inline]
-    pub fn parse_query_string(&mut self, handler: &mut T, query_string: &[u8])
-    -> Result<Success, ParserError> {
-        match self.parse_base(handler, query_string, State::UrlEncodedField,
-                              Parser::url_encoded_field) {
-            Ok(Success::Finished(ref length)) => {
-                // must check for what would otherwise be a Success::Eof response within
-                // Parser::parse(), but possibly should return an error from
-                // Parser::parse_query_string()
-                if query_string.len() == 0 {
-                    return Ok(Success::Finished(0));
-                }
-
-                if query_string[query_string.len() - 1] == b'=' {
-                    // ending hyphen, so we must manually send an empty value
-                    if handler.on_url_encoded_value(b"") {
-                        Ok(Success::Finished(*length))
-                    } else {
-                        Ok(Success::Callback(*length))
-                    }
-                } else if query_string.len() > 2 {
-                    // possible ending unprocessed hex sequence
-                    if query_string[query_string.len() - 1] == b'%' {
-                        Err(ParserError::HexSequence(query_string[query_string.len() - 1]))
-                    } else if query_string[query_string.len() - 2] == b'%' {
-                        Err(ParserError::HexSequence(query_string[query_string.len() - 2]))
-                    } else {
-                        Ok(Success::Finished(*length))
-                    }
-                } else if query_string[query_string.len() - 1] == b'%' {
-                    Err(ParserError::HexSequence(query_string[query_string.len() - 1]))
-                } else {
-                    Ok(Success::Finished(*length))
-                }
-            },
-            result => {
-                result
-            }
-        }
-    }
-
     /// Parse a URL.
     ///
     /// This function verifies that a URL consists of only visible 7-bit ASCII bytes, and parses
@@ -2577,7 +2484,7 @@ impl<T: HttpHandler> Parser<T> {
         exit_if_eof!(self, context);
         next!(context);
 
-        if is_ascii!(context.byte) && !is_control!(context.byte) {
+        if is_visible!(context.byte) || context.byte == b' ' {
             callback_transition_fast!(self, context,
                                       on_chunk_extension_value, &[context.byte],
                                       State::ChunkExtensionQuotedValue,
@@ -2833,6 +2740,42 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // FINISHED STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn finished_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context, State::FinishedNewline2, finished_newline2);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
+    }
+
+    #[inline]
+    fn finished_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eof!(self, context);
+        next!(context);
+
+        if context.byte == b'\n' {
+            transition_fast!(self, context, State::Finished, finished);
+        }
+
+        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
+    }
+
+    #[inline]
+    fn finished(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_finished!(self, context);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // URL STATES
     // ---------------------------------------------------------------------------------------------
 
@@ -2971,42 +2914,6 @@ impl<T: HttpHandler> Parser<T> {
                          ParserError::UrlFragment);
 
         transition_fast!(self, context, State::Finished, finished);
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // FINISHED STATES
-    // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn finished_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
-        next!(context);
-
-        if context.byte == b'\r' {
-            transition_fast!(self, context, State::FinishedNewline2, finished_newline2);
-        }
-
-        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
-    }
-
-    #[inline]
-    fn finished_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
-        next!(context);
-
-        if context.byte == b'\n' {
-            transition_fast!(self, context, State::Finished, finished);
-        }
-
-        exit_error!(self, context, ParserError::CrlfSequence(context.byte));
-    }
-
-    #[inline]
-    fn finished(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_finished!(self, context);
     }
 }
 

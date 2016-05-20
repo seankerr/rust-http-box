@@ -78,6 +78,22 @@ macro_rules! is_lower {
     );
 }
 
+/// Indicates that a byte is a non-visible 7-bit character, or it isn't 7-bit.
+#[macro_export]
+macro_rules! is_non_visible {
+    ($byte:expr) => (
+        $byte < 0x21 || $byte > 0x7E
+    )
+}
+
+/// Indicates that a byte is a 7-bit non-control character, with the exception of space.
+#[macro_export]
+macro_rules! is_visible {
+    ($byte:expr) => (
+        $byte > 0x20 && $byte < 0x7F
+    )
+}
+
 /// Indicates that a byte is an uppercase letter.
 #[macro_export]
 macro_rules! is_upper {
