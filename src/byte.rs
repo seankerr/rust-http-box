@@ -18,32 +18,6 @@
 
 //! Byte verification macros and functions.
 
-/// Indicates that a byte is alphabetical.
-#[macro_export]
-macro_rules! is_alpha {
-    ($byte:expr) => (
-           ($byte > 64 && $byte < 91)
-        || ($byte > 96 && $byte < 123)
-    );
-}
-
-/// Indicates that a byte is alphanumeric.
-#[macro_export]
-macro_rules! is_alphanumeric {
-    ($byte:expr) => (
-           is_alpha!($byte)
-        || is_digit!($byte)
-    );
-}
-
-/// Indicates that a byte is ascii.
-#[macro_export]
-macro_rules! is_ascii {
-    ($byte:expr) => (
-        $byte < 128
-    );
-}
-
 /// Indicates that a byte is a control character.
 #[macro_export]
 macro_rules! is_control {
@@ -70,14 +44,6 @@ macro_rules! is_hex {
     );
 }
 
-/// Indicates that a byte is a lowercase letter.
-#[macro_export]
-macro_rules! is_lower {
-    ($byte:expr) => (
-        $byte > 96 && $byte < 123
-    );
-}
-
 /// Indicates that a byte is a non-visible 7-bit character, or it isn't 7-bit.
 #[macro_export]
 macro_rules! is_non_visible {
@@ -93,16 +59,6 @@ macro_rules! is_visible {
         $byte > 0x20 && $byte < 0x7F
     )
 }
-
-/// Indicates that a byte is an uppercase letter.
-#[macro_export]
-macro_rules! is_upper {
-    ($byte:expr) => (
-        $byte > 64 && $byte < 91
-    );
-}
-
-// -------------------------------------------------------------------------------------------------
 
 /// Encode a byte into a hex sequence *XX*.
 ///
