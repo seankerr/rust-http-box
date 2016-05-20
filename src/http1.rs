@@ -824,24 +824,6 @@ pub enum ParserError {
     /// Invalid URL encoded value.
     UrlEncodedValue(u8),
 
-    /// Invalid URL fragment.
-    UrlFragment(u8),
-
-    /// Invalid URL host.
-    UrlHost(u8),
-
-    /// Invalid URL path.
-    UrlPath(u8),
-
-    /// Invalid URL port.
-    UrlPort(u8),
-
-    /// Invalid URL query string.
-    UrlQueryString(u8),
-
-    /// Invalid URL scheme.
-    UrlScheme(u8),
-
     /// Invalid HTTP version.
     Version(u8),
 }
@@ -902,24 +884,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::UrlEncodedValue(ref byte) => {
                 write!(formatter, "Invalid URL encoded value at byte {}", byte)
-            },
-            ParserError::UrlFragment(ref byte) => {
-                write!(formatter, "Invalid URL fragment at byte {}", byte)
-            },
-            ParserError::UrlHost(ref byte) => {
-                write!(formatter, "Invalid URL host at byte {}", byte)
-            },
-            ParserError::UrlPath(ref byte) => {
-                write!(formatter, "Invalid URL path at byte {}", byte)
-            },
-            ParserError::UrlPort(ref byte) => {
-                write!(formatter, "Invalid URL port at byte {}", byte)
-            },
-            ParserError::UrlQueryString(ref byte) => {
-                write!(formatter, "Invalid URL query string at byte {}", byte)
-            },
-            ParserError::UrlScheme(ref byte) => {
-                write!(formatter, "Invalid URL scheme at byte {}", byte)
             },
             ParserError::Version(ref byte) => {
                 write!(formatter, "Invalid HTTP version at byte {}", byte)
@@ -1157,37 +1121,6 @@ pub enum State {
 
     /// Parsing URL encoded value plus sign.
     UrlEncodedValuePlus,
-
-    // ---------------------------------------------------------------------------------------------
-    // URL
-    // ---------------------------------------------------------------------------------------------
-
-    /// Detect URL format.
-    UrlFormat,
-
-    /// Parsing URL scheme.
-    UrlScheme,
-
-    /// Parsing first forward slash after scheme.
-    UrlSlash1,
-
-    /// Parsing second forward slash after scheme.
-    UrlSlash2,
-
-    /// Parsing URL host.
-    UrlHost,
-
-    /// Parsing URL port.
-    UrlPort,
-
-    /// Parsing URL path.
-    UrlPath,
-
-    /// Parsing URL query string.
-    UrlQueryString,
-
-    /// Parsing URL fragment.
-    UrlFragment,
 
     // ---------------------------------------------------------------------------------------------
     // FINISHED
@@ -1664,71 +1597,6 @@ impl<T: HttpHandler> Parser<T> {
                 Err(error) => {
                     return Err(error);
                 }
-            }
-        }
-    }
-
-    /// Non-HTTP base parsing function.
-    #[inline]
-    fn parse_base(&mut self, handler: &mut T, stream: &[u8], state: State,
-                  state_function: StateFunction<T>)
-    -> Result<Success, ParserError> {
-        let mut context = ParserContext::new(handler, stream);
-
-        // record old state information so we can reset it afterwards
-        let orig_byte_count     = self.byte_count;
-        let orig_state          = self.state;
-        let orig_state_function = self.state_function;
-
-        self.state          = state;
-        self.state_function = state_function;
-
-        loop {
-            match (self.state_function)(self, &mut context) {
-                Ok(ParserValue::Continue) => {
-                },
-                Ok(ParserValue::Exit(ref success)) => {
-                    match *success {
-                        Success::Callback(length) => {
-                            self.byte_count     = orig_byte_count;
-                            self.state          = orig_state;
-                            self.state_function = orig_state_function;
-
-                            return Ok(Success::Callback(length));
-                        },
-                        Success::Eof(length) | Success::Finished(length) => {
-                            self.byte_count     = orig_byte_count;
-                            self.state          = orig_state;
-                            self.state_function = orig_state_function;
-
-                            // eof == finished
-                            return Ok(Success::Finished(length));
-                        }
-                    }
-                },
-                Err(error) => {
-                    self.byte_count     = orig_byte_count;
-                    self.state          = orig_state;
-                    self.state_function = orig_state_function;
-
-                    return Err(error);
-                }
-            }
-        }
-    }
-
-    /// Parse a URL.
-    ///
-    /// This function verifies that a URL consists of only visible 7-bit ASCII bytes, and parses
-    /// out each segment. This function does not validate the format of any segment.
-    #[inline]
-    pub fn parse_url(&mut self, handler: &mut T, url: &[u8]) -> Result<Success, ParserError> {
-        match self.parse_base(handler, url, State::UrlFormat, Parser::url_format) {
-            Ok(Success::Eof(ref length)) => {
-                Ok(Success::Finished(*length))
-            },
-            result => {
-                result
             }
         }
     }
@@ -2847,147 +2715,6 @@ impl<T: HttpHandler> Parser<T> {
     fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // URL STATES
-    // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn url_format(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
-        next!(context);
-        replay!(context);
-
-        if context.byte == b'/' {
-            transition_fast!(self, context, State::UrlPath, url_path);
-        }
-
-        transition_fast!(self, context, State::UrlScheme, url_scheme);
-    }
-
-    #[inline]
-    fn url_scheme(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, on_url_scheme,
-                         b':',
-                         ParserError::UrlScheme);
-
-        callback_ignore_transition_fast!(self, context, on_url_scheme,
-                                         State::UrlSlash1, url_slash1);
-    }
-
-    #[inline]
-    fn url_slash1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
-
-        if has_bytes!(context, 2) && b"//" == peek_bytes!(context, 2) {
-            jump_bytes!(context, 2);
-
-            set_state!(self, State::UrlHost, url_host);
-            transition_fast!(self, context);
-        }
-
-        next!(context);
-
-        if context.byte == b'/' {
-            set_state!(self, State::UrlSlash2, url_slash2);
-            transition_fast!(self, context);
-        }
-
-        exit_error!(self, context, ParserError::UrlScheme(context.byte));
-    }
-
-    #[inline]
-    fn url_slash2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
-        next!(context);
-
-        if context.byte == b'/' {
-            set_state!(self, State::UrlHost, url_host);
-            transition_fast!(self, context);
-        }
-
-        exit_error!(self, context, ParserError::UrlScheme(context.byte));
-    }
-
-    #[inline]
-    fn url_host(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, on_url_host,
-                         b'/', b':',
-                         ParserError::UrlHost);
-
-        if context.byte == b'/' {
-            replay!(context);
-
-            callback_transition_fast!(self, context, on_url_host,
-                                      State::UrlPath, url_path);
-        }
-
-        set_upper40!(self, 0);
-
-        callback_ignore_transition_fast!(self, context, on_url_host,
-                                         State::UrlPort, url_port);
-    }
-
-    #[inline]
-    fn url_port(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-       let mut digit = get_upper40!(self);
-
-        collect_digits!(self, context, digit, 65535, ParserError::UrlPort, {
-            set_upper40!(self, digit);
-
-            exit_eof!(self, context);
-        });
-
-        if context.byte == b'/' {
-            callback_transition_fast!(self, context,
-                                      on_url_port, digit as u16,
-                                      State::UrlPath, url_path);
-        }
-
-        exit_error!(self, context, ParserError::UrlPort(context.byte));
-    }
-
-    #[inline]
-    fn url_path(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, on_url_path,
-                         b'?', b'#',
-                         ParserError::UrlPath);
-
-        if context.byte == b'?' {
-            callback_ignore_transition_fast!(self, context, on_url_path,
-                                             State::UrlQueryString, url_query_string);
-        } else {
-            callback_ignore_transition_fast!(self, context, on_url_path,
-                                             State::UrlFragment, url_fragment);
-        }
-    }
-
-    #[inline]
-    fn url_query_string(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, on_url_query_string,
-                         b'#',
-                         ParserError::UrlQueryString);
-
-        callback_ignore_transition_fast!(self, context, on_url_query_string,
-                                         State::UrlFragment, url_fragment);
-    }
-
-    #[inline]
-    fn url_fragment(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, on_url_fragment,
-                         ParserError::UrlFragment);
-
-        transition_fast!(self, context, State::Finished, finished);
     }
 }
 

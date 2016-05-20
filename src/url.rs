@@ -90,6 +90,24 @@ macro_rules! collect_visible {
 
         byte
     });
+
+    ($stream:expr, $stream_index:expr, $byte_error:expr, $eof_block:block) => ({
+        let mut byte;
+
+        loop {
+            if is_eof!($stream, $stream_index) {
+                $eof_block
+            }
+
+            byte = next!($stream, $stream_index);
+
+            if is_non_visible!(byte) {
+                exit_error!($byte_error(byte));
+            }
+        }
+
+        byte
+    });
 }
 
 // Exit with an error.
@@ -234,11 +252,11 @@ impl fmt::Display for QueryError {
 
 /// Query segments.
 pub enum QuerySegment<'a> {
-    /// Flush segment.
-    Flush,
-
     /// Field segment.
     Field(&'a [u8]),
+
+    /// Flush segment.
+    Flush,
 
     /// Value segment.
     Value(&'a [u8])
@@ -558,18 +576,60 @@ where F : FnMut(QuerySegment) {
 /// Parse a URL.
 pub fn parse_url<F>(stream: &[u8], mut segment_fn: F) -> Result<usize, UrlError>
 where F : FnMut(UrlSegment) {
+    let mut byte;
     let mut mark_index   = 0;
     let mut stream_index = 0;
 
-    // scheme
-    let mut byte = collect_visible!(stream, stream_index,
-                                    b':',
-                                    UrlError::Scheme,
-                                    {
-        exit_error!(UrlError::Scheme(stream[stream_index]));
+    if !is_eof!(stream, stream_index) && stream[0] != b'/' {
+        // scheme
+        byte = collect_visible!(stream, stream_index,
+                                b':',
+                                UrlError::Scheme,
+                                {
+            exit_error!(UrlError::Scheme(stream[stream_index]));
+        });
+
+        segment_fn(UrlSegment::Scheme(&stream[mark_index..stream_index - 1]));
+    }
+
+    // path
+    mark_index = stream_index;
+
+    byte = collect_visible!(stream, stream_index,
+                            b'?', b'#',
+                            UrlError::Path,
+                            {
+        segment_fn(UrlSegment::Path(&stream[mark_index..stream_index]));
+
+        exit_ok!(stream_index);
     });
 
-    segment_fn(UrlSegment::Scheme(&stream[mark_index..stream_index - 1]));
+    segment_fn(UrlSegment::Path(&stream[mark_index..stream_index - 1]));
 
-    exit_ok!(stream_index);
+    if byte == b'?' {
+        // query string
+        mark_index = stream_index;
+
+        byte = collect_visible!(stream, stream_index,
+                                b'#',
+                                UrlError::QueryString,
+                                {
+            segment_fn(UrlSegment::QueryString(&stream[mark_index..stream_index]));
+
+            exit_ok!(stream_index);
+        });
+
+        segment_fn(UrlSegment::QueryString(&stream[mark_index..stream_index - 1]));
+    }
+
+    // fragment
+    mark_index = stream_index;
+
+    collect_visible!(stream, stream_index,
+                     UrlError::Fragment,
+                     {
+        segment_fn(UrlSegment::Fragment(&stream[mark_index..stream_index]));
+
+        exit_ok!(stream_index);
+    });
 }

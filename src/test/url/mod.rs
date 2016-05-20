@@ -58,3 +58,4 @@ macro_rules! query {
 mod decode;
 mod parse_query_string_field;
 mod parse_query_string_value;
+mod parse_url;
