@@ -19,6 +19,7 @@
 use handler::*;
 use http1::*;
 use test::*;
+use test::http1::*;
 
 #[test]
 fn empty() {

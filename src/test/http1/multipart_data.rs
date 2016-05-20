@@ -18,6 +18,7 @@
 
 use http1::*;
 use test::*;
+use test::http1::*;
 
 struct H {
 }

@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use http1::*;
+
 mod chunk_data;
 mod chunk_extension_name;
 mod chunk_extension_quoted_value;
@@ -48,3 +50,64 @@ mod url;
 
 mod url_encoded_field;
 mod url_encoded_value;
+
+pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                       state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Callback(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn assert_eof<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                  state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Eof(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
+-> Option<ParserError> {
+    match parser.parse(handler, stream) {
+        Err(error) => {
+            assert_eq!(parser.get_state(), State::Dead);
+            return Some(error);
+        },
+        _ => {
+            assert_eq!(parser.get_state(), State::Dead);
+            None
+        }
+    }
+}
+
+pub fn assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                       state: State, length: usize) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Finished(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
+    assert!(match parser.parse(handler, stream) {
+        Ok(Success::Eof(length)) => {
+            assert_eq!(length, stream.len());
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}

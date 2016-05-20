@@ -19,6 +19,7 @@
 use handler::*;
 use http1::*;
 use test::*;
+use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
@@ -109,7 +110,7 @@ fn hex_error() {
 
     setup!(p, h);
 
-    if let ParserError::HexSequence(x) = assert_error(&mut p, &mut h, b"%2z").unwrap() {
+    if let ParserError::UrlEncodedValue(x) = assert_error(&mut p, &mut h, b"%2z").unwrap() {
         assert_eq!(x, b'%');
     } else {
         panic!();

@@ -737,9 +737,6 @@ pub enum ParserError {
     /// Invalid header value.
     HeaderValue(u8),
 
-    /// Invalid hex sequence.
-    HexSequence(u8),
-
     /// Maximum chunk extension length has been met.
     MaxChunkExtensionLength,
 
@@ -818,9 +815,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "Invalid header value at byte {}", byte)
-            },
-            ParserError::HexSequence(ref byte) => {
-                write!(formatter, "Invalid hex sequence at byte {}", byte)
             },
             ParserError::MaxChunkExtensionLength => {
                 write!(formatter, "Maximum chunk extension length exceeded")
@@ -2658,7 +2652,7 @@ impl<T: HttpHandler> Parser<T> {
                                          State::UrlEncodedField, url_encoded_field);
                 },
                 _ => {
-                    exit_error!(self, context, ParserError::HexSequence(context.byte));
+                    exit_error!(self, context, ParserError::UrlEncodedField(context.byte));
                 }
             }
         }
@@ -2723,7 +2717,7 @@ impl<T: HttpHandler> Parser<T> {
                                          State::UrlEncodedValue, url_encoded_value);
                 },
                 _ => {
-                    exit_error!(self, context, ParserError::HexSequence(context.byte));
+                    exit_error!(self, context, ParserError::UrlEncodedValue(context.byte));
                 }
             }
         }

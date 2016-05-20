@@ -17,66 +17,11 @@
 // +-----------------------------------------------------------------------------------------------+
 
 use byte::is_token;
-use http1::{ HttpHandler,
-             Parser,
-             ParserError,
-             State,
-             Success };
 use std::fmt::Debug;
 
 mod byte;
 mod http1;
 mod url;
-
-pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                       state: State, length: usize) {
-    assert!(match parser.parse(handler, stream) {
-        Ok(Success::Callback(byte_count)) => {
-            assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
-            true
-        },
-        _ => false
-    });
-}
-
-pub fn assert_eof<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                  state: State, length: usize) {
-    assert!(match parser.parse(handler, stream) {
-        Ok(Success::Eof(byte_count)) => {
-            assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
-            true
-        },
-        _ => false
-    });
-}
-
-pub fn assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
--> Option<ParserError> {
-    match parser.parse(handler, stream) {
-        Err(error) => {
-            assert_eq!(parser.get_state(), State::Dead);
-            return Some(error);
-        },
-        _ => {
-            assert_eq!(parser.get_state(), State::Dead);
-            None
-        }
-    }
-}
-
-pub fn assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                       state: State, length: usize) {
-    assert!(match parser.parse(handler, stream) {
-        Ok(Success::Finished(byte_count)) => {
-            assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
-            true
-        },
-        _ => false
-    });
-}
 
 pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
@@ -227,17 +172,6 @@ pub fn loop_visible<F>(skip: &[u8], function: F) where F : Fn(u8) {
             function(n1 as u8);
         }
     }
-}
-
-pub fn setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
-    assert!(match parser.parse(handler, stream) {
-        Ok(Success::Eof(length)) => {
-            assert_eq!(length, stream.len());
-            assert_eq!(parser.get_state(), state);
-            true
-        },
-        _ => false
-    });
 }
 
 pub fn vec_eq<T: Debug + PartialEq>(vec: &[T], slice: &[T]) {
