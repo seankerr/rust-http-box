@@ -20,7 +20,8 @@
 
 use byte::hex_to_byte;
 
-use std::fmt;
+use std::{ fmt,
+           str };
 
 // -------------------------------------------------------------------------------------------------
 // STREAM MACROS
@@ -61,6 +62,26 @@ macro_rules! collect_visible {
             byte = next!($stream, $stream_index);
 
             if $stop1 == byte || $stop2 == byte {
+                break;
+            } else if is_non_visible!(byte) {
+                exit_error!($byte_error(byte));
+            }
+        }
+
+        byte
+    });
+
+    ($stream:expr, $stream_index:expr, $stop:expr, $byte_error:expr, $eof_block:block) => ({
+        let mut byte;
+
+        loop {
+            if is_eof!($stream, $stream_index) {
+                $eof_block
+            }
+
+            byte = next!($stream, $stream_index);
+
+            if $stop == byte {
                 break;
             } else if is_non_visible!(byte) {
                 exit_error!($byte_error(byte));
@@ -141,6 +162,52 @@ impl fmt::Display for DecodeError {
 
 // -------------------------------------------------------------------------------------------------
 
+/// Host types.
+pub enum Host<'a> {
+    /// Hostname host.
+    Hostname(&'a [u8]),
+
+    /// IPv4 host.
+    IPv4(&'a [u8]),
+
+    /// IPv6 host.
+    IPv6(&'a [u8])
+}
+
+impl<'a> fmt::Debug for Host<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Host::Hostname(x) => {
+                write!(formatter, "Hostname({})", str::from_utf8(x).unwrap())
+            },
+            Host::IPv4(x) => {
+                write!(formatter, "IPv4({})", str::from_utf8(x).unwrap())
+            },
+            Host::IPv6(x) => {
+                write!(formatter, "IPv6({})", str::from_utf8(x).unwrap())
+            }
+        }
+    }
+}
+
+impl<'a> fmt::Display for Host<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Host::Hostname(x) => {
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            },
+            Host::IPv4(x) => {
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            },
+            Host::IPv6(x) => {
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Query errors.
 pub enum QueryError {
     /// Invalid query field.
@@ -177,17 +244,33 @@ pub enum QuerySegment<'a> {
     Value(&'a [u8])
 }
 
+impl<'a> fmt::Debug for QuerySegment<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            QuerySegment::Field(x) => {
+                write!(formatter, "Field({})", str::from_utf8(x).unwrap())
+            },
+            QuerySegment::Flush => {
+                write!(formatter, "Flush")
+            },
+            QuerySegment::Value(x) => {
+                write!(formatter, "Value({})", str::from_utf8(x).unwrap())
+            }
+        }
+    }
+}
+
 impl<'a> fmt::Display for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Field(x) => {
-                write!(formatter, "QuerySegment::Field({:?})", x)
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
             },
             QuerySegment::Flush => {
-                write!(formatter, "QuerySegment::Flush")
+                write!(formatter, "Flush")
             },
             QuerySegment::Value(x) => {
-                write!(formatter, "QuerySegment::Flush({:?})", x)
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
             }
         }
     }
@@ -210,7 +293,10 @@ pub enum UrlError {
     Port(u8),
 
     /// Invalid query string.
-    QueryString(u8)
+    QueryString(u8),
+
+    /// Invalid scheme.
+    Scheme(u8)
 }
 
 impl fmt::Display for UrlError {
@@ -230,6 +316,9 @@ impl fmt::Display for UrlError {
             },
             UrlError::QueryString(x) => {
                 write!(formatter, "Invalid query string at {}", x)
+            },
+            UrlError::Scheme(x) => {
+                write!(formatter, "Invalid scheme at {}", x)
             }
         }
     }
@@ -243,35 +332,66 @@ pub enum UrlSegment<'a> {
     Fragment(&'a [u8]),
 
     /// Host segment.
-    Host(&'a [u8]),
+    Host(Host<'a>),
 
     /// Path segment.
     Path(&'a [u8]),
 
     /// Port segment.
-    Port(&'a [u8]),
+    Port(u16),
 
     /// Query string segment.
-    QueryString(&'a [u8])
+    QueryString(&'a [u8]),
+
+    /// Scheme segment.
+    Scheme(&'a [u8])
+}
+
+impl<'a> fmt::Debug for UrlSegment<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            UrlSegment::Fragment(x) => {
+                write!(formatter, "Fragment({})", str::from_utf8(x).unwrap())
+            },
+            UrlSegment::Host(ref x) => {
+                write!(formatter, "{:?}", *x)
+            },
+            UrlSegment::Path(x) => {
+                write!(formatter, "Path({})", str::from_utf8(x).unwrap())
+            },
+            UrlSegment::Port(x) => {
+                write!(formatter, "Port({})", x)
+            },
+            UrlSegment::QueryString(x) => {
+                write!(formatter, "QueryString({})", str::from_utf8(x).unwrap())
+            },
+            UrlSegment::Scheme(x) => {
+                write!(formatter, "Scheme({})", str::from_utf8(x).unwrap())
+            }
+        }
+    }
 }
 
 impl<'a> fmt::Display for UrlSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             UrlSegment::Fragment(x) => {
-                write!(formatter, "UrlSegment::Fragment({:?})", x)
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
             },
-            UrlSegment::Host(x) => {
-                write!(formatter, "UrlSegment::Host({:?})", x)
+            UrlSegment::Host(ref x) => {
+                write!(formatter, "{}", *x)
             },
             UrlSegment::Path(x) => {
-                write!(formatter, "UrlSegment::Path({:?})", x)
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
             },
             UrlSegment::Port(x) => {
-                write!(formatter, "UrlSegment::Port({:?})", x)
+                write!(formatter, "{}", x)
             },
             UrlSegment::QueryString(x) => {
-                write!(formatter, "UrlSegment::QueryString({:?})", x)
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            },
+            UrlSegment::Scheme(x) => {
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
             }
         }
     }
@@ -433,4 +553,23 @@ where F : FnMut(QuerySegment) {
             }
         }
     }
+}
+
+/// Parse a URL.
+pub fn parse_url<F>(stream: &[u8], mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
+    let mut mark_index   = 0;
+    let mut stream_index = 0;
+
+    // scheme
+    let mut byte = collect_visible!(stream, stream_index,
+                                    b':',
+                                    UrlError::Scheme,
+                                    {
+        exit_error!(UrlError::Scheme(stream[stream_index]));
+    });
+
+    segment_fn(UrlSegment::Scheme(&stream[mark_index..stream_index - 1]));
+
+    exit_ok!(stream_index);
 }

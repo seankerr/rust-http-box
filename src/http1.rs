@@ -23,7 +23,8 @@
 use byte::hex_to_byte;
 use byte::is_token;
 
-use std::fmt;
+use std::{ fmt,
+           str };
 
 // State flag mask.
 const FLAG_MASK: u64 = 0x7F;
@@ -630,7 +631,7 @@ pub enum Connection {
     Upgrade
 }
 
-impl fmt::Display for Connection {
+impl fmt::Debug for Connection {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Connection::None => {
@@ -649,6 +650,25 @@ impl fmt::Display for Connection {
     }
 }
 
+impl fmt::Display for Connection {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Connection::None => {
+                write!(formatter, "None")
+            },
+            Connection::Close => {
+                write!(formatter, "Close")
+            },
+            Connection::KeepAlive => {
+                write!(formatter, "KeepAlive")
+            },
+            Connection::Upgrade => {
+                write!(formatter, "Upgrade")
+            }
+        }
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 
 /// Content length.
@@ -661,7 +681,7 @@ pub enum ContentLength {
     Specified(u64)
 }
 
-impl fmt::Display for ContentLength {
+impl fmt::Debug for ContentLength {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ContentLength::None => {
@@ -669,6 +689,19 @@ impl fmt::Display for ContentLength {
             },
             ContentLength::Specified(x) => {
                 write!(formatter, "ContentLength::Specified({})", x)
+            }
+        }
+    }
+}
+
+impl fmt::Display for ContentLength {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ContentLength::None => {
+                write!(formatter, "None")
+            },
+            ContentLength::Specified(x) => {
+                write!(formatter, "{}", x)
             }
         }
     }
@@ -692,20 +725,41 @@ pub enum ContentType {
     Other(Vec<u8>),
 }
 
-impl fmt::Display for ContentType {
+impl fmt::Debug for ContentType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ContentType::None => {
-                write!(formatter, "ContentType::None")
+                write!(formatter, "None")
             },
             ContentType::Multipart(ref x) => {
-                write!(formatter, "ContentType::Multipart({:?})", x)
+                write!(formatter, "ContentType::Multipart({})",
+                       str::from_utf8((*x).as_slice()).unwrap())
             },
             ContentType::UrlEncoded => {
                 write!(formatter, "ContentType::UrlEncoded")
             },
             ContentType::Other(ref x) => {
-                write!(formatter, "ContentType::Other({:?})", x)
+                write!(formatter, "ContentType::Other({})",
+                       str::from_utf8((*x).as_slice()).unwrap())
+            }
+        }
+    }
+}
+
+impl fmt::Display for ContentType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ContentType::None => {
+                write!(formatter, "None")
+            },
+            ContentType::Multipart(ref x) => {
+                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
+            },
+            ContentType::UrlEncoded => {
+                write!(formatter, "UrlEncoded")
+            },
+            ContentType::Other(ref x) => {
+                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
             }
         }
     }
@@ -1173,7 +1227,7 @@ pub enum TransferEncoding {
     Other(Vec<u8>)
 }
 
-impl fmt::Display for TransferEncoding {
+impl fmt::Debug for TransferEncoding {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             TransferEncoding::None => {
@@ -1192,7 +1246,33 @@ impl fmt::Display for TransferEncoding {
                 write!(formatter, "TransferEncoding::Gzip")
             },
             TransferEncoding::Other(ref x) => {
-                write!(formatter, "TransferEncoding::Other({:?})", x)
+                write!(formatter, "TransferEncoding::Other({})",
+                       str::from_utf8((*x).as_slice()).unwrap())
+            }
+        }
+    }
+}
+
+impl fmt::Display for TransferEncoding {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TransferEncoding::None => {
+                write!(formatter, "None")
+            },
+            TransferEncoding::Chunked => {
+                write!(formatter, "Chunked")
+            },
+            TransferEncoding::Compress => {
+                write!(formatter, "Compress")
+            },
+            TransferEncoding::Deflate => {
+                write!(formatter, "Deflate")
+            },
+            TransferEncoding::Gzip => {
+                write!(formatter, "Gzip")
+            },
+            TransferEncoding::Other(ref x) => {
+                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
             }
         }
     }
@@ -2926,7 +3006,7 @@ pub enum Success {
     Finished(usize)
 }
 
-impl fmt::Display for Success {
+impl fmt::Debug for Success {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Success::Callback(length) => {
@@ -2937,6 +3017,22 @@ impl fmt::Display for Success {
             },
             Success::Finished(length) => {
                 write!(formatter, "Success::Finished({})", length)
+            }
+        }
+    }
+}
+
+impl fmt::Display for Success {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Success::Callback(length) => {
+                write!(formatter, "{}", length)
+            },
+            Success::Eof(length) => {
+                write!(formatter, "{}", length)
+            },
+            Success::Finished(length) => {
+                write!(formatter, "{}", length)
             }
         }
     }
