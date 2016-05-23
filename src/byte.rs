@@ -52,7 +52,7 @@ macro_rules! is_non_visible {
     )
 }
 
-/// Indicates that a byte is a 7-bit non-control character, with the exception of space.
+/// Indicates that a byte is a 7-bit, is a non-control character, and is not a space.
 #[macro_export]
 macro_rules! is_visible {
     ($byte:expr) => (

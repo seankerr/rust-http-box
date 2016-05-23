@@ -21,10 +21,10 @@ use url::*;
 
 macro_rules! url {
     ($stream:expr,
-     $scheme:expr, $hostname:expr, $ipv4:expr, $ipv6:expr, $port:expr, $path:expr,
+     $scheme:expr, $userinfo:expr, $hostname:expr, $ipv4:expr, $ipv6:expr, $port:expr, $path:expr,
      $query_string:expr, $fragment:expr,
-     $has_scheme:expr, $has_hostname:expr, $has_ipv4:expr, $has_ipv6:expr, $has_port:expr,
-     $has_path:expr, $has_query_string:expr, $has_fragment:expr, $length:expr) => ({
+     $has_scheme:expr, $has_userinfo:expr, $has_hostname:expr, $has_ipv4:expr, $has_ipv6:expr,
+     $has_port:expr, $has_path:expr, $has_query_string:expr, $has_fragment:expr, $length:expr) => ({
         let mut fragment         = vec![];
         let mut has_fragment     = false;
         let mut has_ipv4         = false;
@@ -34,6 +34,7 @@ macro_rules! url {
         let mut has_port         = false;
         let mut has_query_string = false;
         let mut has_scheme       = false;
+        let mut has_userinfo     = false;
         let mut hostname         = vec![];
         let mut ipv4             = vec![];
         let mut ipv6             = vec![];
@@ -41,6 +42,7 @@ macro_rules! url {
         let mut port             = 0;
         let mut query_string     = vec![];
         let mut scheme           = vec![];
+        let mut userinfo         = vec![];
 
         assert!(match parse_url($stream,
                                 |segment| {
@@ -80,6 +82,10 @@ macro_rules! url {
                                         UrlSegment::Scheme(x) => {
                                             has_scheme = true;
                                             scheme.extend_from_slice(x);
+                                        },
+                                        UrlSegment::UserInfo(x) => {
+                                            has_userinfo = true;
+                                            userinfo.extend_from_slice(x);
                                         }
                                     }
                                 }) {
@@ -92,6 +98,7 @@ macro_rules! url {
                 assert_eq!(port, $port);
                 assert_eq!(query_string, $query_string);
                 assert_eq!(scheme, $scheme);
+                assert_eq!(userinfo, $userinfo);
                 assert_eq!(has_fragment, $has_fragment);
                 assert_eq!(has_hostname, $has_hostname);
                 assert_eq!(has_ipv4, $has_ipv4);
@@ -100,6 +107,7 @@ macro_rules! url {
                 assert_eq!(has_port, $has_port);
                 assert_eq!(has_query_string, $has_query_string);
                 assert_eq!(has_scheme, $has_scheme);
+                assert_eq!(has_userinfo, $has_userinfo);
                 true
             },
             _ => false
@@ -109,7 +117,7 @@ macro_rules! url {
 
 macro_rules! url_error {
     ($stream:expr, $error:path, $byte:expr) => ({
-        assert!(match parse_url($stream, |segment| {}) {
+        assert!(match parse_url($stream, |_| {}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
@@ -117,6 +125,13 @@ macro_rules! url_error {
             _ => false
         });
     });
+}
+
+#[test]
+fn fragment() {
+    url!(b"#fragment",
+         b"", b"", b"", b"", b"", 0, b"", b"", b"fragment",
+         false, false, false, false, false, false, false, false, true, 9);
 }
 
 #[test]
@@ -129,16 +144,16 @@ fn fragment_byte_check() {
     // valid bytes
     loop_visible(b"", |byte| {
         url!(&[b'/', b'#', byte],
-             b"", b"", b"", b"", 0, b"/", b"", &[byte],
-             false, false, false, false, false, true, false, true, 3);
+             b"", b"", b"", b"", b"", 0, b"/", b"", &[byte],
+             false, false, false, false, false, false, true, false, true, 3);
     });
 }
 
 #[test]
 fn path() {
     url!(b"/path",
-         b"", b"", b"", b"", 0, b"/path", b"", b"",
-         false, false, false, false, false, true, false, false, 5);
+         b"", b"", b"", b"", b"", 0, b"/path", b"", b"",
+         false, false, false, false, false, false, true, false, false, 5);
 }
 
 #[test]
@@ -151,30 +166,37 @@ fn path_byte_check() {
     // valid bytes
     loop_visible(b"/?#", |byte| {
         url!(&[b'/', byte],
-             b"", b"", b"", b"", 0, &[b'/', byte], b"", b"",
-             false, false, false, false, false, true, false, false, 2);
+             b"", b"", b"", b"", b"", 0, &[b'/', byte], b"", b"",
+             false, false, false, false, false, false, true, false, false, 2);
     });
 }
 
 #[test]
 fn path_query_string() {
     url!(b"/path?query-string",
-         b"", b"", b"", b"", 0, b"/path", b"query-string", b"",
-         false, false, false, false, false, true, true, false, 18);
+         b"", b"", b"", b"", b"", 0, b"/path", b"query-string", b"",
+         false, false, false, false, false, false, true, true, false, 18);
 }
 
 #[test]
 fn path_fragment() {
     url!(b"/path#fragment-data",
-         b"", b"", b"", b"", 0, b"/path", b"", b"fragment-data",
-         false, false, false, false, false, true, false, true, 19);
+         b"", b"", b"", b"", b"", 0, b"/path", b"", b"fragment-data",
+         false, false, false, false, false, false, true, false, true, 19);
 }
 
 #[test]
 fn path_query_string_fragment() {
     url!(b"/path?query-string#fragment-data",
-         b"", b"", b"", b"", 0, b"/path", b"query-string", b"fragment-data",
-         false, false, false, false, false, true, true, true, 32);
+         b"", b"", b"", b"", b"", 0, b"/path", b"query-string", b"fragment-data",
+         false, false, false, false, false, false, true, true, true, 32);
+}
+
+#[test]
+fn query_string() {
+    url!(b"?query-string",
+         b"", b"", b"", b"", b"", 0, b"", b"query-string", b"",
+         false, false, false, false, false, false, false, true, false, 13);
 }
 
 #[test]
@@ -187,7 +209,7 @@ fn query_string_byte_check() {
     // valid bytes
     loop_visible(b"#", |byte| {
         url!(&[b'/', b'?', byte],
-             b"", b"", b"", b"", 0, b"/", &[byte], b"",
-             false, false, false, false, false, true, true, false, 3);
+             b"", b"", b"", b"", b"", 0, b"/", &[byte], b"",
+             false, false, false, false, false, false, true, true, false, 3);
     });
 }
