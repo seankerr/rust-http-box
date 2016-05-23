@@ -53,6 +53,32 @@ macro_rules! stream_collect_digits {
     });
 }
 
+/// Collect a specified length of bytes.
+///
+/// Unlike other collection macros, this macro assumes you've checked the length of the stream
+/// prior to supplying the length.
+///
+/// This macro does not verify each byte is 7-bit. This macro works differently than other
+/// collection macros, due to needing extended flexibility that other collection styles do not
+/// offer.
+///
+/// Due to the way this macro works, EOF returns an error, and the stop expression is an error
+/// check, which causes an error to be returned.
+#[macro_export]
+macro_rules! stream_collect_length {
+    ($context:expr, $error:expr, $length:expr, $stop:expr) => ({
+        stream_collect!($context, {
+            return Err($error($context.byte));
+        }, {
+            if $stop {
+                return Err($error($context.byte));
+            } else if $context.stream_index == $context.mark_index + $length {
+                break;
+            }
+        });
+    });
+}
+
 /// Collect all token characters.
 ///
 /// Allow a pre-byte check that stops collection and returns the current byte.
@@ -101,6 +127,52 @@ macro_rules! stream_collect_visible {
     });
 }
 
+/// Collect a specified amount of visible characters.
+#[macro_export]
+macro_rules! stream_collect_visible_length {
+    ($context:expr, $error:expr, $eof:expr, $length:expr) => ({
+        let length = $context.stream_index + $length;
+
+        stream_collect_visible!($context, $error, $eof, $context.stream_index == length);
+    });
+}
+
+/// Retrieve slice of collected bytes.
+macro_rules! stream_collected_bytes {
+    ($context:expr) => (
+        &$context.stream[$context.mark_index..$context.stream_index];
+    );
+}
+
+/// Retrieve slice of collected bytes ignoring the very last byte.
+macro_rules! stream_collected_bytes_ignore {
+    ($context:expr) => (
+        &$context.stream[$context.mark_index..$context.stream_index - 1];
+    );
+}
+
+/// Find a pattern within a stream.
+macro_rules! stream_find {
+    ($context:expr, $pattern:expr) => ({
+        let mut index = None;
+
+        'outer:
+        for s in 0..$context.stream.len() {
+            for p in 0..$pattern.len() {
+                if $context.stream.len() <= s + p || $pattern[p] != $context.stream[s + p] {
+                    break;
+                } else if $pattern.len() == p + 1 {
+                    index = Some(s);
+
+                    break 'outer;
+                }
+            }
+        }
+
+        index
+    });
+}
+
 /// Indicates that a specified amount of bytes are available.
 macro_rules! stream_has_bytes {
     ($context:expr, $length:expr) => (
@@ -116,9 +188,16 @@ macro_rules! stream_is_eof {
 }
 
 /// Jump a specified amount of bytes.
-macro_rules! stream_jump_bytes {
+macro_rules! stream_jump {
     ($context:expr, $length:expr) => ({
         $context.stream_index += $length;
+    });
+}
+
+/// Mark the current stream index as the mark index.
+macro_rules! stream_mark {
+    ($context:expr) => ({
+        $context.mark_index = $context.stream_index;
     });
 }
 
@@ -131,7 +210,7 @@ macro_rules! stream_next {
 }
 
 /// Peek at a slice of available bytes.
-macro_rules! stream_peek_bytes {
+macro_rules! stream_peek {
     ($context:expr, $length:expr) => (
         &$context.stream[$context.stream_index..$context.stream_index + $length]
     );
