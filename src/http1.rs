@@ -178,7 +178,7 @@ macro_rules! callback {
     });
 
     ($parser:expr, $context:expr, $function:ident, $block:block) => ({
-        let slice = collected_bytes!($context);
+        let slice = stream_collected_bytes!($context);
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
@@ -193,10 +193,10 @@ macro_rules! callback {
 }
 
 // Callback EOF expression.
-macro_rules! callback_eof_expr {
+macro_rules! callback_eos_expr {
     ($parser:expr, $context:expr, $function:ident) => ({
         callback!($parser, $context, $function, {
-            exit_eof!($parser, $context);
+            exit_eos!($parser, $context);
         });
     });
 }
@@ -285,29 +285,12 @@ macro_rules! callback_transition_fast {
     });
 }
 
-// Collect base macro.
-macro_rules! collect {
-    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
-        loop {
-            if stream_is_eof!($context) {
-                callback!($parser, $context, $function, {
-                    exit_eof!($parser, $context);
-                });
-            }
-
-            if $block {
-                break;
-            }
-        }
-    });
-}
-
 // Collect remaining bytes until content length is zero.
 //
 // Use the upper 40 bits as the content length.
 macro_rules! collect_content_length {
     ($parser:expr, $context:expr) => ({
-        exit_if_eof!($parser, $context);
+        exit_if_eos!($parser, $context);
 
         if stream_has_bytes!($context, get_upper40!($parser) as usize) {
             $context.stream_index += get_upper40!($parser) as usize;
@@ -329,7 +312,7 @@ macro_rules! collect_content_length {
 macro_rules! collect_quoted {
     ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
         stream_collect!($context,
-            callback_eof_expr!($parser, $context, $function),
+            callback_eos_expr!($parser, $context, $function),
             if b'"' == $context.byte || b'\\' == $context.byte {
                 break;
             } else if is_non_visible!($context.byte) && $context.byte != b' ' {
@@ -339,74 +322,12 @@ macro_rules! collect_quoted {
     });
 }
 
-// Collect all bytes that are considered token.
-macro_rules! collect_tokens {
-    ($parser:expr, $context:expr, $error:expr, $function:ident, $stop1:expr, $stop2:expr,
-     $stop3:expr) => ({
-        stream_collect_tokens!($context, $error,
-            callback_eof_expr!($parser, $context, $function),
-               $stop1 == $context.byte
-            || $stop2 == $context.byte
-            || $stop3 == $context.byte
-        );
-    });
-
-    ($parser:expr, $context:expr, $error:expr, $function:ident, $stop:expr) => ({
-        stream_collect_tokens!($context, $error,
-            callback_eof_expr!($parser, $context, $function),
-            $stop == $context.byte
-        );
-    });
-}
-
-// Collect all visible 7-bit bytes, which is any non-control byte with the exception of space.
-macro_rules! collect_visible {
-    ($parser:expr, $context:expr, $error:expr, $function:ident, $stop1:expr, $stop2:expr,
-     $stop3:expr, $stop4:expr, $stop5:expr) => ({
-        stream_collect_visible!($context, $error,
-            callback_eof_expr!($parser, $context, $function),
-               $stop1 == $context.byte
-            || $stop2 == $context.byte
-            || $stop3 == $context.byte
-            || $stop4 == $context.byte
-            || $stop5 == $context.byte
-        );
-    });
-
-    ($parser:expr, $context:expr, $error:expr, $function:ident, $stop1:expr, $stop2:expr) => ({
-        stream_collect_visible!($context, $error,
-            callback_eof_expr!($parser, $context, $function),
-               $stop1 == $context.byte
-            || $stop2 == $context.byte
-        );
-    });
-
-    ($parser:expr, $context:expr, $error:expr, $function:ident, $stop:expr) => ({
-        stream_collect_visible!($context, $error,
-            callback_eof_expr!($parser, $context, $function),
-            $stop == $context.byte
-        );
-    });
-
-    ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
-        stream_collect_visible!($context, $error,
-                                callback_eof_expr!($parser, $context, $function));
-    });
-}
-
-// Retrieve slice of collected bytes.
-macro_rules! collected_bytes {
-    ($context:expr) => (
-        &$context.stream[$context.mark_index..$context.stream_index];
-    );
-}
-
 // Consume all linear white space until a non-linear white space byte is found.
 macro_rules! consume_linear_space {
     ($parser:expr, $context:expr) => ({
         loop {
-            if stream_is_eof!($context) {
-                exit_eof!($parser, $context);
+            if stream_is_eos!($context) {
+                exit_eos!($parser, $context);
             }
 
             stream_next!($context);
@@ -428,7 +349,7 @@ macro_rules! exit_callback {
 }
 
 // Exit parser function with an EOF status.
-macro_rules! exit_eof {
+macro_rules! exit_eos {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Eof($context.stream_index)));
     });
@@ -442,10 +363,10 @@ macro_rules! exit_finished {
 }
 
 // Exit parser function with an EOF status if the stream is EOF, otherwise do nothing.
-macro_rules! exit_if_eof {
+macro_rules! exit_if_eos {
     ($parser:expr, $context:expr) => ({
-        if stream_is_eof!($context) {
-            exit_eof!($parser, $context);
+        if stream_is_eos!($context) {
+            exit_eos!($parser, $context);
         }
     });
 }
@@ -1373,7 +1294,7 @@ pub struct Parser<T: HttpHandler> {
 // Chunk size macro.
 macro_rules! chunk_size {
     ($parser:expr, $context:expr) => ({
-        exit_if_eof!($parser, $context);
+        exit_if_eos!($parser, $context);
         stream_next!($context);
 
         match hex_to_byte(&[$context.byte]) {
@@ -1511,7 +1432,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn pre_headers1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {
@@ -1524,7 +1445,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn pre_headers2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\r' {
@@ -1551,7 +1472,7 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         macro_rules! field {
             ($header:expr, $length:expr) => ({
-                stream_jump_bytes!(context, $length);
+                stream_jump!(context, $length);
 
                 callback_transition_fast!(self, context,
                                           on_header_field, $header,
@@ -1563,64 +1484,64 @@ impl<T: HttpHandler> Parser<T> {
             // have enough bytes to compare common header fields immediately, without collecting
             // individual tokens
             if context.byte == b'C' {
-                if b"Connection:" == stream_peek_bytes!(context, 11) {
+                if b"Connection:" == stream_peek!(context, 11) {
                     field!(b"Connection", 11);
-                } else if b"Content-Type:" == stream_peek_bytes!(context, 13) {
+                } else if b"Content-Type:" == stream_peek!(context, 13) {
                     field!(b"Content-Type", 13);
-                } else if b"Content-Length:" == stream_peek_bytes!(context, 15) {
+                } else if b"Content-Length:" == stream_peek!(context, 15) {
                     field!(b"Content-Length", 15);
-                } else if b"Cookie:" == stream_peek_bytes!(context, 7) {
+                } else if b"Cookie:" == stream_peek!(context, 7) {
                     field!(b"Cookie", 7);
-                } else if b"Cache-Control:" == stream_peek_bytes!(context, 14) {
+                } else if b"Cache-Control:" == stream_peek!(context, 14) {
                     field!(b"Cache-Control", 14);
-                } else if b"Content-Security-Policy:" == stream_peek_bytes!(context, 24) {
+                } else if b"Content-Security-Policy:" == stream_peek!(context, 24) {
                     field!(b"Content-Security-Policy", 24);
                 }
             } else if context.byte == b'A' {
-                if b"Accept:" == stream_peek_bytes!(context, 7) {
+                if b"Accept:" == stream_peek!(context, 7) {
                     field!(b"Accept", 7);
-                } else if b"Accept-Charset:" == stream_peek_bytes!(context, 15) {
+                } else if b"Accept-Charset:" == stream_peek!(context, 15) {
                     field!(b"Accept-Charset", 15);
-                } else if b"Accept-Encoding:" == stream_peek_bytes!(context, 16) {
+                } else if b"Accept-Encoding:" == stream_peek!(context, 16) {
                     field!(b"Accept-Encoding", 16);
-                } else if b"Accept-Language:" == stream_peek_bytes!(context, 16) {
+                } else if b"Accept-Language:" == stream_peek!(context, 16) {
                     field!(b"Accept-Language", 16);
-                } else if b"Authorization:" == stream_peek_bytes!(context, 14) {
+                } else if b"Authorization:" == stream_peek!(context, 14) {
                     field!(b"Authorization", 14);
                 }
             } else if context.byte == b'L' {
-                if b"Location:" == stream_peek_bytes!(context, 9) {
+                if b"Location:" == stream_peek!(context, 9) {
                     field!(b"Location", 9);
-                } else if b"Last-Modified:" == stream_peek_bytes!(context, 14) {
+                } else if b"Last-Modified:" == stream_peek!(context, 14) {
                     field!(b"Last-Modified", 14);
                 }
-            } else if context.byte == b'P' && b"Pragma:" == stream_peek_bytes!(context, 7) {
+            } else if context.byte == b'P' && b"Pragma:" == stream_peek!(context, 7) {
                 field!(b"Pragma", 7);
-            } else if context.byte == b'S' && b"Set-Cookie:" == stream_peek_bytes!(context, 11) {
+            } else if context.byte == b'S' && b"Set-Cookie:" == stream_peek!(context, 11) {
                 field!(b"Set-Cookie", 11);
-            } else if context.byte == b'T' && b"Transfer-Encoding:" == stream_peek_bytes!(context, 18) {
+            } else if context.byte == b'T' && b"Transfer-Encoding:" == stream_peek!(context, 18) {
                 field!(b"Transfer-Encoding", 18);
             } else if context.byte == b'U' {
-                if b"User-Agent:" == stream_peek_bytes!(context, 11) {
+                if b"User-Agent:" == stream_peek!(context, 11) {
                     field!(b"User-Agent", 11);
-                } else if b"Upgrade:" == stream_peek_bytes!(context, 8) {
+                } else if b"Upgrade:" == stream_peek!(context, 8) {
                     field!(b"Upgrade", 8);
                 }
             } else if context.byte == b'X' {
-                if b"X-Powered-By:" == stream_peek_bytes!(context, 13) {
+                if b"X-Powered-By:" == stream_peek!(context, 13) {
                     field!(b"X-Powered-By", 13);
-                } else if b"X-Forwarded-For:" == stream_peek_bytes!(context, 16) {
+                } else if b"X-Forwarded-For:" == stream_peek!(context, 16) {
                     field!(b"X-Forwarded-For", 16);
-                } else if b"X-Forwarded-Host:" == stream_peek_bytes!(context, 17) {
+                } else if b"X-Forwarded-Host:" == stream_peek!(context, 17) {
                     field!(b"X-Forwarded-Host", 17);
-                } else if b"X-XSS-Protection:" == stream_peek_bytes!(context, 17) {
+                } else if b"X-XSS-Protection:" == stream_peek!(context, 17) {
                     field!(b"X-XSS-Protection", 17);
-                } else if b"X-WebKit-CSP:" == stream_peek_bytes!(context, 13) {
+                } else if b"X-WebKit-CSP:" == stream_peek!(context, 13) {
                     field!(b"X-WebKit-CSP", 13);
-                } else if b"X-Content-Security-Policy:" == stream_peek_bytes!(context, 26) {
+                } else if b"X-Content-Security-Policy:" == stream_peek!(context, 26) {
                     field!(b"X-Content-Security-Policy", 26);
                 }
-            } else if context.byte == b'W' && b"WWW-Authenticate:" == stream_peek_bytes!(context, 17) {
+            } else if context.byte == b'W' && b"WWW-Authenticate:" == stream_peek!(context, 17) {
                 field!(b"WWW-Authenticate", 17);
             }
         }
@@ -1631,8 +1552,9 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(self, context, ParserError::HeaderField, on_header_field,
-                        b':');
+        stream_collect_tokens!(context, ParserError::HeaderField,
+                               callback_eos_expr!(self, context, on_header_field),
+                               context.byte == b':');
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_field,
@@ -1656,8 +1578,9 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, ParserError::HeaderValue, on_header_value,
-                         b'\r');
+        stream_collect_visible!(context, ParserError::HeaderValue,
+                                callback_eos_expr!(self, context, on_header_value),
+                                context.byte == b'\r');
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_value,
@@ -1683,7 +1606,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn header_escaped_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         callback_transition!(self, context,
@@ -1694,11 +1617,11 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        if stream_has_bytes!(context, 2) && b"\r\n" == stream_peek_bytes!(context, 2) {
+        if stream_has_bytes!(context, 2) && b"\r\n" == stream_peek!(context, 2) {
             transition_fast!(self, context, State::Newline3, newline3);
         }
 
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\r' {
@@ -1711,7 +1634,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {
@@ -1724,7 +1647,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn newline3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\r' {
@@ -1743,7 +1666,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn newline4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {
@@ -1783,7 +1706,7 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         macro_rules! method {
             ($method:expr, $length:expr) => (
-                stream_jump_bytes!(context, $length);
+                stream_jump!(context, $length);
 
                 callback_transition_fast!(self, context,
                                           on_method, $method,
@@ -1795,33 +1718,34 @@ impl<T: HttpHandler> Parser<T> {
             // have enough bytes to compare all known methods immediately, without collecting
             // individual tokens
 
-            // get the first byte, then replay it (for use with stream_peek_bytes!())
+            // get the first byte, then replay it (for use with stream_peek!())
             stream_next!(context);
             stream_replay!(context);
 
-            if context.byte == b'G' && b"GET " == stream_peek_bytes!(context, 4) {
+            if context.byte == b'G' && b"GET " == stream_peek!(context, 4) {
                 method!(b"GET", 4);
             } else if context.byte == b'P' {
-                if b"POST " == stream_peek_bytes!(context, 5) {
+                if b"POST " == stream_peek!(context, 5) {
                     method!(b"POST", 5);
-                } else if b"PUT " == stream_peek_bytes!(context, 4) {
+                } else if b"PUT " == stream_peek!(context, 4) {
                     method!(b"PUT", 4);
                 }
-            } else if context.byte == b'D' && b"DELETE " == stream_peek_bytes!(context, 7) {
+            } else if context.byte == b'D' && b"DELETE " == stream_peek!(context, 7) {
                 method!(b"DELETE", 7);
-            } else if context.byte == b'C' && b"CONNECT " == stream_peek_bytes!(context, 8) {
+            } else if context.byte == b'C' && b"CONNECT " == stream_peek!(context, 8) {
                 method!(b"CONNECT", 8);
-            } else if context.byte == b'O' && b"OPTIONS " == stream_peek_bytes!(context, 8) {
+            } else if context.byte == b'O' && b"OPTIONS " == stream_peek!(context, 8) {
                 method!(b"OPTIONS", 8);
-            } else if context.byte == b'H' && b"HEAD " == stream_peek_bytes!(context, 5) {
+            } else if context.byte == b'H' && b"HEAD " == stream_peek!(context, 5) {
                 method!(b"HEAD", 5);
-            } else if context.byte == b'T' && b"TRACE " == stream_peek_bytes!(context, 6) {
+            } else if context.byte == b'T' && b"TRACE " == stream_peek!(context, 6) {
                 method!(b"TRACE", 6);
             }
         }
 
-        collect_tokens!(self, context, ParserError::Method, on_method,
-                        b' ');
+        stream_collect_tokens!(context, ParserError::Method,
+                               callback_eos_expr!(self, context, on_method),
+                               context.byte == b' ');
 
         stream_replay!(context);
 
@@ -1842,8 +1766,9 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, ParserError::Url, on_url,
-                         b' ');
+        stream_collect_visible!(context, ParserError::Url,
+                                callback_eos_expr!(self, context, on_url),
+                                context.byte == b' ');
 
         stream_replay!(context);
 
@@ -1866,7 +1791,7 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
-                stream_jump_bytes!(context, $length);
+                stream_jump!(context, $length);
                 set_state!(self, State::PreHeaders1, pre_headers1);
 
                 if context.handler.on_version($major, $minor) {
@@ -1880,16 +1805,16 @@ impl<T: HttpHandler> Parser<T> {
         if stream_has_bytes!(context, 9) {
             // have enough bytes to compare all known versions immediately, without collecting
             // individual tokens
-            if b"HTTP/1.1\r" == stream_peek_bytes!(context, 9) {
+            if b"HTTP/1.1\r" == stream_peek!(context, 9) {
                 version!(1, 1, 9);
-            } else if b"HTTP/2.0\r" == stream_peek_bytes!(context, 9) {
+            } else if b"HTTP/2.0\r" == stream_peek!(context, 9) {
                 version!(2, 0, 9);
-            } else if b"HTTP/1.0\r" == stream_peek_bytes!(context, 9) {
+            } else if b"HTTP/1.0\r" == stream_peek!(context, 9) {
                 version!(1, 0, 9);
             }
         }
 
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'H' || context.byte == b'h' {
@@ -1902,7 +1827,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn request_http2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
@@ -1915,7 +1840,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn request_http3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
@@ -1928,7 +1853,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn request_http4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'P' || context.byte == b'p' {
@@ -1941,7 +1866,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn request_http5(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'/' {
@@ -1961,7 +1886,7 @@ impl<T: HttpHandler> Parser<T> {
         stream_collect_digits!(context, ParserError::Version, digit, 999, {
             set_lower16!(self, digit as u16);
 
-            exit_eof!(self, context);
+            exit_eos!(self, context);
         });
 
         set_lower16!(self, digit as u16);
@@ -1981,7 +1906,7 @@ impl<T: HttpHandler> Parser<T> {
         stream_collect_digits!(context, ParserError::Version, digit, 999, {
             set_upper40!(self, digit);
 
-            exit_eof!(self, context);
+            exit_eos!(self, context);
         });
 
         set_state!(self, State::PreHeaders1, pre_headers1);
@@ -2011,7 +1936,7 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
-                stream_jump_bytes!(context, $length);
+                stream_jump!(context, $length);
                 set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
                 if context.handler.on_version($major, $minor) {
@@ -2025,16 +1950,16 @@ impl<T: HttpHandler> Parser<T> {
         if stream_has_bytes!(context, 9) {
             // have enough bytes to compare all known versions immediately, without collecting
             // individual tokens
-            if b"HTTP/1.1 " == stream_peek_bytes!(context, 9) {
+            if b"HTTP/1.1 " == stream_peek!(context, 9) {
                 version!(1, 1, 9);
-            } else if b"HTTP/2.0 " == stream_peek_bytes!(context, 9) {
+            } else if b"HTTP/2.0 " == stream_peek!(context, 9) {
                 version!(2, 0, 9);
-            } else if b"HTTP/1.0 " == stream_peek_bytes!(context, 9) {
+            } else if b"HTTP/1.0 " == stream_peek!(context, 9) {
                 version!(1, 0, 9);
             }
         }
 
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'H' || context.byte == b'h' {
@@ -2047,7 +1972,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn response_http2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
@@ -2060,7 +1985,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn response_http3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'T' || context.byte == b't' {
@@ -2073,7 +1998,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn response_http4(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'P' || context.byte == b'p' {
@@ -2086,7 +2011,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn response_http5(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'/' {
@@ -2106,7 +2031,7 @@ impl<T: HttpHandler> Parser<T> {
         stream_collect_digits!(context, ParserError::Version, digit, 999, {
             set_lower16!(self, digit as u16);
 
-            exit_eof!(self, context);
+            exit_eos!(self, context);
         });
 
         set_lower16!(self, digit as u16);
@@ -2126,7 +2051,7 @@ impl<T: HttpHandler> Parser<T> {
         stream_collect_digits!(context, ParserError::Version, digit, 999, {
             set_upper40!(self, digit);
 
-            exit_eof!(self, context);
+            exit_eos!(self, context);
         });
 
         set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
@@ -2161,7 +2086,7 @@ impl<T: HttpHandler> Parser<T> {
 
         stream_collect_digits!(context, ParserError::StatusCode, digit, 999, {
             set_upper40!(self, digit);
-            exit_eof!(self, context);
+            exit_eos!(self, context);
         });
 
         stream_replay!(context);
@@ -2186,13 +2111,15 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect!(self, context, on_status, {
-            stream_next!(context);
-
+        stream_collect!(context, {
+            callback!(self, context, on_status, {
+                exit_eos!(self, context);
+            });
+        }, {
             if context.byte == b'\r' {
-                true
+                break;
             } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
-                false
+                // do nothing
             } else {
                 return Err(ParserError::Status(context.byte));
             }
@@ -2229,13 +2156,13 @@ impl<T: HttpHandler> Parser<T> {
             }
         }
 
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn content(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
@@ -2247,8 +2174,9 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(self, context, ParserError::ChunkExtensionName, on_chunk_extension_name,
-                        b'=');
+        stream_collect_tokens!(context, ParserError::ChunkExtensionName,
+                               callback_eos_expr!(self, context, on_chunk_extension_name),
+                               context.byte == b'=');
 
         callback_ignore_transition_fast!(self, context,
                                          on_chunk_extension_name,
@@ -2258,8 +2186,11 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(self, context, ParserError::ChunkExtensionValue, on_chunk_extension_value,
-                        b'\r', b';', b'"');
+        stream_collect_tokens!(context, ParserError::ChunkExtensionValue,
+                               callback_eos_expr!(self, context, on_chunk_extension_value),
+                                  context.byte == b'\r'
+                               || context.byte == b';'
+                               || context.byte == b'"');
 
         match context.byte {
             b'\r' => {
@@ -2300,7 +2231,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_extension_escaped_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if is_visible!(context.byte) || context.byte == b' ' {
@@ -2316,7 +2247,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_extension_semi_colon(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b';' {
@@ -2331,7 +2262,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_size_newline(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {
@@ -2358,7 +2289,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_data_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\r' {
@@ -2371,7 +2302,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_data_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {
@@ -2384,44 +2315,49 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
     fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, ParserError::UrlEncodedField, on_url_encoded_field,
-                         b'=', b'%', b'&', b'+', b'\r');
+        stream_collect_visible!(context, ParserError::UrlEncodedField,
+                                callback_eos_expr!(self, context, on_url_encoded_field),
+                                   context.byte == b'='
+                                || context.byte == b'%'
+                                || context.byte == b'&'
+                                || context.byte == b'+'
+                                || context.byte == b'\r');
 
         match context.byte {
             b'=' => {
@@ -2467,9 +2403,9 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_field_hex(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if stream_has_bytes!(context, 2) {
-            stream_jump_bytes!(context, 2);
+            stream_jump!(context, 2);
 
-            match hex_to_byte(collected_bytes!(context)) {
+            match hex_to_byte(stream_collected_bytes!(context)) {
                 Some(byte) => {
                     callback_transition!(self, context,
                                          on_url_encoded_field, &[byte],
@@ -2481,7 +2417,7 @@ impl<T: HttpHandler> Parser<T> {
             }
         }
 
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
@@ -2495,8 +2431,13 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(self, context, ParserError::UrlEncodedValue, on_url_encoded_value,
-                         b'%', b'&', b'+', b'\r', b'=');
+        stream_collect_visible!(context, ParserError::UrlEncodedValue,
+                                callback_eos_expr!(self, context, on_url_encoded_value),
+                                   context.byte == b'%'
+                                || context.byte == b'&'
+                                || context.byte == b'+'
+                                || context.byte == b'\r'
+                                || context.byte == b'=');
 
         match context.byte {
             b'%' => {
@@ -2531,9 +2472,9 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_value_hex(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if stream_has_bytes!(context, 2) {
-            stream_jump_bytes!(context, 2);
+            stream_jump!(context, 2);
 
-            match hex_to_byte(collected_bytes!(context)) {
+            match hex_to_byte(stream_collected_bytes!(context)) {
                 Some(byte) => {
                     callback_transition!(self, context,
                                          on_url_encoded_value, &[byte],
@@ -2545,7 +2486,7 @@ impl<T: HttpHandler> Parser<T> {
             }
         }
 
-        exit_eof!(self, context);
+        exit_eos!(self, context);
     }
 
     #[inline]
@@ -2563,7 +2504,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn finished_newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\r' {
@@ -2576,7 +2517,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn finished_newline2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_if_eof!(self, context);
+        exit_if_eos!(self, context);
         stream_next!(context);
 
         if context.byte == b'\n' {

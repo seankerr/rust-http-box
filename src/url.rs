@@ -27,205 +27,22 @@ use std::{ fmt,
 // STREAM MACROS
 // -------------------------------------------------------------------------------------------------
 
-// Collect digits as a single numerical value.
-macro_rules! collect_digits {
-    ($stream:expr, $stream_index:expr, $digit:expr, $max:expr, $byte_error:expr,
-     $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if is_digit!(byte) {
-                $digit *= 10;
-                $digit += (byte - b'0') as u32;
-
-                if $digit > $max {
-                    exit_error!($byte_error(byte));
-                }
-            } else {
-                break;
-            }
-        }
-
-        byte
-    });
-}
-
-// Collect all visible 7-bit bytes, which is any non-control byte with the exception of space.
-macro_rules! collect_visible {
-    ($stream:expr, $stream_index:expr, $stop1:expr, $stop2:expr, $stop3:expr, $stop4:expr,
-     $byte_error:expr, $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if $stop1 == byte || $stop2 == byte || $stop3 == byte || $stop4 == byte {
-                break;
-            } else if is_non_visible!(byte) {
-                exit_error!($byte_error(byte));
-            }
-        }
-
-        byte
-    });
-
-    ($stream:expr, $stream_index:expr, $stop1:expr, $stop2:expr, $stop3:expr, $byte_error:expr,
-     $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if $stop1 == byte || $stop2 == byte || $stop3 == byte {
-                break;
-            } else if is_non_visible!(byte) {
-                exit_error!($byte_error(byte));
-            }
-        }
-
-        byte
-    });
-
-    ($stream:expr, $stream_index:expr, $stop1:expr, $stop2:expr, $byte_error:expr,
-     $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if $stop1 == byte || $stop2 == byte {
-                break;
-            } else if is_non_visible!(byte) {
-                exit_error!($byte_error(byte));
-            }
-        }
-
-        byte
-    });
-
-    ($stream:expr, $stream_index:expr, $stop:expr, $byte_error:expr, $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if $stop == byte {
-                break;
-            } else if is_non_visible!(byte) {
-                exit_error!($byte_error(byte));
-            }
-        }
-
-        byte
-    });
-
-    ($stream:expr, $stream_index:expr, $byte_error:expr, $eof_block:block) => ({
-        let mut byte;
-
-        loop {
-            if is_eof!($stream, $stream_index) {
-                $eof_block
-
-                exit_ok!($stream_index);
-            }
-
-            byte = next!($stream, $stream_index);
-
-            if is_non_visible!(byte) {
-                exit_error!($byte_error(byte));
-            }
-        }
-
-        byte
-    });
-}
-
-// Exit with an error.
-macro_rules! exit_error {
-    ($error:expr) => ({
-        return Err($error);
-    });
-}
-
-// Exit with OK status if EOF.
-macro_rules! exit_if_eof {
-    ($stream:expr, $stream_index:expr) => (
-        if is_eof!($stream, $stream_index) {
-            return Ok($stream_index);
-        }
-    );
-}
-
-// Exit with OK status.
+// Exit with Ok status.
 macro_rules! exit_ok {
-    ($stream_index:expr) => ({
-        return Ok($stream_index);
-    });
-}
-
-// Find a pattern within a stream.
-macro_rules! find {
-    ($stream:expr, $pattern:expr) => ({
-        let mut index = None;
-
-        'outer:
-        for s in 0..$stream.len() {
-            for p in 0..$pattern.len() {
-                if $stream.len() <= s + p || $pattern[p] != $stream[s + p] {
-                    break;
-                } else if $pattern.len() == p + 1 {
-                    index = Some(s);
-
-                    break 'outer;
-                }
-            }
-        }
-
-        index
+    ($context:expr) => ({
+        return Ok($context.stream_index);
     });
 }
 
 // Indicates that an alphabetical character exists within the stream.
 macro_rules! has_alpha {
-    ($stream:expr) => (
-        if is_alpha!($stream[0]) {
+    ($context:expr) => (
+        if is_alpha!($context.stream[0]) {
             true
         } else {
             let mut found = false;
 
-            for n in &$stream {
+            for n in &$context.stream {
                 if is_alpha!(*n) {
                     found = true;
                     break;
@@ -234,13 +51,6 @@ macro_rules! has_alpha {
 
             found
         }
-    );
-}
-
-// Indicates that a specified amount of bytes are available.
-macro_rules! has_bytes {
-    ($stream:expr, $stream_index:expr, $length:expr) => (
-        $stream_index + $length <= $stream.len()
     );
 }
 
@@ -259,27 +69,31 @@ macro_rules! is_digit {
     });
 }
 
-// Indicates that we're at the end of the stream.
-macro_rules! is_eof {
-    ($stream:expr, $stream_index:expr) => (
-        $stream_index == $stream.len()
-    );
+// -------------------------------------------------------------------------------------------------
+
+/// Context data.
+pub struct Context<'a> {
+    // Current byte.
+    byte: u8,
+
+    // Callback mark index.
+    mark_index: usize,
+
+    // Stream data.
+    stream: &'a [u8],
+
+    // Stream index.
+    stream_index: usize
 }
 
-// Jump a specified amount of bytes.
-macro_rules! jump_bytes {
-    ($stream_index:expr, $length:expr) => ({
-        $stream_index += $length;
-    });
-}
-
-// Advance the stream one byte.
-macro_rules! next {
-    ($stream:expr, $stream_index:expr) => ({
-        $stream_index += 1;
-
-        $stream[$stream_index - 1]
-    });
+impl<'a> Context<'a> {
+    /// Create a new `Context`.
+    pub fn new(stream: &'a [u8]) -> Context<'a> {
+        Context{ byte:         0,
+                 mark_index:   0,
+                 stream:       stream,
+                 stream_index: 0 }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -569,41 +383,37 @@ impl<'a> fmt::Display for UrlSegment<'a> {
 /// Decode a URL encoded stream of bytes.
 pub fn decode<F>(bytes: &[u8], mut append_fn: F) -> Result<usize, DecodeError>
 where F : FnMut(&[u8]) {
-    let mut byte;
-    let mut mark_index;
-    let mut stream_index = 0;
+    let mut context = Context::new(bytes);
 
     loop {
-        mark_index = stream_index;
+        stream_mark!(context);
 
-        byte = collect_visible!(bytes, stream_index,
-                                b'%', b'+',
-                                DecodeError::Byte,
-                                {
-            if mark_index < stream_index {
-                append_fn(&bytes[mark_index..stream_index]);
+        stream_collect_visible!(context, DecodeError::Byte, {
+            if context.mark_index < context.stream_index {
+                append_fn(stream_collected_bytes!(context));
             }
+
+            exit_ok!(context);
+        }, {
+            context.byte == b'%' || context.byte == b'+'
         });
 
-        if mark_index < stream_index - 1 {
-            append_fn(&bytes[mark_index..stream_index - 1]);
+        if context.mark_index < context.stream_index - 1 {
+            append_fn(stream_collected_bytes_ignore!(context));
         }
 
-        if byte == b'+' {
+        if context.byte == b'+' {
             append_fn(b" ");
-        } else if has_bytes!(bytes, stream_index, 2) {
-            match hex_to_byte(&bytes[stream_index..stream_index + 2]) {
-                Some(byte) => {
-                    jump_bytes!(stream_index, 2);
+        } else if stream_has_bytes!(context, 2) {
+            if let Some(byte) = hex_to_byte(stream_peek!(context, 2)) {
+                stream_jump!(context, 2);
 
-                    append_fn(&[byte]);
-                },
-                None => {
-                    exit_error!(DecodeError::HexSequence(byte));
-                }
+                append_fn(&[byte]);
+            } else {
+                return Err(DecodeError::HexSequence(context.byte));
             }
         } else {
-            exit_error!(DecodeError::HexSequence(byte));
+            return Err(DecodeError::HexSequence(context.byte));
         }
     }
 }
@@ -611,58 +421,57 @@ where F : FnMut(&[u8]) {
 /// Parse a query string.
 pub fn parse_query_string<F>(query_string: &[u8], mut segment_fn: F) -> Result<usize, QueryError>
 where F : FnMut(QuerySegment) {
-    let mut byte;
-    let mut mark_index;
-    let mut stream_index = 0;
+    let mut context = Context::new(query_string);
 
     loop {
         // field loop
         loop {
-            mark_index = stream_index;
+            stream_mark!(context);
 
-            byte = collect_visible!(query_string, stream_index,
-                                    b'%', b'+', b'=', b'&',
-                                    QueryError::Field,
-                                    {
-                if mark_index < stream_index {
-                    segment_fn(QuerySegment::Field(&query_string[mark_index..stream_index]));
+            stream_collect_visible!(context, QueryError::Field, {
+                if context.mark_index < context.stream_index {
+                    segment_fn(QuerySegment::Field(stream_collected_bytes!(context)));
                 }
 
                 segment_fn(QuerySegment::Flush);
+
+                exit_ok!(context);
+            }, {
+                   context.byte == b'%'
+                || context.byte == b'+'
+                || context.byte == b'='
+                || context.byte == b'&'
             });
 
-            if mark_index < stream_index - 1 {
-                segment_fn(QuerySegment::Field(&query_string[mark_index..stream_index - 1]));
+            if context.mark_index < context.stream_index - 1 {
+                segment_fn(QuerySegment::Field(stream_collected_bytes_ignore!(context)));
             }
 
-            if byte == b'%' {
-                if has_bytes!(query_string, stream_index, 2) {
-                    match hex_to_byte(&query_string[stream_index..stream_index + 2]) {
-                        Some(byte) => {
-                            jump_bytes!(stream_index, 2);
+            if context.byte == b'%' {
+                if stream_has_bytes!(context, 2) {
+                    if let Some(byte) = hex_to_byte(stream_peek!(context, 2)) {
+                        stream_jump!(context, 2);
 
-                            segment_fn(QuerySegment::Field(&[byte]));
-                        },
-                        None => {
-                            exit_error!(QueryError::Field(byte));
-                        }
+                        segment_fn(QuerySegment::Field(&[byte]));
+                    } else {
+                        return Err(QueryError::Field(context.byte));
                     }
                 } else {
-                    exit_error!(QueryError::Field(byte));
+                    return Err(QueryError::Field(context.byte));
                 }
-            } else if byte == b'+' {
+            } else if context.byte == b'+' {
                 segment_fn(QuerySegment::Field(b" "));
-            } else if byte == b'=' {
-                if stream_index == 1 {
+            } else if context.byte == b'=' {
+                if context.stream_index == 1 {
                     // first byte cannot be an equal sign
-                    exit_error!(QueryError::Field(byte));
+                    return Err(QueryError::Field(context.byte));
                 }
 
                 break;
             } else {
-                if stream_index == 1 {
+                if context.stream_index == 1 {
                     // first byte cannot be an ampersand
-                    exit_error!(QueryError::Field(byte));
+                    return Err(QueryError::Field(context.byte));
                 }
 
                 // field without a value, flush
@@ -672,43 +481,44 @@ where F : FnMut(QuerySegment) {
 
         // param loop
         loop {
-            mark_index = stream_index;
+            stream_mark!(context);
 
-            byte = collect_visible!(query_string, stream_index,
-                                    b'%', b'+', b'=', b'&',
-                                    QueryError::Value,
-                                    {
-                if mark_index < stream_index {
-                    segment_fn(QuerySegment::Value(&query_string[mark_index..stream_index]));
+            stream_collect_visible!(context, QueryError::Value, {
+                if context.mark_index < context.stream_index {
+                    segment_fn(QuerySegment::Value(stream_collected_bytes!(context)));
                 }
 
                 segment_fn(QuerySegment::Flush);
+
+                exit_ok!(context);
+            }, {
+                   context.byte == b'%'
+                || context.byte == b'+'
+                || context.byte == b'='
+                || context.byte == b'&'
             });
 
-            if mark_index < stream_index - 1 {
-                segment_fn(QuerySegment::Value(&query_string[mark_index..stream_index - 1]));
+            if context.mark_index < context.stream_index - 1 {
+                segment_fn(QuerySegment::Value(stream_collected_bytes_ignore!(context)));
             }
 
-            if byte == b'%' {
-                if has_bytes!(query_string, stream_index, 2) {
-                    match hex_to_byte(&query_string[stream_index..stream_index + 2]) {
-                        Some(byte) => {
-                            jump_bytes!(stream_index, 2);
+            if context.byte == b'%' {
+                if stream_has_bytes!(context, 2) {
+                    if let Some(byte) = hex_to_byte(stream_peek!(context, 2)) {
+                        stream_jump!(context, 2);
 
-                            segment_fn(QuerySegment::Value(&[byte]));
-                        },
-                        None => {
-                            exit_error!(QueryError::Value(byte));
-                        }
+                        segment_fn(QuerySegment::Value(&[byte]));
+                    } else {
+                        return Err(QueryError::Value(context.byte));
                     }
                 } else {
-                    exit_error!(QueryError::Value(byte));
+                    return Err(QueryError::Value(context.byte));
                 }
-            } else if byte == b'+' {
+            } else if context.byte == b'+' {
                 segment_fn(QuerySegment::Value(b" "));
-            } else if byte == b'=' {
+            } else if context.byte == b'=' {
                 // value cannot have an equal sign
-                exit_error!(QueryError::Value(byte));
+                return Err(QueryError::Value(context.byte));
             } else {
                 break;
             }
@@ -719,160 +529,154 @@ where F : FnMut(QuerySegment) {
 /// Parse a URL.
 pub fn parse_url<F>(url: &[u8], mut segment_fn: F) -> Result<usize, UrlError>
 where F : FnMut(UrlSegment) {
-    let mut byte;
-    let mut mark_index;
-    let mut stream_index = 0;
+    let mut context = Context::new(url);
 
-    if is_eof!(url, stream_index) {
+    if stream_is_eos!(context) {
         // nothing to parse, zero bytes
-        exit_ok!(0);
+        exit_ok!(context);
     }
 
     // scheme
-    if let Some(index) = find!(url, b"://") {
-        if !is_alpha!(url[0]) {
-            exit_error!(UrlError::Scheme(url[0]));
+    if let Some(index) = stream_find!(context, b"://") {
+        stream_collect_length!(context, UrlError::Scheme, index, {
+               !is_alpha!(context.byte)
+            && !is_digit!(context.byte)
+            && context.byte != b'+'
+            && context.byte != b'-'
+            && context.byte != b'.'
+        });
+
+        if !is_alpha!(context.stream[context.mark_index]) {
+            // first character must be alphabetical
+            return Err(UrlError::Scheme(context.stream[0]));
         }
 
-        for n in 1..index {
-            byte = url[n];
+        segment_fn(UrlSegment::Scheme(stream_collected_bytes!(context)));
 
-            if !is_alpha!(byte) && !is_digit!(byte)
-            && byte != b'+' && byte != b'-' && byte != b'.' {
-                exit_error!(UrlError::Scheme(byte));
-            }
-        }
+        // skip over the :// part of the scheme
+        stream_jump!(context, 3);
 
-        segment_fn(UrlSegment::Scheme(&url[0..index]));
-
-        // manually advance stream index since we didn't use a collect_* macro
-        jump_bytes!(stream_index, 3);
-
-        // scheme requires at least one additional piece of data
-        if is_eof!(url, stream_index) {
-            exit_error!(UrlError::Scheme(url[stream_index - 1]));
+        if stream_is_eos!(context) {
+            exit_ok!(context);
         }
     }
 
     // authority
-    byte = next!(url, stream_index);
+    stream_next!(context);
 
-    if byte != b'/' && byte != b'?' && byte != b'#' {
-        // rewind the stream index so collect_visible!() can start fresh
-        stream_index -= 1;
-        mark_index    = stream_index;
+    if context.byte != b'/' && context.byte != b'?' && context.byte != b'#' {
+        stream_replay!(context);
+        stream_mark!(context);
 
-        byte = collect_visible!(url, stream_index,
-                                b'/', b'?', b'#',
-                                UrlError::Authority,
-                                {
-            match process_authority(&url[mark_index..stream_index], &mut segment_fn) {
-                Ok(_) => {
-                    return Ok(stream_index);
-                },
-                error => {
-                    return error;
-                }
+        stream_collect_visible!(context, UrlError::Authority, {
+            if let Err(error) = process_authority(stream_collected_bytes!(context),
+                                                  &mut segment_fn) {
+                return Err(error);
+            } else {
+                exit_ok!(context);
             }
+        }, {
+               context.byte == b'/'
+            || context.byte == b'?'
+            || context.byte == b'#'
         });
 
-        match process_authority(&url[mark_index..stream_index], &mut segment_fn) {
-            Ok(_) => {
-            },
-            error => {
-                return error;
-            }
+        if let Err(error) = process_authority(stream_collected_bytes_ignore!(context),
+                                              &mut segment_fn) {
+            return Err(error);
         }
     }
 
     // path
-    if byte == b'/' {
-        // it's essential to rewind the stream index so that the initial
-        // forward slash is included as part of the path
-        stream_index -= 1;
-        mark_index    = stream_index;
+    if context.byte == b'/' {
+        stream_replay!(context);
+        stream_mark!(context);
 
-        byte = collect_visible!(url, stream_index,
-                                b'?', b'#',
-                                UrlError::Path,
-                                {
-            segment_fn(UrlSegment::Path(&url[mark_index..stream_index]));
+        stream_collect_visible!(context, UrlError::Path, {
+            segment_fn(UrlSegment::Path(stream_collected_bytes!(context)));
+
+            exit_ok!(context);
+        }, {
+               context.byte == b'?'
+            || context.byte == b'#'
         });
 
-        segment_fn(UrlSegment::Path(&url[mark_index..stream_index - 1]));
+        segment_fn(UrlSegment::Path(stream_collected_bytes_ignore!(context)));
     }
 
     // query string
-    if byte == b'?' {
-        mark_index = stream_index;
+    if context.byte == b'?' {
+        stream_mark!(context);
 
-        byte = collect_visible!(url, stream_index,
-                                b'#',
-                                UrlError::QueryString,
-                                {
-            segment_fn(UrlSegment::QueryString(&url[mark_index..stream_index]));
+        stream_collect_visible!(context, UrlError::QueryString, {
+            segment_fn(UrlSegment::QueryString(stream_collected_bytes!(context)));
+
+            exit_ok!(context);
+        }, {
+            context.byte == b'#'
         });
 
-        segment_fn(UrlSegment::QueryString(&url[mark_index..stream_index - 1]));
+        segment_fn(UrlSegment::QueryString(stream_collected_bytes_ignore!(context)));
     }
 
     // fragment
-    if byte == b'#' {
-        mark_index = stream_index;
+    if context.byte == b'#' {
+        stream_mark!(context);
 
-        collect_visible!(url, stream_index,
-                         UrlError::Fragment,
-                         {
-            segment_fn(UrlSegment::Fragment(&url[mark_index..stream_index]));
+        stream_collect_visible!(context, UrlError::Fragment, {
+            segment_fn(UrlSegment::Fragment(stream_collected_bytes!(context)));
+
+            exit_ok!(context);
         });
     }
 
-    exit_ok!(stream_index);
+    exit_ok!(context);
 }
 
 /// Process a URL authority.
 fn process_authority<F>(authority: &[u8], mut segment_fn: F) -> Result<usize, UrlError>
 where F : FnMut(UrlSegment) {
-    let mut byte;
-    let mut mark_index   = 0;
-    let mut stream_index = 0;
+    let mut context = Context::new(authority);
 
     // userinfo
-    if let Some(index) = find!(authority, b"@") {
+    if let Some(index) = stream_find!(context, b"@") {
         if index == 0 {
             // userinfo can't be empty
-            exit_error!(UrlError::UserInfo(authority[index]));
+            return Err(UrlError::UserInfo(context.stream[index]));
         }
 
-        byte = collect_visible!(authority, stream_index,
-                                b'@',
-                                UrlError::UserInfo,
-                                {
+        stream_collect_visible!(context, UrlError::UserInfo, {
             // this won't occur, since we know @ exists
-            exit_error!(UrlError::UserInfo(authority[stream_index]));
+            return Err(UrlError::UserInfo(context.stream[context.stream_index]));
+        }, {
+            context.byte == b'@'
         });
 
-        segment_fn(UrlSegment::UserInfo(&authority[mark_index..index]));
+        segment_fn(UrlSegment::UserInfo(stream_collected_bytes_ignore!(context)));
     }
 
     // host
-    exit_if_eof!(authority, stream_index);
+    if stream_is_eos!(context) {
+        exit_ok!(context);
+    }
 
-    mark_index = stream_index;
-    byte       = next!(authority, stream_index);
+    stream_mark!(context);
+    stream_next!(context);
 
-    if byte == b'[' {
+    exit_ok!(context);
+    /*
+    if context.byte == b'[' {
         // ipv6 address
         byte = collect_visible!(authority, stream_index,
                                 b']',
                                 UrlError::Host,
                                 {
             // missing closing bracket
-            exit_error!(UrlError::Host(authority[stream_index]));
+            return Err(UrlError::Host(authority[stream_index]));
         });
 
         if !validate_ipv6(&authority[mark_index..stream_index]) {
-            exit_error!(UrlError::Host(authority[stream_index - 1]));
+            return Err(UrlError::Host(authority[stream_index - 1]));
         }
 
         segment_fn(UrlSegment::Host(Host::IPv6(&authority[mark_index..stream_index])));
@@ -883,14 +687,14 @@ where F : FnMut(UrlSegment) {
                                 UrlError::Host,
                                 {
             if !validate_hostname(&authority[mark_index..stream_index]) {
-                exit_error!(UrlError::Host(authority[stream_index - 1]));
+                return Err(UrlError::Host(authority[stream_index - 1]));
             }
 
             segment_fn(UrlSegment::Host(Host::Hostname(&authority[mark_index..stream_index])));
         });
 
         if !validate_hostname(&authority[mark_index..stream_index]) {
-            exit_error!(UrlError::Host(authority[stream_index - 1]));
+            return Err(UrlError::Host(authority[stream_index - 1]));
         }
 
         segment_fn(UrlSegment::Host(Host::Hostname(&authority[mark_index..stream_index])));
@@ -901,14 +705,14 @@ where F : FnMut(UrlSegment) {
                                 UrlError::Host,
                                 {
             if !validate_ipv4(&authority[mark_index..stream_index]) {
-                exit_error!(UrlError::Host(authority[stream_index - 1]));
+                return Err(UrlError::Host(authority[stream_index - 1]));
             }
 
             segment_fn(UrlSegment::Host(Host::IPv4(&authority[mark_index..stream_index])));
         });
 
         if !validate_ipv4(&authority[mark_index..stream_index]) {
-            exit_error!(UrlError::Host(authority[stream_index - 1]));
+            return Err(UrlError::Host(authority[stream_index - 1]));
         }
 
         segment_fn(UrlSegment::Host(Host::IPv4(&authority[mark_index..stream_index])));
@@ -916,11 +720,13 @@ where F : FnMut(UrlSegment) {
 
     if byte != b':' {
         // invalid end of host
-        exit_error!(UrlError::Host(authority[stream_index]));
+        return Err(UrlError::Host(authority[stream_index]));
     }
 
     // port
-    exit_if_eof!(authority, stream_index);
+    if stream_is_eos!(context) {
+        return Ok(context.stream_index);
+    }
 
     mark_index = stream_index;
 
@@ -933,7 +739,8 @@ where F : FnMut(UrlSegment) {
         segment_fn(UrlSegment::Port(port as u16));
     });
 
-    exit_error!(UrlError::Port(authority[stream_index]));
+    return Err(UrlError::Port(authority[stream_index]));
+    */
 }
 
 /// Validate a hostname.
