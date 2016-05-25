@@ -45,7 +45,7 @@ macro_rules! stream_collect {
 
 /// Collect and convert all digit bytes into an integer variable.
 ///
-/// Exit the collection loop upon finding a non-digit byte. Return an error if `$digit` exceeds
+/// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
 /// `$max`.
 #[macro_export]
 macro_rules! stream_collect_digits {
@@ -71,7 +71,7 @@ macro_rules! stream_collect_digits {
 ///
 /// Unlike the other stream macros, this macro does not verify each byte is 7-bit.
 ///
-/// Due to the way this macro works, end-of-stream returns an error, and `$stop` causes an error
+/// Due to the way this macro works, end-of-stream returns `$error`, and `$stop` causes an `$error`
 /// to be returned.
 #[macro_export]
 macro_rules! stream_collect_length {
