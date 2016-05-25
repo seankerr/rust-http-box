@@ -213,3 +213,20 @@ fn query_string_byte_check() {
              false, false, false, false, false, false, true, true, false, 3);
     });
 }
+
+#[test]
+fn scheme() {
+    url!(b"http://",
+         b"http", b"", b"", b"", b"", 0, b"", b"", b"",
+         true, false, false, false, false, false, false, false, false, 7);
+}
+
+#[test]
+fn scheme_error1() {
+    url_error!(b"0http://", UrlError::Scheme, b'0');
+}
+
+#[test]
+fn scheme_error2() {
+    url_error!(b"http$://", UrlError::Scheme, b'$');
+}
