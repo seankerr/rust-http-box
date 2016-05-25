@@ -71,8 +71,7 @@ macro_rules! stream_collect_digits {
 ///
 /// Unlike the other stream macros, this macro does not verify each byte is 7-bit.
 ///
-/// Due to the way this macro works, end-of-stream returns `$error`, and `$stop` causes an `$error`
-/// to be returned.
+/// Due to the way this macro works, end-of-stream and `$stop` both return `$error`.
 #[macro_export]
 macro_rules! stream_collect_length {
     ($context:expr, $error:expr, $length:expr, $stop:expr) => ({
