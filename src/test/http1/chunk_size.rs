@@ -52,7 +52,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ChunkSize, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ChunkSize, 1);
     });
 }
 
@@ -100,7 +100,7 @@ fn size1() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"F\r", State::ChunkSizeNewline, 2);
+    assert_eos(&mut p, &mut h, b"F\r", State::ChunkSizeNewline, 2);
     assert_eq!(h.chunk_size, 15);
 }
 
@@ -111,7 +111,7 @@ fn size2() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FF\r", State::ChunkSizeNewline, 3);
+    assert_eos(&mut p, &mut h, b"FF\r", State::ChunkSizeNewline, 3);
     assert_eq!(h.chunk_size, 255);
 }
 
@@ -122,7 +122,7 @@ fn size3() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFF\r", State::ChunkSizeNewline, 4);
+    assert_eos(&mut p, &mut h, b"FFF\r", State::ChunkSizeNewline, 4);
     assert_eq!(h.chunk_size, 4095);
 }
 
@@ -133,7 +133,7 @@ fn size4() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFF\r", State::ChunkSizeNewline, 5);
+    assert_eos(&mut p, &mut h, b"FFFF\r", State::ChunkSizeNewline, 5);
     assert_eq!(h.chunk_size, 65535);
 }
 
@@ -144,7 +144,7 @@ fn size5() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFF\r", State::ChunkSizeNewline, 6);
+    assert_eos(&mut p, &mut h, b"FFFFF\r", State::ChunkSizeNewline, 6);
     assert_eq!(h.chunk_size, 1048575);
 }
 
@@ -155,7 +155,7 @@ fn size6() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFFF\r", State::ChunkSizeNewline, 7);
+    assert_eos(&mut p, &mut h, b"FFFFFF\r", State::ChunkSizeNewline, 7);
     assert_eq!(h.chunk_size, 16777215);
 }
 
@@ -166,7 +166,7 @@ fn size7() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFFFF\r", State::ChunkSizeNewline, 8);
+    assert_eos(&mut p, &mut h, b"FFFFFFF\r", State::ChunkSizeNewline, 8);
     assert_eq!(h.chunk_size, 268435455);
 }
 
@@ -177,7 +177,7 @@ fn size8() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFFFFF\r", State::ChunkSizeNewline, 9);
+    assert_eos(&mut p, &mut h, b"FFFFFFFF\r", State::ChunkSizeNewline, 9);
     assert_eq!(h.chunk_size, 4294967295);
 }
 
@@ -188,7 +188,7 @@ fn size9() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFFFFFF\r", State::ChunkSizeNewline, 10);
+    assert_eos(&mut p, &mut h, b"FFFFFFFFF\r", State::ChunkSizeNewline, 10);
     assert_eq!(h.chunk_size, 68719476735);
 }
 
@@ -199,7 +199,7 @@ fn size10() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"FFFFFFFFFF\r", State::ChunkSizeNewline, 11);
+    assert_eos(&mut p, &mut h, b"FFFFFFFFFF\r", State::ChunkSizeNewline, 11);
     assert_eq!(h.chunk_size, 1099511627775);
 }
 

@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ResponseStatusCode, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ResponseStatusCode, 1);
     });
 }
 
@@ -79,7 +79,7 @@ fn v0 () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"0 ", State::StripResponseStatus, 2);
+    assert_eos(&mut p, &mut h, b"0 ", State::StripResponseStatus, 2);
     assert_eq!(h.status_code, 0);
 }
 
@@ -90,7 +90,7 @@ fn v999 () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"999 ", State::StripResponseStatus, 4);
+    assert_eos(&mut p, &mut h, b"999 ", State::StripResponseStatus, 4);
     assert_eq!(h.status_code, 999);
 }
 

@@ -52,7 +52,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::UrlEncodedValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::UrlEncodedValue, 1);
     });
 }
 
@@ -124,7 +124,7 @@ fn value() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
+    assert_eos(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -135,7 +135,7 @@ fn value_ending_ampersand() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value&", State::UrlEncodedField, 6);
+    assert_eos(&mut p, &mut h, b"Value&", State::UrlEncodedField, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -146,7 +146,7 @@ fn value_ending_percent() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 6);
+    assert_eos(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -157,7 +157,7 @@ fn value_ending_plus() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 6);
+    assert_eos(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 6);
     assert_eq!(h.url_encoded_value, b"Value ");
 }
 
@@ -168,6 +168,6 @@ fn value_hex() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 8);
+    assert_eos(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 8);
     assert_eq!(h.url_encoded_value, b"Value!");
 }

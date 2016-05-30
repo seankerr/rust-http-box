@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::HeaderValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::HeaderValue, 1);
     });
 }
 
@@ -79,9 +79,9 @@ fn multiline() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value1\r\n", State::Newline3, 8);
+    assert_eos(&mut p, &mut h, b"Value1\r\n", State::Newline3, 8);
     assert_eq!(h.header_value, b"Value1");
-    assert_eof(&mut p, &mut h, b" Value2\r", State::Newline2, 8);
+    assert_eos(&mut p, &mut h, b" Value2\r", State::Newline2, 8);
     assert_eq!(h.header_value, b"Value1 Value2");
 }
 
@@ -92,9 +92,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Value", State::HeaderValue, 5);
+    assert_eos(&mut p, &mut h, b"Value", State::HeaderValue, 5);
     assert_eq!(h.header_value, b"Value");
-    assert_eof(&mut p, &mut h, b"Time\r", State::Newline2, 5);
+    assert_eos(&mut p, &mut h, b"Time\r", State::Newline2, 5);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -105,6 +105,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"ValueTime\r", State::Newline2, 10);
+    assert_eos(&mut p, &mut h, b"ValueTime\r", State::Newline2, 10);
     assert_eq!(h.header_value, b"ValueTime");
 }

@@ -150,6 +150,60 @@ fn fragment_byte_check() {
 }
 
 #[test]
+fn ipv4_0_0_0_0() {
+    url!(b"0.0.0.0",
+         b"", b"", b"", b"0.0.0.0", b"", 0, b"", b"", b"",
+         false, false, false, true, false, false, false, false, false, 7);
+}
+
+#[test]
+fn ipv4_255_255_255_255() {
+    url!(b"255.255.255.255",
+         b"", b"", b"", b"255.255.255.255", b"", 0, b"", b"", b"",
+         false, false, false, true, false, false, false, false, false, 15);
+}
+
+#[test]
+fn ipv4_leading_zero_error1() {
+    url_error!(b"01.0.0.0", UrlError::Host, b'0');
+}
+
+#[test]
+fn ipv4_leading_zero_error2() {
+    url_error!(b"0.01.0.0", UrlError::Host, b'0');
+}
+
+#[test]
+fn ipv4_leading_zero_error3() {
+    url_error!(b"0.0.01.0", UrlError::Host, b'0');
+}
+
+#[test]
+fn ipv4_leading_zero_error4() {
+    url_error!(b"0.0.0.01", UrlError::Host, b'0');
+}
+
+#[test]
+fn ipv4_segment_invalid1() {
+    url_error!(b"256.0.0.0", UrlError::Host, b'6');
+}
+
+#[test]
+fn ipv4_segment_invalid2() {
+    url_error!(b"0.256.0.0", UrlError::Host, b'6');
+}
+
+#[test]
+fn ipv4_segment_invalid3() {
+    url_error!(b"0.0.256.0", UrlError::Host, b'6');
+}
+
+#[test]
+fn ipv4_segment_invalid4() {
+    url_error!(b"0.0.0.256", UrlError::Host, b'6');
+}
+
+#[test]
 fn path() {
     url!(b"/path",
          b"", b"", b"", b"", b"", 0, b"/path", b"", b"",
@@ -229,4 +283,11 @@ fn scheme_error1() {
 #[test]
 fn scheme_error2() {
     url_error!(b"http$://", UrlError::Scheme, b'$');
+}
+
+#[test]
+fn scheme_path() {
+    url!(b"http:///path1/path2",
+         b"http", b"", b"", b"", b"", 0, b"/path1/path2", b"", b"",
+         true, false, false, false, false, false, true, false, false, 19);
 }

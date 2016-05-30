@@ -52,7 +52,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::UrlEncodedField, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::UrlEncodedField, 1);
     });
 }
 
@@ -85,7 +85,7 @@ fn field() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field", State::UrlEncodedField, 5);
+    assert_eos(&mut p, &mut h, b"Field", State::UrlEncodedField, 5);
     assert_eq!(h.url_encoded_field, b"Field");
 }
 
@@ -96,7 +96,7 @@ fn field_ending_ampersand() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field&", State::UrlEncodedField, 6);
+    assert_eos(&mut p, &mut h, b"Field&", State::UrlEncodedField, 6);
     assert_eq!(h.url_encoded_field, b"Field");
 }
 
@@ -107,7 +107,7 @@ fn field_ending_equal() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field=", State::UrlEncodedValue, 6);
+    assert_eos(&mut p, &mut h, b"Field=", State::UrlEncodedValue, 6);
     assert_eq!(h.url_encoded_field, b"Field");
 }
 
@@ -118,7 +118,7 @@ fn field_ending_percent() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field%", State::UrlEncodedFieldHex, 6);
+    assert_eos(&mut p, &mut h, b"Field%", State::UrlEncodedFieldHex, 6);
     assert_eq!(h.url_encoded_field, b"Field");
 }
 
@@ -129,7 +129,7 @@ fn field_ending_plus() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field+", State::UrlEncodedField, 6);
+    assert_eos(&mut p, &mut h, b"Field+", State::UrlEncodedField, 6);
     assert_eq!(h.url_encoded_field, b"Field ");
 }
 
@@ -140,7 +140,7 @@ fn field_hex() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"Field%21", State::UrlEncodedField, 8);
+    assert_eos(&mut p, &mut h, b"Field%21", State::UrlEncodedField, 8);
     assert_eq!(h.url_encoded_field, b"Field!");
 }
 

@@ -54,7 +54,7 @@ fn byte_check_unquoted() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ChunkExtensionValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionValue, 1);
     });
 }
 
@@ -65,7 +65,7 @@ fn basic() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"valid-value;", State::ChunkExtensionName, 12);
+    assert_eos(&mut p, &mut h, b"valid-value;", State::ChunkExtensionName, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -98,6 +98,6 @@ fn repeat() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"valid-value\r", State::ChunkSizeNewline, 12);
+    assert_eos(&mut p, &mut h, b"valid-value\r", State::ChunkSizeNewline, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }

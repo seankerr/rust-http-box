@@ -52,7 +52,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ChunkExtensionName, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionName, 1);
     });
 }
 
@@ -85,6 +85,6 @@ fn valid() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"valid-extension=", State::ChunkExtensionValue, 16);
+    assert_eos(&mut p, &mut h, b"valid-extension=", State::ChunkExtensionValue, 16);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
 }

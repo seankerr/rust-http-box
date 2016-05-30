@@ -18,7 +18,6 @@
 
 use handler::*;
 use http1::*;
-use test::*;
 use test::http1::*;
 
 macro_rules! setup {
@@ -52,7 +51,7 @@ fn http_1_0 () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"HTTP/1.0\r", State::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/1.0\r", State::PreHeaders1, 9);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -64,7 +63,7 @@ fn http_1_1 () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"HTTP/1.1\r", State::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/1.1\r", State::PreHeaders1, 9);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -76,7 +75,7 @@ fn http_2_0 () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"HTTP/2.0\r", State::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/2.0\r", State::PreHeaders1, 9);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }
@@ -88,7 +87,7 @@ fn h_lower () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"h", State::RequestHttp2, 1);
 }
 
 #[test]
@@ -98,7 +97,7 @@ fn h_upper () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"H", State::RequestHttp2, 1);
 }
 
 #[test]
@@ -108,8 +107,8 @@ fn ht_lower () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp3, 1);
 }
 
 #[test]
@@ -119,8 +118,8 @@ fn ht_upper () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp3, 1);
 }
 
 #[test]
@@ -130,9 +129,9 @@ fn htt_lower () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp4, 1);
 }
 
 #[test]
@@ -142,9 +141,9 @@ fn htt_upper () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp4, 1);
 }
 
 #[test]
@@ -154,10 +153,10 @@ fn http_lower () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
-    assert_eof(&mut p, &mut h, b"p", State::RequestHttp5, 1);
+    assert_eos(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"p", State::RequestHttp5, 1);
 }
 
 #[test]
@@ -167,10 +166,10 @@ fn http_upper () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
-    assert_eof(&mut p, &mut h, b"P", State::RequestHttp5, 1);
+    assert_eos(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"P", State::RequestHttp5, 1);
 }
 
 #[test]
@@ -180,11 +179,11 @@ fn http_slash_lower () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"h", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"t", State::RequestHttp4, 1);
-    assert_eof(&mut p, &mut h, b"p", State::RequestHttp5, 1);
-    assert_eof(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
+    assert_eos(&mut p, &mut h, b"h", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"p", State::RequestHttp5, 1);
+    assert_eos(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
 }
 
 #[test]
@@ -194,9 +193,9 @@ fn http_slash_upper () {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"H", State::RequestHttp2, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp3, 1);
-    assert_eof(&mut p, &mut h, b"T", State::RequestHttp4, 1);
-    assert_eof(&mut p, &mut h, b"P", State::RequestHttp5, 1);
-    assert_eof(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
+    assert_eos(&mut p, &mut h, b"H", State::RequestHttp2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::RequestHttp4, 1);
+    assert_eos(&mut p, &mut h, b"P", State::RequestHttp5, 1);
+    assert_eos(&mut p, &mut h, b"/", State::RequestVersionMajor, 1);
 }

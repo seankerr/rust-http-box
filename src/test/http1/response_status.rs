@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[byte], State::ResponseStatus, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ResponseStatus, 1);
     });
 }
 
@@ -79,9 +79,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"NOT ", State::ResponseStatus, 4);
+    assert_eos(&mut p, &mut h, b"NOT ", State::ResponseStatus, 4);
     assert_eq!(h.status, b"NOT ");
-    assert_eof(&mut p, &mut h, b"FOUND\r", State::PreHeaders1, 6);
+    assert_eos(&mut p, &mut h, b"FOUND\r", State::PreHeaders1, 6);
     assert_eq!(h.status, b"NOT FOUND");
 }
 
@@ -92,6 +92,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"NOT FOUND\r", State::PreHeaders1, 10);
+    assert_eos(&mut p, &mut h, b"NOT FOUND\r", State::PreHeaders1, 10);
     assert_eq!(h.status, b"NOT FOUND");
 }

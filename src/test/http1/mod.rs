@@ -61,10 +61,10 @@ pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, 
     });
 }
 
-pub fn assert_eof<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                   state: State, length: usize) {
     assert!(match parser.parse(handler, stream) {
-        Ok(Success::Eof(byte_count)) => {
+        Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.get_state(), state);
             true
@@ -78,7 +78,7 @@ pub fn assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, str
     match parser.parse(handler, stream) {
         Err(error) => {
             assert_eq!(parser.get_state(), State::Dead);
-            return Some(error);
+            Some(error)
         },
         _ => {
             assert_eq!(parser.get_state(), State::Dead);
@@ -101,7 +101,7 @@ pub fn assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, 
 
 pub fn setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
     assert!(match parser.parse(handler, stream) {
-        Ok(Success::Eof(length)) => {
+        Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
             assert_eq!(parser.get_state(), state);
             true

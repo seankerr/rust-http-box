@@ -19,6 +19,7 @@
 //! URL handling functions.
 
 use byte::hex_to_byte;
+use stream::Context;
 
 use std::{ fmt,
            str };
@@ -27,31 +28,12 @@ use std::{ fmt,
 // STREAM MACROS
 // -------------------------------------------------------------------------------------------------
 
+// Exit with error status.
 // Exit with Ok status.
 macro_rules! exit_ok {
     ($context:expr) => ({
         return Ok($context.stream_index);
     });
-}
-
-// Indicates that an alphabetical character exists within the stream.
-macro_rules! has_alpha {
-    ($context:expr) => (
-        if is_alpha!($context.stream[0]) {
-            true
-        } else {
-            let mut found = false;
-
-            for n in &$context.stream {
-                if is_alpha!(*n) {
-                    found = true;
-                    break;
-                }
-            }
-
-            found
-        }
-    );
 }
 
 // Indicates that a byte is alphabetical.
@@ -67,33 +49,6 @@ macro_rules! is_digit {
     ($byte:expr) => ({
         $byte > 47 && $byte < 58
     });
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Context data.
-pub struct Context<'a> {
-    // Current byte.
-    byte: u8,
-
-    // Callback mark index.
-    mark_index: usize,
-
-    // Stream data.
-    stream: &'a [u8],
-
-    // Stream index.
-    stream_index: usize
-}
-
-impl<'a> Context<'a> {
-    /// Create a new `Context`.
-    pub fn new(stream: &'a [u8]) -> Context<'a> {
-        Context{ byte:         0,
-                 mark_index:   0,
-                 stream:       stream,
-                 stream_index: 0 }
-    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -389,14 +344,17 @@ where F : FnMut(&[u8]) {
         stream_mark!(context);
 
         stream_collect_visible!(context, DecodeError::Byte, {
-            if context.mark_index < context.stream_index {
-                append_fn(stream_collected_bytes!(context));
-            }
+               if context.mark_index < context.stream_index {
+                    append_fn(stream_collected_bytes!(context));
+                }
 
-            exit_ok!(context);
-        }, {
-            context.byte == b'%' || context.byte == b'+'
-        });
+                exit_ok!(context);
+            },
+
+            // stop on these bytes
+               context.byte == b'%'
+            || context.byte == b'+'
+        );
 
         if context.mark_index < context.stream_index - 1 {
             append_fn(stream_collected_bytes_ignore!(context));
@@ -429,19 +387,21 @@ where F : FnMut(QuerySegment) {
             stream_mark!(context);
 
             stream_collect_visible!(context, QueryError::Field, {
-                if context.mark_index < context.stream_index {
-                    segment_fn(QuerySegment::Field(stream_collected_bytes!(context)));
-                }
+                    if context.mark_index < context.stream_index {
+                        segment_fn(QuerySegment::Field(stream_collected_bytes!(context)));
+                    }
 
-                segment_fn(QuerySegment::Flush);
+                    segment_fn(QuerySegment::Flush);
 
-                exit_ok!(context);
-            }, {
+                    exit_ok!(context);
+                },
+
+                // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
                 || context.byte == b'='
                 || context.byte == b'&'
-            });
+            );
 
             if context.mark_index < context.stream_index - 1 {
                 segment_fn(QuerySegment::Field(stream_collected_bytes_ignore!(context)));
@@ -468,12 +428,10 @@ where F : FnMut(QuerySegment) {
                 }
 
                 break;
+            } else if context.stream_index == 1 {
+                // first byte cannot be an ampersand
+                return Err(QueryError::Field(context.byte));
             } else {
-                if context.stream_index == 1 {
-                    // first byte cannot be an ampersand
-                    return Err(QueryError::Field(context.byte));
-                }
-
                 // field without a value, flush
                 segment_fn(QuerySegment::Flush);
             }
@@ -484,19 +442,21 @@ where F : FnMut(QuerySegment) {
             stream_mark!(context);
 
             stream_collect_visible!(context, QueryError::Value, {
-                if context.mark_index < context.stream_index {
-                    segment_fn(QuerySegment::Value(stream_collected_bytes!(context)));
-                }
+                    if context.mark_index < context.stream_index {
+                        segment_fn(QuerySegment::Value(stream_collected_bytes!(context)));
+                    }
 
-                segment_fn(QuerySegment::Flush);
+                    segment_fn(QuerySegment::Flush);
 
-                exit_ok!(context);
-            }, {
+                    exit_ok!(context);
+                },
+
+                // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
                 || context.byte == b'='
                 || context.byte == b'&'
-            });
+            );
 
             if context.mark_index < context.stream_index - 1 {
                 segment_fn(QuerySegment::Value(stream_collected_bytes_ignore!(context)));
@@ -520,6 +480,8 @@ where F : FnMut(QuerySegment) {
                 // value cannot have an equal sign
                 return Err(QueryError::Value(context.byte));
             } else {
+                segment_fn(QuerySegment::Flush);
+
                 break;
             }
         }
@@ -532,19 +494,19 @@ where F : FnMut(UrlSegment) {
     let mut context = Context::new(url);
 
     if stream_is_eos!(context) {
-        // nothing to parse, zero bytes
         exit_ok!(context);
     }
 
     // scheme
-    if let Some(index) = stream_find!(context, b"://") {
-        stream_collect_length!(context, UrlError::Scheme, index, {
-               !is_alpha!(context.byte)
-            && !is_digit!(context.byte)
-            && context.byte != b'+'
-            && context.byte != b'-'
-            && context.byte != b'.'
-        });
+    if let Some(index) = stream_find_pattern!(context, b"://") {
+        stream_collect_length!(context, UrlError::Scheme, index,
+            // allow these bytes
+               is_alpha!(context.byte)
+            || is_digit!(context.byte)
+            || context.byte == b'+'
+            || context.byte == b'-'
+            || context.byte == b'.'
+        );
 
         if !is_alpha!(context.stream[context.mark_index]) {
             // first character must be alphabetical
@@ -553,7 +515,7 @@ where F : FnMut(UrlSegment) {
 
         segment_fn(UrlSegment::Scheme(stream_collected_bytes!(context)));
 
-        // skip over the :// part of the scheme
+        // skip over ://
         stream_jump!(context, 3);
 
         if stream_is_eos!(context) {
@@ -566,25 +528,14 @@ where F : FnMut(UrlSegment) {
 
     if context.byte != b'/' && context.byte != b'?' && context.byte != b'#' {
         stream_replay!(context);
-        stream_mark!(context);
 
-        stream_collect_visible!(context, UrlError::Authority, {
-            if let Err(error) = process_authority(stream_collected_bytes!(context),
-                                                  &mut segment_fn) {
-                return Err(error);
-            } else {
-                exit_ok!(context);
-            }
-        }, {
-               context.byte == b'/'
-            || context.byte == b'?'
-            || context.byte == b'#'
-        });
+        try!(process_authority(&mut context, &mut segment_fn));
 
-        if let Err(error) = process_authority(stream_collected_bytes_ignore!(context),
-                                              &mut segment_fn) {
-            return Err(error);
+        if stream_is_eos!(context) {
+            exit_ok!(context);
         }
+
+        stream_next!(context);
     }
 
     // path
@@ -593,13 +544,15 @@ where F : FnMut(UrlSegment) {
         stream_mark!(context);
 
         stream_collect_visible!(context, UrlError::Path, {
-            segment_fn(UrlSegment::Path(stream_collected_bytes!(context)));
+                segment_fn(UrlSegment::Path(stream_collected_bytes!(context)));
 
-            exit_ok!(context);
-        }, {
+                exit_ok!(context);
+            },
+
+            // stop on these bytes
                context.byte == b'?'
             || context.byte == b'#'
-        });
+        );
 
         segment_fn(UrlSegment::Path(stream_collected_bytes_ignore!(context)));
     }
@@ -609,12 +562,14 @@ where F : FnMut(UrlSegment) {
         stream_mark!(context);
 
         stream_collect_visible!(context, UrlError::QueryString, {
-            segment_fn(UrlSegment::QueryString(stream_collected_bytes!(context)));
+                segment_fn(UrlSegment::QueryString(stream_collected_bytes!(context)));
 
-            exit_ok!(context);
-        }, {
+                exit_ok!(context);
+            },
+
+            // stop on these bytes
             context.byte == b'#'
-        });
+        );
 
         segment_fn(UrlSegment::QueryString(stream_collected_bytes_ignore!(context)));
     }
@@ -624,136 +579,212 @@ where F : FnMut(UrlSegment) {
         stream_mark!(context);
 
         stream_collect_visible!(context, UrlError::Fragment, {
-            segment_fn(UrlSegment::Fragment(stream_collected_bytes!(context)));
+                segment_fn(UrlSegment::Fragment(stream_collected_bytes!(context)));
 
-            exit_ok!(context);
-        });
+                exit_ok!(context);
+            }
+        );
     }
 
     exit_ok!(context);
 }
 
 /// Process a URL authority.
-fn process_authority<F>(authority: &[u8], mut segment_fn: F) -> Result<usize, UrlError>
+fn process_authority<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
 where F : FnMut(UrlSegment) {
-    let mut context = Context::new(authority);
+    stream_mark!(context);
+
+    stream_collect_visible!(context, UrlError::Authority, {
+            stream_rewind_to!(context, context.mark_index);
+            stream_next!(context);
+
+            return process_host(context, &mut segment_fn);
+        },
+
+        // stop on these bytes
+           context.byte == b'/'
+        || context.byte == b'?'
+        || context.byte == b'#'
+        || context.byte == b'@'
+    );
 
     // userinfo
-    if let Some(index) = stream_find!(context, b"@") {
-        if index == 0 {
-            // userinfo can't be empty
-            return Err(UrlError::UserInfo(context.stream[index]));
+    if context.byte == b'@' {
+        if context.stream_index - context.mark_index == 1 {
+            // missing userinfo
+            return Err(UrlError::UserInfo(context.byte));
         }
-
-        stream_collect_visible!(context, UrlError::UserInfo, {
-            // this won't occur, since we know @ exists
-            return Err(UrlError::UserInfo(context.stream[context.stream_index]));
-        }, {
-            context.byte == b'@'
-        });
 
         segment_fn(UrlSegment::UserInfo(stream_collected_bytes_ignore!(context)));
+
+        stream_mark!(context);
+
+        stream_collect_visible!(context, UrlError::Authority, {
+                stream_rewind_to!(context, context.mark_index);
+
+                return process_host(context, &mut segment_fn);
+            },
+
+            // stop on these bytes
+               context.byte == b'/'
+            || context.byte == b'?'
+            || context.byte == b'#'
+        );
     }
 
-    // host
-    if stream_is_eos!(context) {
+    if context.stream_index - context.mark_index > 1 {
+        stream_rewind_to!(context, context.mark_index);
+        stream_next!(context);
+
+        process_host(context, &mut segment_fn)
+    } else {
         exit_ok!(context);
     }
+}
 
-    stream_mark!(context);
-    stream_next!(context);
-
-    exit_ok!(context);
-    /*
+/// Process a host and port.
+fn process_host<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
     if context.byte == b'[' {
         // ipv6 address
-        byte = collect_visible!(authority, stream_index,
-                                b']',
-                                UrlError::Host,
-                                {
-            // missing closing bracket
-            return Err(UrlError::Host(authority[stream_index]));
-        });
+        try!(process_ipv6(context, &mut segment_fn));
 
-        if !validate_ipv6(&authority[mark_index..stream_index]) {
-            return Err(UrlError::Host(authority[stream_index - 1]));
+        // port
+        if context.byte == b':' {
+            try!(process_port(context, &mut segment_fn));
         }
-
-        segment_fn(UrlSegment::Host(Host::IPv6(&authority[mark_index..stream_index])));
-    } else if has_alpha!(authority[mark_index..]) {
-        // hostname
-        byte = collect_visible!(authority, stream_index,
-                                b'/', b':',
-                                UrlError::Host,
-                                {
-            if !validate_hostname(&authority[mark_index..stream_index]) {
-                return Err(UrlError::Host(authority[stream_index - 1]));
-            }
-
-            segment_fn(UrlSegment::Host(Host::Hostname(&authority[mark_index..stream_index])));
-        });
-
-        if !validate_hostname(&authority[mark_index..stream_index]) {
-            return Err(UrlError::Host(authority[stream_index - 1]));
-        }
-
-        segment_fn(UrlSegment::Host(Host::Hostname(&authority[mark_index..stream_index])));
     } else {
-        // ipv4 address
-        byte = collect_visible!(authority, stream_index,
-                                b':',
-                                UrlError::Host,
-                                {
-            if !validate_ipv4(&authority[mark_index..stream_index]) {
-                return Err(UrlError::Host(authority[stream_index - 1]));
-            }
+        // ipv4
+        stream_replay!(context);
 
-            segment_fn(UrlSegment::Host(Host::IPv4(&authority[mark_index..stream_index])));
-        });
+        try!(process_ipv4(context, &mut segment_fn));
 
-        if !validate_ipv4(&authority[mark_index..stream_index]) {
-            return Err(UrlError::Host(authority[stream_index - 1]));
+        // port
+        if context.byte == b':' {
+            try!(process_port(context, &mut segment_fn));
+        }
+    }
+
+    exit_ok!(context);
+}
+
+/// Process a hostname.
+fn process_hostname<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
+    exit_ok!(context);
+    /*
+    stream_mark!(context);
+
+    let start = context.mark_index;
+
+    loop {
+        stream_mark!(context);
+
+        stream_collect_only!(context, UrlError::Host, {
+                // make sure first byte is alpha
+                if !is_alpha!(context.stream[context.mark_index]) {
+                    return Err(UrlError::Host(context.stream[context.mark_index]));
+                }
+
+                segment_fn(UrlSegment::Host(Host::Hostname(stream_collected_bytes!(context))));
+            },
+
+            // stop on these bytes
+               context.byte == b'.'
+            || context.byte == b':'
+            || context.byte == b'/'
+            || context.byte == b'?'
+            || context.byte == b'#',
+
+            // collect these bytes
+               is_alpha!(context.byte)
+            || is_digit!(context.byte)
+            || context.byte == b'-'
+        );
+
+        // make sure first byte is alpha
+        if !is_alpha!(context.stream[context.mark_index]) {
+            return Err(UrlError::Host(context.stream[context.mark_index]));
         }
 
-        segment_fn(UrlSegment::Host(Host::IPv4(&authority[mark_index..stream_index])));
+        if context.byte != b'.' {
+            break;
+        }
     }
-
-    if byte != b':' {
-        // invalid end of host
-        return Err(UrlError::Host(authority[stream_index]));
-    }
-
-    // port
-    if stream_is_eos!(context) {
-        return Ok(context.stream_index);
-    }
-
-    mark_index = stream_index;
-
-    let mut port = 0;
-
-    collect_digits!(authority, stream_index,
-                    port, 65535,
-                    UrlError::Port,
-                    {
-        segment_fn(UrlSegment::Port(port as u16));
-    });
-
-    return Err(UrlError::Port(authority[stream_index]));
     */
 }
 
-/// Validate a hostname.
-pub fn validate_hostname(hostname: &[u8]) -> bool {
-    true
+/// Process an `IPv4` address.
+fn process_ipv4<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
+    let mut byte;
+    let mut count = 0;
+    let     start = context.stream_index;
+
+    while count < 4 {
+        byte   = 0;
+        count += 1;
+
+        stream_mark!(context);
+
+        stream_collect_digits!(context, UrlError::Host, byte, 255, {
+                if count < 4 {
+                    // less than 4 segments
+                    return Err(UrlError::Host(context.byte));
+                }
+
+                if context.stream_index - context.mark_index > 1
+                && context.stream[context.mark_index] == b'0' {
+                    // no leading zeros
+                    return Err(UrlError::Host(context.stream[context.mark_index]));
+                }
+
+                stream_mark!(context, start);
+
+                segment_fn(UrlSegment::Host(Host::IPv4(stream_collected_bytes!(context))));
+
+                exit_ok!(context);
+            }
+        );
+
+        if count < 4 && context.byte != b'.' {
+            // not a period
+            return Err(UrlError::Host(context.byte));
+        }
+
+        if context.stream_index - context.mark_index > 2
+        && context.stream[context.mark_index] == b'0' {
+            // no leading zeros
+            return Err(UrlError::Host(context.stream[context.mark_index]));
+        }
+    }
+
+    stream_mark!(context, start);
+
+    segment_fn(UrlSegment::Host(Host::IPv4(stream_collected_bytes!(context))));
+
+    exit_ok!(context);
 }
 
-/// Validate a IPv4 address.
-pub fn validate_ipv4(ipv4: &[u8]) -> bool {
-    true
+/// Process an `IPv6` address.
+fn process_ipv6<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
+    Ok(0)
 }
 
-/// Validate a IPv6 address.
-pub fn validate_ipv6(ipv6: &[u8]) -> bool {
-    true
+/// Process a port.
+fn process_port<'a,F>(context: &'a mut Context, mut segment_fn: F) -> Result<usize, UrlError>
+where F : FnMut(UrlSegment) {
+    let mut port = 0;
+
+    stream_collect_digits!(context, UrlError::Port, port, 65535, {
+            segment_fn(UrlSegment::Port(port as u16));
+
+            exit_ok!(context);
+        }
+    );
+
+    segment_fn(UrlSegment::Port(port as u16));
+
+    exit_ok!(context);
 }

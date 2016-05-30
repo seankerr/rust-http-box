@@ -26,6 +26,8 @@
 //! - `stream` (&[u8]) Stream of bytes.
 //! - `stream_index` (usize) Current stream index.
 
+use std::fmt;
+
 /// Iterate the stream, and for each new byte execute `$exec`. If end-of-stream is located, execute
 /// `$eos`.
 #[macro_export]
@@ -65,25 +67,41 @@ macro_rules! stream_collect_digits {
     });
 }
 
-/// Collect `$length` bytes.
+/// Collect `$length` bytes as long as `$allow` yields `true`. Otherwise return `$error`.
 ///
 /// This macro assumes that `$length` bytes are available for reading.
 ///
-/// Unlike the other stream macros, this macro does not verify each byte is 7-bit.
-///
-/// Due to the way this macro works, end-of-stream and `$stop` both return `$error`.
+/// End-of-stream returns `$error`.
 #[macro_export]
 macro_rules! stream_collect_length {
-    ($context:expr, $error:expr, $length:expr, $stop:expr) => ({
+    ($context:expr, $error:expr, $length:expr, $allow:expr) => ({
         stream_collect!($context, {
             return Err($error($context.byte));
         }, {
-            if $stop {
+            if $allow {
+                if $context.stream_index == $context.mark_index + $length {
+                    break;
+                }
+            } else {
                 return Err($error($context.byte));
-            } else if $context.stream_index == $context.mark_index + $length {
-                break;
             }
         });
+    });
+}
+
+/// Collect only `$collect`.
+///
+/// Exit the collection loop when `$stop` yields `true`.
+#[macro_export]
+macro_rules! stream_collect_only {
+    ($context:expr, $error:expr, $eos:expr, $stop:expr, $collect:expr) => ({
+        stream_collect!($context, $eos,
+            if $stop {
+                break;
+            } else if !($collect) {
+                return Err($error($context.byte));
+            }
+        );
     });
 }
 
@@ -149,10 +167,35 @@ macro_rules! stream_collected_bytes_ignore {
     );
 }
 
-/// Find a pattern within a stream.
+/// Find a byte within a stream.
 ///
 /// The `$start` index is relative to `$context.stream_index`.
 macro_rules! stream_find {
+    ($context:expr, $start:expr, $byte:expr) => ({
+        let mut index = None;
+
+        if $context.stream_index + $start < $context.stream.len() {
+            for s in $context.stream_index + $start..$context.stream.len() {
+                if $byte == $context.stream[s] {
+                    index = Some(s);
+
+                    break;
+                }
+            }
+        }
+
+        index
+    });
+
+    ($context:expr, $byte:expr) => (
+        stream_find!($context, 0, $byte);
+    );
+}
+
+/// Find a pattern within a stream.
+///
+/// The `$start` index is relative to `$context.stream_index`.
+macro_rules! stream_find_pattern {
     ($context:expr, $start:expr, $pattern:expr) => ({
         let mut index = None;
 
@@ -175,7 +218,7 @@ macro_rules! stream_find {
     });
 
     ($context:expr, $pattern:expr) => (
-        stream_find!($context, 0, $pattern);
+        stream_find_pattern!($context, 0, $pattern);
     );
 }
 
@@ -202,10 +245,14 @@ macro_rules! stream_jump {
     });
 }
 
-/// Set `$context.mark_index` to `$context.stream_index`.
+/// Set `$context.mark_index` to `$context.stream_index` or `$index`.
 macro_rules! stream_mark {
     ($context:expr) => ({
         $context.mark_index = $context.stream_index;
+    });
+
+    ($context:expr, $index:expr) => ({
+        $context.mark_index = $index;
     });
 }
 
@@ -226,9 +273,69 @@ macro_rules! stream_peek {
     );
 }
 
-/// Replay the most recent byte by rewinding `$context.stream_index` one byte.
+/// Replay the most recent byte.
 macro_rules! stream_replay {
     ($context:expr) => ({
-        $context.stream_index -= 1;
+        stream_rewind!($context, 1);
     });
+}
+
+/// Rewind `$context.stream_index` by `$length` bytes.
+macro_rules! stream_rewind {
+    ($context:expr, $length:expr) => ({
+        $context.stream_index -= $length;
+    });
+}
+
+/// Rewind `$context.stream_index` to index `$index`.
+macro_rules! stream_rewind_to {
+    ($context:expr, $index:expr) => ({
+        $context.stream_index = $index;
+    });
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Default stream context type.
+pub struct Context<'a> {
+    // Current byte.
+    pub byte: u8,
+
+    // Callback mark index.
+    pub mark_index: usize,
+
+    // Stream data.
+    pub stream: &'a [u8],
+
+    // Stream index.
+    pub stream_index: usize
+}
+
+impl<'a> Context<'a> {
+    /// Create a new `Context`.
+    pub fn new(stream: &'a [u8]) -> Context<'a> {
+        Context{ byte:         0,
+                 mark_index:   0,
+                 stream:       stream,
+                 stream_index: 0 }
+    }
+}
+
+impl<'a> fmt::Debug for Context<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "Context(byte[{}]='{}', mark_index={}, stream_index={})",
+               self.byte, self.byte as char, self.mark_index, self.stream_index)
+    }
+}
+
+impl<'a> fmt::Display for Context<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        if self.byte < 0x20 || self.byte == 0x7F {
+            write!(formatter, "byte[{}]='', mark_index={}, stream_index={}",
+                   self.byte, self.mark_index, self.stream_index)
+        } else {
+            write!(formatter, "byte[{}]='{}', mark_index={}, stream_index={}",
+                   self.byte, self.byte as char, self.mark_index, self.stream_index)
+        }
+    }
 }

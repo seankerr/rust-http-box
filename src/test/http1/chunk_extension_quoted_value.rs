@@ -37,7 +37,7 @@ fn basic() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
+    assert_eos(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
 
         if let ParserError::ChunkExtensionValue(x) = assert_error(&mut p, &mut h,
                                                                   &[byte]).unwrap() {
@@ -67,8 +67,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eof(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
-        assert_eof(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
     });
 }
 
@@ -102,7 +102,7 @@ fn escaped() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkSizeNewline, 23);
+    assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkSizeNewline, 23);
     assert_eq!(h.chunk_extension_value, b"valid \"value\" here");
 }
 
@@ -113,7 +113,7 @@ fn repeat() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"valid-value1;extension2=valid-value2;", State::ChunkExtensionName, 37);
+    assert_eos(&mut p, &mut h, b"valid-value1;extension2=valid-value2;", State::ChunkExtensionName, 37);
     assert_eq!(h.chunk_extension_name, b"extension1extension2");
     assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");
 }

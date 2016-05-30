@@ -167,32 +167,33 @@ macro_rules! unset_flag {
 // STREAM MACROS
 // -------------------------------------------------------------------------------------------------
 
-// Execute a callback and if it returns true, execute a block, otherwise exit with callback status.
+// Execute callback `$function`. If it returns `true`, execute `$exec`. Otherwise exit with
+// `Success::Callback`.
 macro_rules! callback {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $block:block) => ({
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
         if $context.handler.$function($data) {
-            $block
+            $exec
         } else {
             exit_callback!($parser, $context);
         }
     });
 
-    ($parser:expr, $context:expr, $function:ident, $block:block) => ({
+    ($parser:expr, $context:expr, $function:ident, $exec:expr) => ({
         let slice = stream_collected_bytes!($context);
 
         if slice.len() > 0 {
             if $context.handler.$function(slice) {
-                $block
+                $exec
             } else {
                 exit_callback!($parser, $context);
             }
         } else {
-            $block
+            $exec
         }
     });
 }
 
-// Callback EOF expression.
+// Reusable callback EOS expression that executes `$function`.
 macro_rules! callback_eos_expr {
     ($parser:expr, $context:expr, $function:ident) => ({
         callback!($parser, $context, $function, {
@@ -201,8 +202,8 @@ macro_rules! callback_eos_expr {
     });
 }
 
-// Execute a callback ignoring the last marked byte, and if it returns true, transition to the next
-// state, otherwise exit with callback status.
+// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
+// to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
         let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
@@ -221,8 +222,9 @@ macro_rules! callback_ignore_transition {
     });
 }
 
-// Execute a callback ignoring the last marked byte, and if it returns true, transition to the next
-// state, otherwise exit with callback status.
+// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
+// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
+// `Success::Callback`.
 macro_rules! callback_ignore_transition_fast {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
         let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
@@ -241,11 +243,11 @@ macro_rules! callback_ignore_transition_fast {
     });
 }
 
-// Execute a callback and if it returns true, transition to the next state using transition!(),
-// otherwise exit with callback status.
+// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
+// with `Success::Callback`.
 //
 // This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser exits with callback status.
+// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
      $state_function:ident) => ({
@@ -263,11 +265,11 @@ macro_rules! callback_transition {
     });
 }
 
-// Execute a callback and if it returns true, transition to the next state using transition_fast!(),
-// otherwise exit with callback status.
+// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
+// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
 //
 // This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser exits with callback status.
+// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition_fast {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
      $state_function:ident) => ({
@@ -287,7 +289,7 @@ macro_rules! callback_transition_fast {
 
 // Collect remaining bytes until content length is zero.
 //
-// Use the upper 40 bits as the content length.
+// Content length is stored in the upper 40 bits.
 macro_rules! collect_content_length {
     ($parser:expr, $context:expr) => ({
         exit_if_eos!($parser, $context);
@@ -341,28 +343,28 @@ macro_rules! consume_linear_space {
     });
 }
 
-// Exit parser function with a callback status.
+// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });
 }
 
-// Exit parser function with an EOF status.
+// Exit parser with `Success::Eos`.
 macro_rules! exit_eos {
     ($parser:expr, $context:expr) => ({
-        return Ok(ParserValue::Exit(Success::Eof($context.stream_index)));
+        return Ok(ParserValue::Exit(Success::Eos($context.stream_index)));
     });
 }
 
-// Exit parser with finished status.
+// Exit parser with `Success::Finished`.
 macro_rules! exit_finished {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Finished($context.stream_index)));
     });
 }
 
-// Exit parser function with an EOF status if the stream is EOF, otherwise do nothing.
+// If the stream is EOS, exit with `Success::Eos`. Otherwise do nothing.
 macro_rules! exit_if_eos {
     ($parser:expr, $context:expr) => ({
         if stream_is_eos!($context) {
@@ -379,8 +381,7 @@ macro_rules! set_state {
     });
 }
 
-// Transition to a new state by returning to the beginning of the state loop and then processing
-// the next state.
+// Transition to `$state`.
 macro_rules! transition {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
@@ -397,7 +398,7 @@ macro_rules! transition {
     });
 }
 
-// Transition to a new state by directly calling the next state function.
+// Transition to `$state` quickly by directly calling `$state_function`.
 macro_rules! transition_fast {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
@@ -1439,7 +1440,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::PreHeaders2, pre_headers2);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -1553,8 +1554,9 @@ impl<T: HttpHandler> Parser<T> {
     fn header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::HeaderField,
-                               callback_eos_expr!(self, context, on_header_field),
-                               context.byte == b':');
+            callback_eos_expr!(self, context, on_header_field),
+            context.byte == b':'
+        );
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_field,
@@ -1579,8 +1581,9 @@ impl<T: HttpHandler> Parser<T> {
     fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::HeaderValue,
-                                callback_eos_expr!(self, context, on_header_value),
-                                context.byte == b'\r');
+            callback_eos_expr!(self, context, on_header_value),
+            context.byte == b'\r'
+        );
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_value,
@@ -1628,7 +1631,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::Newline2, newline2);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -1641,7 +1644,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::Newline3, newline3);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -1685,7 +1688,7 @@ impl<T: HttpHandler> Parser<T> {
             }
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1744,8 +1747,9 @@ impl<T: HttpHandler> Parser<T> {
         }
 
         stream_collect_tokens!(context, ParserError::Method,
-                               callback_eos_expr!(self, context, on_method),
-                               context.byte == b' ');
+            callback_eos_expr!(self, context, on_method),
+            context.byte == b' '
+        );
 
         stream_replay!(context);
 
@@ -1767,8 +1771,9 @@ impl<T: HttpHandler> Parser<T> {
     fn request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::Url,
-                                callback_eos_expr!(self, context, on_url),
-                                context.byte == b' ');
+            callback_eos_expr!(self, context, on_url),
+            context.byte == b' '
+        );
 
         stream_replay!(context);
 
@@ -1819,9 +1824,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'H' || context.byte == b'h' {
             transition_fast!(self, context, State::RequestHttp2, request_http2);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1832,9 +1837,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'T' || context.byte == b't' {
             transition_fast!(self, context, State::RequestHttp3, request_http3);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1845,9 +1850,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'T' || context.byte == b't' {
             transition_fast!(self, context, State::RequestHttp4, request_http4);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1858,9 +1863,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'P' || context.byte == b'p' {
             transition_fast!(self, context, State::RequestHttp5, request_http5);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1873,9 +1878,9 @@ impl<T: HttpHandler> Parser<T> {
             set_upper40!(self, 0);
 
             transition_fast!(self, context, State::RequestVersionMajor, request_version_major);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1895,7 +1900,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::RequestVersionMinor, request_version_minor);
         }
 
-        return Err(ParserError::Version(context.byte));
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1964,9 +1969,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'H' || context.byte == b'h' {
             transition_fast!(self, context, State::ResponseHttp2, response_http2);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1977,9 +1982,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'T' || context.byte == b't' {
             transition_fast!(self, context, State::ResponseHttp3, response_http3);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -1990,9 +1995,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'T' || context.byte == b't' {
             transition_fast!(self, context, State::ResponseHttp4, response_http4);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -2003,9 +2008,9 @@ impl<T: HttpHandler> Parser<T> {
 
         if context.byte == b'P' || context.byte == b'p' {
             transition_fast!(self, context, State::ResponseHttp5, response_http5);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -2018,9 +2023,9 @@ impl<T: HttpHandler> Parser<T> {
             set_upper40!(self, 0);
 
             transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
-        } else {
-            return Err(ParserError::Version(context.byte));
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -2040,7 +2045,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::ResponseVersionMinor, response_version_minor);
         }
 
-        return Err(ParserError::Version(context.byte));
+        Err(ParserError::Version(context.byte))
     }
 
     #[inline]
@@ -2175,8 +2180,9 @@ impl<T: HttpHandler> Parser<T> {
     fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::ChunkExtensionName,
-                               callback_eos_expr!(self, context, on_chunk_extension_name),
-                               context.byte == b'=');
+            callback_eos_expr!(self, context, on_chunk_extension_name),
+            context.byte == b'='
+        );
 
         callback_ignore_transition_fast!(self, context,
                                          on_chunk_extension_name,
@@ -2187,10 +2193,11 @@ impl<T: HttpHandler> Parser<T> {
     fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::ChunkExtensionValue,
-                               callback_eos_expr!(self, context, on_chunk_extension_value),
-                                  context.byte == b'\r'
-                               || context.byte == b';'
-                               || context.byte == b'"');
+           callback_eos_expr!(self, context, on_chunk_extension_value),
+              context.byte == b'\r'
+           || context.byte == b';'
+           || context.byte == b'"'
+        );
 
         match context.byte {
             b'\r' => {
@@ -2241,7 +2248,7 @@ impl<T: HttpHandler> Parser<T> {
                                       chunk_extension_quoted_value);
         }
 
-        return Err(ParserError::ChunkExtensionValue(context.byte));
+        Err(ParserError::ChunkExtensionValue(context.byte))
     }
 
     #[inline]
@@ -2256,7 +2263,7 @@ impl<T: HttpHandler> Parser<T> {
             transition!(self, context, State::ChunkSizeNewline, chunk_size_newline);
         }
 
-        return Err(ParserError::ChunkExtensionName(context.byte));
+        Err(ParserError::ChunkExtensionName(context.byte))
     }
 
     #[inline]
@@ -2269,7 +2276,7 @@ impl<T: HttpHandler> Parser<T> {
             transition!(self, context, State::ChunkData, chunk_data);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2296,7 +2303,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::ChunkDataNewline2, chunk_data_newline2);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2309,7 +2316,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::ChunkSize, chunk_size);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2352,12 +2359,13 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::UrlEncodedField,
-                                callback_eos_expr!(self, context, on_url_encoded_field),
-                                   context.byte == b'='
-                                || context.byte == b'%'
-                                || context.byte == b'&'
-                                || context.byte == b'+'
-                                || context.byte == b'\r');
+            callback_eos_expr!(self, context, on_url_encoded_field),
+               context.byte == b'='
+            || context.byte == b'%'
+            || context.byte == b'&'
+            || context.byte == b'+'
+            || context.byte == b'\r'
+        );
 
         match context.byte {
             b'=' => {
@@ -2432,12 +2440,13 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::UrlEncodedValue,
-                                callback_eos_expr!(self, context, on_url_encoded_value),
-                                   context.byte == b'%'
-                                || context.byte == b'&'
-                                || context.byte == b'+'
-                                || context.byte == b'\r'
-                                || context.byte == b'=');
+            callback_eos_expr!(self, context, on_url_encoded_value),
+               context.byte == b'%'
+            || context.byte == b'&'
+            || context.byte == b'+'
+            || context.byte == b'\r'
+            || context.byte == b'='
+        );
 
         match context.byte {
             b'%' => {
@@ -2463,7 +2472,7 @@ impl<T: HttpHandler> Parser<T> {
                                                  State::FinishedNewline2, finished_newline2);
             },
             _ => {
-                return Err(ParserError::UrlEncodedValue(context.byte));
+                Err(ParserError::UrlEncodedValue(context.byte))
             }
         }
     }
@@ -2511,7 +2520,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::FinishedNewline2, finished_newline2);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2524,7 +2533,7 @@ impl<T: HttpHandler> Parser<T> {
             transition_fast!(self, context, State::Finished, finished);
         }
 
-        return Err(ParserError::CrlfSequence(context.byte));
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2543,7 +2552,7 @@ pub enum Success {
     Callback(usize),
 
     /// Additional data expected.
-    Eof(usize),
+    Eos(usize),
 
     /// Finished successfully.
     Finished(usize)
@@ -2555,8 +2564,8 @@ impl fmt::Debug for Success {
             Success::Callback(length) => {
                 write!(formatter, "Success::Callback({})", length)
             },
-            Success::Eof(length) => {
-                write!(formatter, "Success::Eof({})", length)
+            Success::Eos(length) => {
+                write!(formatter, "Success::Eos({})", length)
             },
             Success::Finished(length) => {
                 write!(formatter, "Success::Finished({})", length)
@@ -2571,7 +2580,7 @@ impl fmt::Display for Success {
             Success::Callback(length) => {
                 write!(formatter, "{}", length)
             },
-            Success::Eof(length) => {
+            Success::Eos(length) => {
                 write!(formatter, "{}", length)
             },
             Success::Finished(length) => {

@@ -18,7 +18,6 @@
 
 use handler::*;
 use http1::*;
-use test::*;
 use test::http1::*;
 
 macro_rules! setup {
@@ -52,6 +51,6 @@ fn finished() {
 
     setup!(p, h);
 
-    assert_eof(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
+    assert_eos(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
     assert!(h.headers_finished);
 }
