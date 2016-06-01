@@ -310,8 +310,24 @@ macro_rules! collect_content_length {
     });
 }
 
+// Collect header value.
+macro_rules! collect_header_value {
+    ($context:expr, $error:expr, $eos:expr) => ({
+        stream_collect!($context, $eos, {
+            if $context.byte == b'\r' {
+                break;
+            } else if $context.byte > 0x1F && $context.byte < 0x7F {
+                // space + visible
+                continue;
+            }
+
+            return Err($error($context.byte));
+        });
+    });
+}
+
 // Collect all bytes that are allowed within a quoted value.
-macro_rules! collect_quoted {
+macro_rules! collect_quoted_value {
     ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
         stream_collect!($context,
             callback_eos_expr!($parser, $context, $function),
@@ -1292,53 +1308,6 @@ pub struct Parser<T: HttpHandler> {
     state_function: StateFunction<T>
 }
 
-// Chunk size macro.
-macro_rules! chunk_size {
-    ($parser:expr, $context:expr) => ({
-        exit_if_eos!($parser, $context);
-        stream_next!($context);
-
-        match hex_to_byte(&[$context.byte]) {
-            Some(byte) => {
-                if get_lower8!($parser) == 10 {
-                    // beyond max size
-                    return Err(ParserError::ChunkSize($context.byte));
-                }
-
-                set_upper40!($parser, get_upper40!($parser) << 4);
-                set_upper40!($parser, get_upper40!($parser) + byte as u64);
-                set_lower8!($parser, get_lower8!($parser) + 1);
-
-                transition_fast!($parser, $context, State::ChunkSize, chunk_size);
-            },
-            None => {
-                if get_lower8!($parser) == 0 {
-                    // no size supplied
-                    return Err(ParserError::ChunkSize($context.byte));
-                }
-
-                if get_upper40!($parser) == 0 {
-                    callback_transition_fast!($parser, $context,
-                                              on_chunk_size, get_upper40!($parser),
-                                              State::Newline2, newline2);
-                } else if $context.byte == b'\r' {
-                    callback_transition_fast!($parser, $context,
-                                              on_chunk_size, get_upper40!($parser),
-                                              State::ChunkSizeNewline, chunk_size_newline);
-                } else if $context.byte == b';' {
-                    set_lower16!($parser, 1);
-
-                    callback_transition_fast!($parser, $context,
-                                              on_chunk_size, get_upper40!($parser),
-                                              State::ChunkExtensionName, chunk_extension_name);
-                } else {
-                    return Err(ParserError::ChunkSize($context.byte));
-                }
-            }
-        }
-    });
-}
-
 impl<T: HttpHandler> Parser<T> {
     /// Create a new `Parser`.
     fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
@@ -1555,6 +1524,8 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::HeaderField,
             callback_eos_expr!(self, context, on_header_field),
+
+            // stop on these bytes
             context.byte == b':'
         );
 
@@ -1580,9 +1551,8 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        stream_collect_visible!(context, ParserError::HeaderValue,
-            callback_eos_expr!(self, context, on_header_value),
-            context.byte == b'\r'
+        collect_header_value!(context, ParserError::HeaderValue,
+            callback_eos_expr!(self, context, on_header_value)
         );
 
         callback_ignore_transition_fast!(self, context,
@@ -1593,7 +1563,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_quoted!(self, context, ParserError::HeaderValue, on_header_value);
+        collect_quoted_value!(self, context, ParserError::HeaderValue, on_header_value);
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
@@ -1748,6 +1718,8 @@ impl<T: HttpHandler> Parser<T> {
 
         stream_collect_tokens!(context, ParserError::Method,
             callback_eos_expr!(self, context, on_method),
+
+            // stop on these bytes
             context.byte == b' '
         );
 
@@ -1772,6 +1744,8 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::Url,
             callback_eos_expr!(self, context, on_url),
+
+            // stop on these bytes
             context.byte == b' '
         );
 
@@ -2173,7 +2147,47 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_size(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        chunk_size!(self, context);
+        exit_if_eos!(self, context);
+        stream_next!(context);
+
+        match hex_to_byte(&[context.byte]) {
+            Some(byte) => {
+                if get_lower8!(self) == 10 {
+                    // beyond max size
+                    return Err(ParserError::ChunkSize(context.byte));
+                }
+
+                set_upper40!(self, get_upper40!(self) << 4);
+                set_upper40!(self, get_upper40!(self) + byte as u64);
+                set_lower8!(self, get_lower8!(self) + 1);
+
+                transition!(self, context, State::ChunkSize, chunk_size);
+            },
+            None => {
+                if get_lower8!(self) == 0 {
+                    // no size supplied
+                    return Err(ParserError::ChunkSize(context.byte));
+                }
+
+                if get_upper40!(self) == 0 {
+                    callback_transition_fast!(self, context,
+                                              on_chunk_size, get_upper40!(self),
+                                              State::Newline2, newline2);
+                } else if context.byte == b'\r' {
+                    callback_transition_fast!(self, context,
+                                              on_chunk_size, get_upper40!(self),
+                                              State::ChunkSizeNewline, chunk_size_newline);
+                } else if context.byte == b';' {
+                    set_lower16!(self, 1);
+
+                    callback_transition_fast!(self, context,
+                                              on_chunk_size, get_upper40!(self),
+                                              State::ChunkExtensionName, chunk_extension_name);
+                } else {
+                    Err(ParserError::ChunkSize(context.byte))
+                }
+            }
+        }
     }
 
     #[inline]
@@ -2181,6 +2195,8 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::ChunkExtensionName,
             callback_eos_expr!(self, context, on_chunk_extension_name),
+
+            // stop on these bytes
             context.byte == b'='
         );
 
@@ -2193,10 +2209,12 @@ impl<T: HttpHandler> Parser<T> {
     fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         stream_collect_tokens!(context, ParserError::ChunkExtensionValue,
-           callback_eos_expr!(self, context, on_chunk_extension_value),
-              context.byte == b'\r'
-           || context.byte == b';'
-           || context.byte == b'"'
+            callback_eos_expr!(self, context, on_chunk_extension_value),
+
+            // stop on these bytes
+               context.byte == b'\r'
+            || context.byte == b';'
+            || context.byte == b'"'
         );
 
         match context.byte {
@@ -2220,7 +2238,8 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_quoted!(self, context, ParserError::ChunkExtensionValue, on_chunk_extension_value);
+        collect_quoted_value!(self, context, ParserError::ChunkExtensionValue,
+                              on_chunk_extension_value);
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
@@ -2360,6 +2379,8 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::UrlEncodedField,
             callback_eos_expr!(self, context, on_url_encoded_field),
+
+            // stop on these bytes
                context.byte == b'='
             || context.byte == b'%'
             || context.byte == b'&'
@@ -2441,6 +2462,8 @@ impl<T: HttpHandler> Parser<T> {
     -> Result<ParserValue, ParserError> {
         stream_collect_visible!(context, ParserError::UrlEncodedValue,
             callback_eos_expr!(self, context, on_url_encoded_value),
+
+            // stop on these bytes
                context.byte == b'%'
             || context.byte == b'&'
             || context.byte == b'+'

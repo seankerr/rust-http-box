@@ -108,3 +108,14 @@ fn single() {
     assert_eos(&mut p, &mut h, b"ValueTime\r", State::Newline2, 10);
     assert_eq!(h.header_value, b"ValueTime");
 }
+
+#[test]
+fn space() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new_request();
+
+    setup!(p, h);
+
+    assert_eos(&mut p, &mut h, b"Value Time\r", State::Newline2, 11);
+    assert_eq!(h.header_value, b"Value Time");
+}
