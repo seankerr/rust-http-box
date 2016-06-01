@@ -19,71 +19,82 @@
 use test::*;
 use url::*;
 
+use std::str;
+
 macro_rules! url {
     ($stream:expr,
      $scheme:expr, $userinfo:expr, $hostname:expr, $ipv4:expr, $ipv6:expr, $port:expr, $path:expr,
-     $query_string:expr, $fragment:expr,
+     $query:expr, $fragment:expr,
      $has_scheme:expr, $has_userinfo:expr, $has_hostname:expr, $has_ipv4:expr, $has_ipv6:expr,
-     $has_port:expr, $has_path:expr, $has_query_string:expr, $has_fragment:expr, $length:expr) => ({
-        let mut fragment         = vec![];
-        let mut has_fragment     = false;
-        let mut has_ipv4         = false;
-        let mut has_ipv6         = false;
-        let mut has_hostname     = false;
-        let mut has_path         = false;
-        let mut has_port         = false;
-        let mut has_query_string = false;
-        let mut has_scheme       = false;
-        let mut has_userinfo     = false;
-        let mut hostname         = vec![];
-        let mut ipv4             = vec![];
-        let mut ipv6             = vec![];
-        let mut path             = vec![];
-        let mut port             = 0;
-        let mut query_string     = vec![];
-        let mut scheme           = vec![];
-        let mut userinfo         = vec![];
+     $has_port:expr, $has_path:expr, $has_query:expr, $has_fragment:expr, $length:expr) => ({
+        let mut fragment     = vec![];
+        let mut has_fragment = false;
+        let mut has_ipv4     = false;
+        let mut has_ipv6     = false;
+        let mut has_hostname = false;
+        let mut has_path     = false;
+        let mut has_port     = false;
+        let mut has_query    = false;
+        let mut has_scheme   = false;
+        let mut has_userinfo = false;
+        let mut hostname     = vec![];
+        let mut ipv4         = vec![];
+        let mut ipv6         = vec![];
+        let mut path         = vec![];
+        let mut port         = 0;
+        let mut query        = vec![];
+        let mut scheme       = vec![];
+        let mut userinfo     = vec![];
 
         assert!(match parse_url($stream,
                                 |segment| {
                                     match segment {
                                         UrlSegment::Fragment(x) => {
+                                            println!("fragment [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                             has_fragment = true;
                                             fragment.extend_from_slice(x);
                                         },
                                         UrlSegment::Host(host) => {
                                             match host {
                                                 Host::Hostname(x) => {
+                                                    println!("hostname [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                                     has_hostname = true;
                                                     hostname.extend_from_slice(x);
                                                 },
                                                 Host::IPv4(x) => {
+                                                    println!("ipv4 [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                                     has_ipv4 = true;
                                                     ipv4.extend_from_slice(x);
                                                 },
                                                 Host::IPv6(x) => {
+                                                    println!("ipv6 [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                                     has_ipv6 = true;
                                                     ipv6.extend_from_slice(x);
                                                 }
                                             }
                                         },
                                         UrlSegment::Path(x) => {
+                                            println!("path [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                             has_path = true;
                                             path.extend_from_slice(x);
                                         },
                                         UrlSegment::Port(x) => {
+                                            println!("port: {}", x);
                                             has_port = true;
                                             port = x;
                                         },
-                                        UrlSegment::QueryString(x) => {
-                                            has_query_string = true;
-                                            query_string.extend_from_slice(x);
+                                        UrlSegment::Query(x) => {
+                                            println!("query [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
+                                            has_query = true;
+                                            query.extend_from_slice(x);
                                         },
                                         UrlSegment::Scheme(x) => {
+                                            println!("scheme [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                             has_scheme = true;
                                             scheme.extend_from_slice(x);
                                         },
                                         UrlSegment::UserInfo(x) => {
+                                            println!("userinfo [{}]: {:?}", x.len(), str::from_utf8(x).unwrap());
                                             has_userinfo = true;
                                             userinfo.extend_from_slice(x);
                                         }
@@ -96,7 +107,7 @@ macro_rules! url {
                 assert_eq!(ipv6, $ipv6);
                 assert_eq!(path, $path);
                 assert_eq!(port, $port);
-                assert_eq!(query_string, $query_string);
+                assert_eq!(query, $query);
                 assert_eq!(scheme, $scheme);
                 assert_eq!(userinfo, $userinfo);
                 assert_eq!(has_fragment, $has_fragment);
@@ -105,7 +116,7 @@ macro_rules! url {
                 assert_eq!(has_ipv6, $has_ipv6);
                 assert_eq!(has_path, $has_path);
                 assert_eq!(has_port, $has_port);
-                assert_eq!(has_query_string, $has_query_string);
+                assert_eq!(has_query, $has_query);
                 assert_eq!(has_scheme, $has_scheme);
                 assert_eq!(has_userinfo, $has_userinfo);
                 true
@@ -127,6 +138,7 @@ macro_rules! url_error {
     });
 }
 
+/*
 #[test]
 fn fragment() {
     url!(b"#fragment",
@@ -184,6 +196,18 @@ fn ipv4_leading_zero_error4() {
 }
 
 #[test]
+fn ipv4_port() {
+    url!(b"255.255.255.255:65535",
+         b"", b"", b"", b"255.255.255.255", b"", 65535, b"", b"", b"",
+         false, false, false, true, false, true, false, false, false, 21);
+}
+
+#[test]
+fn ipv4_port_error() {
+    url_error!(b"255.255.255.255:65536", UrlError::Port, b'6');
+}
+
+#[test]
 fn ipv4_segment_invalid1() {
     url_error!(b"256.0.0.0", UrlError::Host, b'6');
 }
@@ -226,7 +250,7 @@ fn path_byte_check() {
 }
 
 #[test]
-fn path_query_string() {
+fn path_query() {
     url!(b"/path?query-string",
          b"", b"", b"", b"", b"", 0, b"/path", b"query-string", b"",
          false, false, false, false, false, false, true, true, false, 18);
@@ -240,24 +264,24 @@ fn path_fragment() {
 }
 
 #[test]
-fn path_query_string_fragment() {
+fn path_query_fragment() {
     url!(b"/path?query-string#fragment-data",
          b"", b"", b"", b"", b"", 0, b"/path", b"query-string", b"fragment-data",
          false, false, false, false, false, false, true, true, true, 32);
 }
 
 #[test]
-fn query_string() {
+fn query() {
     url!(b"?query-string",
          b"", b"", b"", b"", b"", 0, b"", b"query-string", b"",
          false, false, false, false, false, false, false, true, false, 13);
 }
 
 #[test]
-fn query_string_byte_check() {
+fn query_byte_check() {
     // invalid bytes
     loop_non_visible(b"", |byte| {
-        url_error!(&[b'/', b'?', byte], UrlError::QueryString, byte);
+        url_error!(&[b'/', b'?', byte], UrlError::Query, byte);
     });
 
     // valid bytes
@@ -267,6 +291,7 @@ fn query_string_byte_check() {
              false, false, false, false, false, false, true, true, false, 3);
     });
 }
+*/
 
 #[test]
 fn scheme() {
@@ -286,8 +311,27 @@ fn scheme_error2() {
 }
 
 #[test]
+fn scheme_error3() {
+    url_error!(b"://", UrlError::Scheme, b':');
+}
+
+/*
+#[test]
 fn scheme_path() {
     url!(b"http:///path1/path2",
          b"http", b"", b"", b"", b"", 0, b"/path1/path2", b"", b"",
          true, false, false, false, false, false, true, false, false, 19);
 }
+
+#[test]
+fn userinfo() {
+    url!(b"http://user:pass@",
+         b"http", b"user:pass", b"", b"", b"", 0, b"", b"", b"",
+         true, true, false, false, false, false, false, false, false, 17);
+}
+
+#[test]
+fn userinfo_error() {
+    url_error!(b"http://@", UrlError::UserInfo, b'@');
+}
+*/

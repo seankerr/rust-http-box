@@ -26,22 +26,22 @@ macro_rules! query {
         let mut has_value   = false;
         let mut value       = vec![];
 
-        assert!(match parse_query_string($stream,
-                                         |segment| {
-                                             match segment {
-                                                 QuerySegment::Field(x) => {
-                                                     has_field = true;
-                                                     field.extend_from_slice(x)
-                                                 },
-                                                 QuerySegment::Flush => {
-                                                     has_flushed = true
-                                                 },
-                                                 QuerySegment::Value(x) => {
-                                                     has_value = true;
-                                                     value.extend_from_slice(x)
-                                                 }
-                                             }
-                                         }) {
+        assert!(match parse_query($stream,
+                                  |segment| {
+                                      match segment {
+                                          QuerySegment::Field(x) => {
+                                              has_field = true;
+                                              field.extend_from_slice(x)
+                                          },
+                                          QuerySegment::Flush => {
+                                              has_flushed = true
+                                          },
+                                          QuerySegment::Value(x) => {
+                                              has_value = true;
+                                              value.extend_from_slice(x)
+                                          }
+                                      }
+                                  }) {
             Ok($length) => {
                 assert_eq!(field, $field);
                 assert_eq!(value, $value);
@@ -56,6 +56,6 @@ macro_rules! query {
 }
 
 mod decode;
-mod parse_query_string_field;
-mod parse_query_string_value;
+mod parse_query_field;
+mod parse_query_value;
 mod parse_url;
