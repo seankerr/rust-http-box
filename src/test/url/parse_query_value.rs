@@ -20,13 +20,13 @@ use url::*;
 
 macro_rules! query_error {
     ($stream:expr, $byte:expr) => ({
-        assert!(match parse_query_string($stream,
-                                         |segment| {
-                                             match segment {
-                                                 _ => {}
-                                             }
-                                         }) {
-            Err(QueryError::Field(x)) => {
+        assert!(match parse_query($stream,
+                                  |segment| {
+                                      match segment {
+                                          _ => {}
+                                      }
+                                  }) {
+            Err(QueryError::Value(x)) => {
                 assert_eq!(x, $byte);
                 true
             },
@@ -37,80 +37,80 @@ macro_rules! query_error {
 
 #[test]
 fn basic() {
-    query!(b"Field", b"Field", b"", true, false, true, 5);
+    query!(b"Field=Value", b"Field", b"Value", true, true, true, 11);
 }
 
 #[test]
 fn complex() {
-    query!(b"Field%20Name+%20+%21", b"Field Name   !", b"", true, false, true, 20);
+    query!(b"Field=Value+%20+%21", b"Field", b"Value   !", true, true, true, 19);
 }
 
 #[test]
 fn ending_ampersand() {
-    query!(b"Field&", b"Field", b"", true, false, true, 6);
+    query!(b"Field=Value&", b"Field", b"Value", true, true, true, 12);
 }
 
 #[test]
 fn ending_equal() {
-    query!(b"Field=", b"Field", b"", true, false, true, 6);
+    query_error!(b"Field=Value=", b'=');
 }
 
 #[test]
 fn ending_hex() {
-    query!(b"Field%21", b"Field!", b"", true, false, true, 8);
+    query!(b"Field=Value%21", b"Field", b"Value!", true, true, true, 14);
 }
 
 #[test]
 fn ending_hex_error1() {
-    query_error!(b"Field%", b'%');
+    query_error!(b"Field=Value%", b'%');
 }
 
 #[test]
 fn ending_hex_error2() {
-    query_error!(b"Field%2", b'%');
+    query_error!(b"Field=Value%2", b'%');
 }
 
 #[test]
 fn ending_hex_error3() {
-    query_error!(b"Field%2G", b'%');
+    query_error!(b"Field=Value%2G", b'%');
 }
 
 #[test]
 fn ending_plus() {
-    query!(b"Field+", b"Field ", b"", true, false, true, 6);
+    query!(b"Field=Value+", b"Field", b"Value ", true, true, true, 12);
 }
 
 #[test]
-fn starting_ampersand_error() {
-    query_error!(b"&", b'&');
+fn starting_ampersand() {
+    query!(b"Field=&", b"Field", b"", true, false, true, 7);
 }
 
 #[test]
 fn starting_equal_error() {
-    query_error!(b"=", b'=');
+    query_error!(b"Field==", b'=');
 }
 
 #[test]
 fn starting_hex() {
-    query!(b"%21Field", b"!Field", b"", true, false, true, 8);
+    query!(b"Field=%21Value", b"Field", b"!Value", true, true, true, 14);
 }
 
 #[test]
 fn starting_hex_error1() {
-    query_error!(b"%", b'%');
+    query_error!(b"Field=%", b'%');
 }
 
 #[test]
 fn starting_hex_error2() {
-    query_error!(b"%2", b'%');
+    query_error!(b"Field=%2", b'%');
 }
 
 #[test]
 fn starting_hex_error3() {
-    query_error!(b"%2G", b'%');
+    query_error!(b"Field=%2G", b'%');
 }
 
 #[test]
 fn starting_plus() {
-    query!(b"+Field", b" Field", b"", true, false, true, 6);
+    query!(b"Field=+", b"Field", b" ", true, true, true, 7);
 }
