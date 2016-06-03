@@ -92,7 +92,7 @@ pub fn loop_non_quoted<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if is_non_visible!(n1) && n1 != b' ' {
+        if is_not_visible_7bit!(n1) && n1 != b' ' {
             function(n1 as u8);
         }
     }
@@ -123,7 +123,7 @@ pub fn loop_non_visible<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if is_non_visible!(n1) {
+        if is_not_visible_7bit!(n1) {
             function(n1 as u8);
         }
     }
@@ -138,7 +138,7 @@ pub fn loop_quoted<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if is_visible!(n1) || n1 == b' ' {
+        if is_visible_7bit!(n1) || n1 == b' ' {
             function(n1 as u8);
         }
     }
@@ -168,7 +168,7 @@ pub fn loop_visible<F>(skip: &[u8], function: F) where F : Fn(u8) {
             }
         }
 
-        if is_visible!(n1) {
+        if is_visible_7bit!(n1) {
             function(n1 as u8);
         }
     }

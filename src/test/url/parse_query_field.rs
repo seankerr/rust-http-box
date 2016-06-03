@@ -20,7 +20,7 @@ use url::*;
 
 macro_rules! query_error {
     ($stream:expr, $byte:expr) => ({
-        assert!(match parse_query($stream,
+        assert!(match parse_query($stream, b'&',
                                   |segment| {
                                       match segment {
                                           _ => {}

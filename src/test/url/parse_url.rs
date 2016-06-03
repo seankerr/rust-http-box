@@ -138,7 +138,6 @@ macro_rules! url_error {
     });
 }
 
-/*
 #[test]
 fn fragment() {
     url!(b"#fragment",
@@ -161,6 +160,7 @@ fn fragment_byte_check() {
     });
 }
 
+/*
 #[test]
 fn ipv4_0_0_0_0() {
     url!(b"0.0.0.0",
@@ -226,6 +226,7 @@ fn ipv4_segment_invalid3() {
 fn ipv4_segment_invalid4() {
     url_error!(b"0.0.0.256", UrlError::Host, b'6');
 }
+*/
 
 #[test]
 fn path() {
@@ -291,14 +292,15 @@ fn query_byte_check() {
              false, false, false, false, false, false, true, true, false, 3);
     });
 }
-*/
 
+/*
 #[test]
 fn scheme() {
     url!(b"http://",
          b"http", b"", b"", b"", b"", 0, b"", b"", b"",
          true, false, false, false, false, false, false, false, false, 7);
 }
+*/
 
 #[test]
 fn scheme_error1() {

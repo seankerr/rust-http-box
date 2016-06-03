@@ -11,8 +11,10 @@ keywords    = ["http", "url", "parser", "encoder", "decoder"]
 exclude     = [".gitignore"]
 
 [dependencies]
-bitflags = "*"
+bitflags   = "*"
+byte-slice = "*"
 
 [dev-dependencies]
-bitflags = "*"
-clippy   = "*"
+bitflags   = "*"
+byte-slice = "*"
+clippy     = "*"

@@ -26,7 +26,7 @@ macro_rules! query {
         let mut has_value   = false;
         let mut value       = vec![];
 
-        assert!(match parse_query($stream,
+        assert!(match parse_query($stream, b'&',
                                   |segment| {
                                       match segment {
                                           QuerySegment::Field(x) => {
@@ -58,4 +58,4 @@ macro_rules! query {
 mod decode;
 mod parse_query_field;
 mod parse_query_value;
-mod parse_url;
+//mod parse_url;

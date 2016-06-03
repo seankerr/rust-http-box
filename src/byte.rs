@@ -18,48 +18,6 @@
 
 //! Byte verification macros and functions.
 
-/// Indicates that a byte is a control character.
-#[macro_export]
-macro_rules! is_control {
-    ($byte:expr) => (
-        $byte < 32 || $byte == 127
-    );
-}
-
-/// Indicates that a byte is numerical.
-#[macro_export]
-macro_rules! is_digit {
-    ($byte:expr) => (
-        $byte > 47 && $byte < 58
-    );
-}
-
-/// Indicates that a byte is a hex character.
-#[macro_export]
-macro_rules! is_hex {
-    ($byte:expr) => (
-           is_digit!($byte)
-        || (b'@' < $byte && $byte < b'G')
-        || (b'`' < $byte && $byte < b'g')
-    );
-}
-
-/// Indicates that a byte is a non-visible 7-bit character, or it isn't 7-bit.
-#[macro_export]
-macro_rules! is_non_visible {
-    ($byte:expr) => (
-        $byte < 0x21 || $byte > 0x7E
-    )
-}
-
-/// Indicates that a byte is a 7-bit, is a non-control character, and is not a space.
-#[macro_export]
-macro_rules! is_visible {
-    ($byte:expr) => (
-        $byte > 0x20 && $byte < 0x7F
-    )
-}
-
 /// Encode a byte into a hex sequence *XX*.
 ///
 /// # Example

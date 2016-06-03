@@ -25,6 +25,9 @@
 extern crate bitflags;
 
 #[macro_use]
+extern crate byte_slice;
+
+#[macro_use]
 pub mod byte;
 
 #[macro_use]
