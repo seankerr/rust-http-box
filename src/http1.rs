@@ -618,12 +618,6 @@ pub enum ParserError {
     /// Invalid header value.
     HeaderValue(u8),
 
-    /// Maximum content length has been met.
-    MaxContentLength,
-
-    /// Maximum multipart boundary length has been met.
-    MaxMultipartBoundaryLength,
-
     /// Missing an expected Content-Length header.
     MissingContentLength,
 
@@ -652,6 +646,66 @@ pub enum ParserError {
     Version(u8),
 }
 
+impl fmt::Debug for ParserError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ParserError::ChunkExtensionName(ref byte) => {
+                write!(formatter, "ParserError::ChunkExtensionName(Invalid chunk extension name at byte {})",
+                       byte)
+            },
+            ParserError::ChunkExtensionValue(ref byte) => {
+                write!(formatter, "ParserError::ChunkExtensionValue(Invalid chunk extension value at byte {})",
+                       byte)
+            },
+            ParserError::ChunkSize(ref byte) => {
+                write!(formatter, "ParserError::ChunkSize(Invalid chunk size at byte {})", byte)
+            },
+            ParserError::CrlfSequence(ref byte) => {
+                write!(formatter, "ParserError::CrlfSequence(Invalid CRLF sequence at byte {})", byte)
+            },
+            ParserError::Dead => {
+                write!(formatter, "ParserError::Dead(Parser is dead)")
+            },
+            ParserError::HeaderField(ref byte) => {
+                write!(formatter, "ParserError::HeaderField(Invalid header field at byte {})", byte)
+            },
+            ParserError::HeaderValue(ref byte) => {
+                write!(formatter, "ParserError::HeaderValue(Invalid header value at byte {})", byte)
+            },
+            ParserError::MissingContentLength => {
+                write!(formatter, "ParserError::MissingContentLength(Missing content length)")
+            },
+            ParserError::Method(ref byte) => {
+                write!(formatter, "ParserError::Method(Invalid method at byte {})", byte)
+            },
+            ParserError::MultipartBoundary(ref byte) => {
+                write!(formatter, "ParserError::MultipartBoundary(Invalid multipart boundary at byte {})",
+                       byte)
+            },
+            ParserError::Status(ref byte) => {
+                write!(formatter, "ParserError::Status(Invalid status at byte {})", byte)
+            },
+            ParserError::StatusCode(ref byte) => {
+                write!(formatter, "ParserError::StatusCode(Invalid status code at byte {})", byte)
+            },
+            ParserError::Url(ref byte) => {
+                write!(formatter, "ParserError::Url(Invalid URL at byte {})", byte)
+            },
+            ParserError::UrlEncodedField(ref byte) => {
+                write!(formatter, "ParserError::UrlEncodedField(Invalid URL encoded field at byte {})",
+                       byte)
+            },
+            ParserError::UrlEncodedValue(ref byte) => {
+                write!(formatter, "ParserError::UrlEncodedValue(Invalid URL encoded value at byte {})",
+                       byte)
+            },
+            ParserError::Version(ref byte) => {
+                write!(formatter, "ParserError::Version(Invalid HTTP version at byte {})", byte)
+            }
+        }
+    }
+}
+
 impl fmt::Display for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -675,12 +729,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "Invalid header value at byte {}", byte)
-            },
-            ParserError::MaxContentLength => {
-                write!(formatter, "Maximum content length exceeded")
-            },
-            ParserError::MaxMultipartBoundaryLength => {
-                write!(formatter, "Maximum multipart boundary size exceeded")
             },
             ParserError::MissingContentLength => {
                 write!(formatter, "Missing content length")
