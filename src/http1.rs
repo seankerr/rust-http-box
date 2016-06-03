@@ -1182,60 +1182,6 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when parsing a URL fragment has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire fragment.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_fragment(&mut self, fragment: &[u8]) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing a URL host has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire fragment.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_host(&mut self, host: &[u8]) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing a URL path has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire path.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_path(&mut self, path: &[u8]) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing a URL port has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire port.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_port(&mut self, port: u16) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing a URL query string has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire query string.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_query_string(&mut self, query_string: &[u8]) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing a URL scheme has completed.
-    ///
-    /// This may be executed multiple times in order to supply the entire scheme.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_url_scheme(&mut self, scheme: &[u8]) -> bool {
-        true
-    }
-
     /// Callback that is executed when the HTTP major version has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.

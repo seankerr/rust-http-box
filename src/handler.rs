@@ -44,12 +44,6 @@ pub struct DebugHandler {
     pub url:                   Vec<u8>,
     pub url_encoded_field:     Vec<u8>,
     pub url_encoded_value:     Vec<u8>,
-    pub url_fragment:          Vec<u8>,
-    pub url_host:              Vec<u8>,
-    pub url_path:              Vec<u8>,
-    pub url_port:              u16,
-    pub url_query_string:      Vec<u8>,
-    pub url_scheme:            Vec<u8>,
     pub version_major:         u16,
     pub version_minor:         u16
 }
@@ -73,12 +67,6 @@ impl DebugHandler {
                       url:                   Vec::new(),
                       url_encoded_field:     Vec::new(),
                       url_encoded_value:     Vec::new(),
-                      url_fragment:          Vec::new(),
-                      url_host:              Vec::new(),
-                      url_path:              Vec::new(),
-                      url_port:              0,
-                      url_query_string:      Vec::new(),
-                      url_scheme:            Vec::new(),
                       version_major:         0,
                       version_minor:         0 }
     }
@@ -101,12 +89,6 @@ impl DebugHandler {
         self.url                   = Vec::new();
         self.url_encoded_field     = Vec::new();
         self.url_encoded_value     = Vec::new();
-        self.url_fragment          = Vec::new();
-        self.url_host              = Vec::new();
-        self.url_path              = Vec::new();
-        self.url_port              = 0;
-        self.url_query_string      = Vec::new();
-        self.url_scheme            = Vec::new();
         self.version_major         = 0;
         self.version_minor         = 0;
     }
@@ -274,43 +256,6 @@ impl HttpHandler for DebugHandler {
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         println!("on_url_encoded_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
         self.url_encoded_value.extend_from_slice(value);
-        true
-    }
-
-    fn on_url_fragment(&mut self, fragment: &[u8]) -> bool {
-        println!("on_url_fragment [{}]: {:?}", fragment.len(), str::from_utf8(fragment).unwrap());
-        self.url_fragment.extend_from_slice(fragment);
-        true
-    }
-
-    fn on_url_host(&mut self, host: &[u8]) -> bool {
-        println!("on_url_host [{}]: {:?}", host.len(), str::from_utf8(host).unwrap());
-        self.url_host.extend_from_slice(host);
-        true
-    }
-
-    fn on_url_path(&mut self, path: &[u8]) -> bool {
-        println!("on_url_path [{}]: {:?}", path.len(), str::from_utf8(path).unwrap());
-        self.url_path.extend_from_slice(path);
-        true
-    }
-
-    fn on_url_port(&mut self, port: u16) -> bool {
-        println!("on_url_port: {}", port);
-        self.url_port = port;
-        true
-    }
-
-    fn on_url_query_string(&mut self, query_string: &[u8]) -> bool {
-        println!("on_url_query_string [{}]: {:?}", query_string.len(),
-                 str::from_utf8(query_string).unwrap());
-        self.url_query_string.extend_from_slice(query_string);
-        true
-    }
-
-    fn on_url_scheme(&mut self, scheme: &[u8]) -> bool {
-        println!("on_url_scheme [{}]: {:?}", scheme.len(), str::from_utf8(scheme).unwrap());
-        self.url_scheme.extend_from_slice(scheme);
         true
     }
 
