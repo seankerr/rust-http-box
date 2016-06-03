@@ -23,12 +23,12 @@
 /// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
 /// `$max`.
 macro_rules! collect_digits {
-    ($context:expr, $error:expr, $digit:expr, $max:expr, $eos:expr) => ({
+    ($context:expr, $error:expr, $digit:expr, $max:expr, $on_eos:expr) => ({
         bs_collect_digits!($context, $digit,
             if $digit > $max {
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
     });
 }
@@ -40,13 +40,13 @@ macro_rules! collect_digits {
 /// End-of-stream returns `$error`.
 macro_rules! collect_length {
     ($context:expr, $error:expr, $length:expr, $allow:expr) => ({
-        bs_collect_length!($context, {
+        bs_collect_length!($context,
             if !$allow {
                 return Err($error($context.byte));
+            }, {
+                return Err($error($context.byte))
             }
-        }, {
-            return Err($error($context.byte))
-        });
+        );
     });
 }
 
@@ -54,23 +54,23 @@ macro_rules! collect_length {
 ///
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_tokens {
-    ($context:expr, $error:expr, $eos:expr, $stop:expr) => ({
+    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if $stop {
                 break;
             } else if !is_token($context.byte) {
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $eos:expr) => ({
+    ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if !is_token($context.byte) {
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
     });
 }
@@ -79,23 +79,23 @@ macro_rules! collect_tokens {
 ///
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_visible {
-    ($context:expr, $error:expr, $eos:expr, $stop:expr) => ({
+    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if $stop {
                 break;
             } else if is_not_visible_7bit!($context.byte) {
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $eos:expr) => ({
+    ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if is_not_visible_7bit!($context.byte) {
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
     });
 }

@@ -1525,10 +1525,11 @@ impl<T: HttpHandler> Parser<T> {
     fn header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::HeaderField,
-            callback_eos_expr!(self, context, on_header_field),
-
             // stop on these bytes
-            context.byte == b':'
+            context.byte == b':',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_header_field)
         );
 
         callback_ignore_transition_fast!(self, context,
@@ -1719,10 +1720,11 @@ impl<T: HttpHandler> Parser<T> {
         }
 
         collect_tokens!(context, ParserError::Method,
-            callback_eos_expr!(self, context, on_method),
-
             // stop on these bytes
-            context.byte == b' '
+            context.byte == b' ',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_method)
         );
 
         bs_replay!(context);
@@ -1745,10 +1747,11 @@ impl<T: HttpHandler> Parser<T> {
     fn request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::Url,
-            callback_eos_expr!(self, context, on_url),
-
             // stop on these bytes
-            context.byte == b' '
+            context.byte == b' ',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_url)
         );
 
         bs_replay!(context);
@@ -2195,10 +2198,11 @@ impl<T: HttpHandler> Parser<T> {
     fn chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::ChunkExtensionName,
-            callback_eos_expr!(self, context, on_chunk_extension_name),
-
             // stop on these bytes
-            context.byte == b'='
+            context.byte == b'=',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_chunk_extension_name)
         );
 
         callback_ignore_transition_fast!(self, context,
@@ -2210,12 +2214,13 @@ impl<T: HttpHandler> Parser<T> {
     fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::ChunkExtensionValue,
-            callback_eos_expr!(self, context, on_chunk_extension_value),
-
             // stop on these bytes
                context.byte == b'\r'
             || context.byte == b';'
-            || context.byte == b'"'
+            || context.byte == b'"',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_chunk_extension_value)
         );
 
         match context.byte {
@@ -2379,14 +2384,15 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::UrlEncodedField,
-            callback_eos_expr!(self, context, on_url_encoded_field),
-
             // stop on these bytes
                context.byte == b'='
             || context.byte == b'%'
             || context.byte == b'&'
             || context.byte == b'+'
-            || context.byte == b'\r'
+            || context.byte == b'\r',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_url_encoded_field)
         );
 
         match context.byte {
@@ -2462,14 +2468,15 @@ impl<T: HttpHandler> Parser<T> {
     fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::UrlEncodedValue,
-            callback_eos_expr!(self, context, on_url_encoded_value),
-
             // stop on these bytes
                context.byte == b'%'
             || context.byte == b'&'
             || context.byte == b'+'
             || context.byte == b'\r'
-            || context.byte == b'='
+            || context.byte == b'=',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_url_encoded_value)
         );
 
         match context.byte {

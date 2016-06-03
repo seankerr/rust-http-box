@@ -382,20 +382,22 @@ where F : FnMut(&[u8]) {
     loop {
         bs_mark!(context);
 
-        collect_visible!(context, DecodeError::Byte, {
+        collect_visible!(context, DecodeError::Byte,
+            // stop on these bytes
+               context.byte == b'%'
+            || context.byte == b'+',
+
+            // on end-of-stream
+            {
                if context.mark_index < context.stream_index {
                     append_fn(bs_slice!(context));
                 }
 
                 exit_ok!(context);
-            },
-
-            // stop on these bytes
-               context.byte == b'%'
-            || context.byte == b'+'
+            }
         );
 
-        if context.mark_index < context.stream_index - 1 {
+        if bs_slice_length!(context) > 1 {
             append_fn(bs_slice_ignore!(context));
         }
 
@@ -425,24 +427,26 @@ where F : FnMut(QuerySegment) {
         loop {
             bs_mark!(context);
 
-            collect_visible!(context, QueryError::Field, {
-                    if context.mark_index < context.stream_index {
+            collect_visible!(context, QueryError::Field,
+                // stop on these bytes
+                   context.byte == b'%'
+                || context.byte == b'+'
+                || context.byte == b'='
+                || context.byte == separator,
+
+                // on end-of-stream
+                {
+                    if bs_slice_length!(context) > 0 {
                         segment_fn(QuerySegment::Field(bs_slice!(context)));
                     }
 
                     segment_fn(QuerySegment::Flush);
 
                     exit_ok!(context);
-                },
-
-                // stop on these bytes
-                   context.byte == b'%'
-                || context.byte == b'+'
-                || context.byte == b'='
-                || context.byte == separator
+                }
             );
 
-            if context.mark_index < context.stream_index - 1 {
+            if bs_slice_length!(context) > 1 {
                 segment_fn(QuerySegment::Field(bs_slice_ignore!(context)));
             }
 
@@ -480,24 +484,26 @@ where F : FnMut(QuerySegment) {
         loop {
             bs_mark!(context);
 
-            collect_visible!(context, QueryError::Value, {
-                    if context.mark_index < context.stream_index {
+            collect_visible!(context, QueryError::Value,
+                // stop on these bytes
+                   context.byte == b'%'
+                || context.byte == b'+'
+                || context.byte == b'='
+                || context.byte == separator,
+
+                // on end-of-stream
+                {
+                    if bs_slice_length!(context) > 0 {
                         segment_fn(QuerySegment::Value(bs_slice!(context)));
                     }
 
                     segment_fn(QuerySegment::Flush);
 
                     exit_ok!(context);
-                },
-
-                // stop on these bytes
-                   context.byte == b'%'
-                || context.byte == b'+'
-                || context.byte == b'='
-                || context.byte == separator
+                }
             );
 
-            if context.mark_index < context.stream_index - 1 {
+            if bs_slice_length!(context) > 1 {
                 segment_fn(QuerySegment::Value(bs_slice_ignore!(context)));
             }
 
@@ -543,17 +549,19 @@ where F : FnMut(UrlSegment) {
         // scheme or relative path
         bs_replay!(context);
 
-        collect_visible!(context, UrlError::Scheme, {
-                // no other data, this is invalid
-                return Err(UrlError::Scheme(context.byte));
-            },
-
+        collect_visible!(context, UrlError::Scheme,
             // stop on these bytes
                !is_alpha!(context.byte)
             && !is_digit!(context.byte)
             && context.byte != b'+'
             && context.byte != b'-'
-            && context.byte != b'.'
+            && context.byte != b'.',
+
+            // on end-of-stream
+            {
+                // no other data, this is invalid
+                return Err(UrlError::Scheme(context.byte));
+            }
         );
 
         // next byte must be a colon if this is a scheme
@@ -618,17 +626,19 @@ fn parse_url_authority<'a,F>(context: &'a mut ByteStream, mut segment_fn: F)
 
     bs_mark!(context);
 
-    collect_visible!(context, UrlError::Authority, {
-            bs_rewind_to!(context, context.mark_index);
-
-            return parse_url_host(context, &mut segment_fn);
-        },
-
+    collect_visible!(context, UrlError::Authority,
         // stop on these bytes
            context.byte == b'@'
         || context.byte == b'/'
         || context.byte == b'?'
-        || context.byte == b'#'
+        || context.byte == b'#',
+
+        // on end-of-stream
+        {
+            bs_rewind_to!(context, context.mark_index);
+
+            return parse_url_host(context, &mut segment_fn);
+        }
     );
 
     exit_ok!(context);
@@ -639,7 +649,9 @@ fn parse_url_fragment<'a,F>(context: &'a mut ByteStream, mut segment_fn: F)
 -> Result<usize, UrlError> where F : FnMut(UrlSegment) {
     bs_mark!(context);
 
-    collect_visible!(context, UrlError::Fragment, {
+    collect_visible!(context, UrlError::Fragment,
+        // on end-of-stream
+        {
             segment_fn(UrlSegment::Fragment(bs_slice!(context)));
 
             exit_ok!(context);
@@ -658,15 +670,17 @@ fn parse_url_path<'a,F>(context: &'a mut ByteStream, mut segment_fn: F) -> Resul
 where F : FnMut(UrlSegment) {
     bs_mark!(context);
 
-    collect_visible!(context, UrlError::Path, {
+    collect_visible!(context, UrlError::Path,
+        // stop on these bytes
+           context.byte == b'?'
+        || context.byte == b'#',
+
+        // on end-of-stream
+        {
             segment_fn(UrlSegment::Path(bs_slice!(context)));
 
             exit_ok!(context);
-        },
-
-        // stop on these bytes
-           context.byte == b'?'
-        || context.byte == b'#'
+        }
     );
 
     segment_fn(UrlSegment::Path(bs_slice_ignore!(context)));
@@ -679,14 +693,16 @@ fn parse_url_query<'a,F>(context: &'a mut ByteStream, mut segment_fn: F)
 -> Result<usize, UrlError> where F : FnMut(UrlSegment) {
     bs_mark!(context);
 
-    collect_visible!(context, UrlError::Query, {
+    collect_visible!(context, UrlError::Query,
+        // stop on these bytes
+        context.byte == b'#',
+
+        // on end-of-stream
+        {
             segment_fn(UrlSegment::Query(bs_slice!(context)));
 
             exit_ok!(context);
-        },
-
-        // stop on these bytes
-        context.byte == b'#'
+        }
     );
 
     segment_fn(UrlSegment::Query(bs_slice_ignore!(context)));
