@@ -1456,64 +1456,64 @@ impl<T: HttpHandler> Parser<T> {
             // have enough bytes to compare common header fields immediately, without collecting
             // individual tokens
             if context.byte == b'C' {
-                if b"Connection:" == bs_peek!(context, 11) {
+                if bs_starts_with11!(context, b"Connection:") {
                     field!(b"Connection", 11);
-                } else if b"Content-Type:" == bs_peek!(context, 13) {
+                } else if bs_starts_with13!(context, b"Content-Type:") {
                     field!(b"Content-Type", 13);
-                } else if b"Content-Length:" == bs_peek!(context, 15) {
+                } else if bs_starts_with15!(context, b"Content-Length:") {
                     field!(b"Content-Length", 15);
-                } else if b"Cookie:" == bs_peek!(context, 7) {
+                } else if bs_starts_with7!(context, b"Cookie:") {
                     field!(b"Cookie", 7);
-                } else if b"Cache-Control:" == bs_peek!(context, 14) {
+                } else if bs_starts_with14!(context, b"Cache-Control:") {
                     field!(b"Cache-Control", 14);
-                } else if b"Content-Security-Policy:" == bs_peek!(context, 24) {
+                } else if bs_starts_with24!(context, b"Content-Security-Policy:") {
                     field!(b"Content-Security-Policy", 24);
                 }
             } else if context.byte == b'A' {
-                if b"Accept:" == bs_peek!(context, 7) {
+                if bs_starts_with7!(context, b"Accept:") {
                     field!(b"Accept", 7);
-                } else if b"Accept-Charset:" == bs_peek!(context, 15) {
+                } else if bs_starts_with15!(context, b"Accept-Charset:") {
                     field!(b"Accept-Charset", 15);
-                } else if b"Accept-Encoding:" == bs_peek!(context, 16) {
+                } else if bs_starts_with16!(context, b"Accept-Encoding:") {
                     field!(b"Accept-Encoding", 16);
-                } else if b"Accept-Language:" == bs_peek!(context, 16) {
+                } else if bs_starts_with16!(context, b"Accept-Language:") {
                     field!(b"Accept-Language", 16);
-                } else if b"Authorization:" == bs_peek!(context, 14) {
+                } else if bs_starts_with14!(context, b"Authorization:") {
                     field!(b"Authorization", 14);
                 }
             } else if context.byte == b'L' {
-                if b"Location:" == bs_peek!(context, 9) {
+                if bs_starts_with9!(context, b"Location:") {
                     field!(b"Location", 9);
-                } else if b"Last-Modified:" == bs_peek!(context, 14) {
+                } else if bs_starts_with14!(context, b"Last-Modified:") {
                     field!(b"Last-Modified", 14);
                 }
-            } else if context.byte == b'P' && b"Pragma:" == bs_peek!(context, 7) {
+            } else if bs_starts_with7!(context, b"Pragma:") {
                 field!(b"Pragma", 7);
-            } else if context.byte == b'S' && b"Set-Cookie:" == bs_peek!(context, 11) {
+            } else if bs_starts_with11!(context, b"Set-Cookie:") {
                 field!(b"Set-Cookie", 11);
-            } else if context.byte == b'T' && b"Transfer-Encoding:" == bs_peek!(context, 18) {
+            } else if bs_starts_with18!(context, b"Transfer-Encoding:") {
                 field!(b"Transfer-Encoding", 18);
             } else if context.byte == b'U' {
-                if b"User-Agent:" == bs_peek!(context, 11) {
+                if bs_starts_with11!(context, b"User-Agent:") {
                     field!(b"User-Agent", 11);
-                } else if b"Upgrade:" == bs_peek!(context, 8) {
+                } else if bs_starts_with8!(context, b"Upgrade:") {
                     field!(b"Upgrade", 8);
                 }
             } else if context.byte == b'X' {
-                if b"X-Powered-By:" == bs_peek!(context, 13) {
+                if bs_starts_with13!(context, b"X-Powered-By:") {
                     field!(b"X-Powered-By", 13);
-                } else if b"X-Forwarded-For:" == bs_peek!(context, 16) {
+                } else if bs_starts_with16!(context, b"X-Forwarded-For:") {
                     field!(b"X-Forwarded-For", 16);
-                } else if b"X-Forwarded-Host:" == bs_peek!(context, 17) {
+                } else if bs_starts_with17!(context, b"X-Forwarded-Host:") {
                     field!(b"X-Forwarded-Host", 17);
-                } else if b"X-XSS-Protection:" == bs_peek!(context, 17) {
+                } else if bs_starts_with17!(context, b"X-XSS-Protection:") {
                     field!(b"X-XSS-Protection", 17);
-                } else if b"X-WebKit-CSP:" == bs_peek!(context, 13) {
+                } else if bs_starts_with13!(context, b"X-WebKit-CSP:") {
                     field!(b"X-WebKit-CSP", 13);
                 } else if b"X-Content-Security-Policy:" == bs_peek!(context, 26) {
                     field!(b"X-Content-Security-Policy", 26);
                 }
-            } else if context.byte == b'W' && b"WWW-Authenticate:" == bs_peek!(context, 17) {
+            } else if bs_starts_with17!(context, b"WWW-Authenticate:") {
                 field!(b"WWW-Authenticate", 17);
             }
         }
@@ -1593,7 +1593,7 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        if bs_has_bytes!(context, 2) && b"\r\n" == bs_peek!(context, 2) {
+        if bs_has_bytes!(context, 2) && bs_starts_with2!(context, b"\r\n") {
             transition_fast!(self, context, State::Newline3, newline3);
         }
 
@@ -1694,27 +1694,27 @@ impl<T: HttpHandler> Parser<T> {
             // have enough bytes to compare all known methods immediately, without collecting
             // individual tokens
 
-            // get the first byte, then replay it (for use with bs_peek!())
+            // get the first byte, then replay it (for use with bs_starts_with!())
             bs_next!(context);
             bs_replay!(context);
 
-            if context.byte == b'G' && b"GET " == bs_peek!(context, 4) {
+            if bs_starts_with4!(context, b"GET ") {
                 method!(b"GET", 4);
             } else if context.byte == b'P' {
-                if b"POST " == bs_peek!(context, 5) {
+                if bs_starts_with5!(context, b"POST ") {
                     method!(b"POST", 5);
-                } else if b"PUT " == bs_peek!(context, 4) {
+                } else if bs_starts_with4!(context, b"PUT ") {
                     method!(b"PUT", 4);
                 }
-            } else if context.byte == b'D' && b"DELETE " == bs_peek!(context, 7) {
+            } else if bs_starts_with7!(context, b"DELETE ") {
                 method!(b"DELETE", 7);
-            } else if context.byte == b'C' && b"CONNECT " == bs_peek!(context, 8) {
+            } else if bs_starts_with8!(context, b"CONNECT ") {
                 method!(b"CONNECT", 8);
-            } else if context.byte == b'O' && b"OPTIONS " == bs_peek!(context, 8) {
+            } else if bs_starts_with8!(context, b"OPTIONS ") {
                 method!(b"OPTIONS", 8);
-            } else if context.byte == b'H' && b"HEAD " == bs_peek!(context, 5) {
+            } else if bs_starts_with5!(context, b"HEAD ") {
                 method!(b"HEAD", 5);
-            } else if context.byte == b'T' && b"TRACE " == bs_peek!(context, 6) {
+            } else if bs_starts_with6!(context, b"TRACE ") {
                 method!(b"TRACE", 6);
             }
         }
@@ -1789,11 +1789,11 @@ impl<T: HttpHandler> Parser<T> {
         if bs_has_bytes!(context, 9) {
             // have enough bytes to compare all known versions immediately, without collecting
             // individual tokens
-            if b"HTTP/1.1\r" == bs_peek!(context, 9) {
+            if bs_starts_with9!(context, b"HTTP/1.1\r") {
                 version!(1, 1, 9);
-            } else if b"HTTP/2.0\r" == bs_peek!(context, 9) {
+            } else if bs_starts_with9!(context, b"HTTP/2.0\r") {
                 version!(2, 0, 9);
-            } else if b"HTTP/1.0\r" == bs_peek!(context, 9) {
+            } else if bs_starts_with9!(context, b"HTTP/1.0\r") {
                 version!(1, 0, 9);
             }
         }
@@ -1934,11 +1934,11 @@ impl<T: HttpHandler> Parser<T> {
         if bs_has_bytes!(context, 9) {
             // have enough bytes to compare all known versions immediately, without collecting
             // individual tokens
-            if b"HTTP/1.1 " == bs_peek!(context, 9) {
+            if bs_starts_with9!(context, b"HTTP/1.1\r") {
                 version!(1, 1, 9);
-            } else if b"HTTP/2.0 " == bs_peek!(context, 9) {
+            } else if bs_starts_with9!(context, b"HTTP/2.0\r") {
                 version!(2, 0, 9);
-            } else if b"HTTP/1.0 " == bs_peek!(context, 9) {
+            } else if bs_starts_with9!(context, b"HTTP/1.0\r") {
                 version!(1, 0, 9);
             }
         }
