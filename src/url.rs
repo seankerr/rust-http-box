@@ -88,13 +88,13 @@ impl<'a> fmt::Debug for Host<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Host::Hostname(x) => {
-                write!(formatter, "Hostname({})", str::from_utf8(x).unwrap())
+                write!(formatter, "Host::Hostname({})", str::from_utf8(x).unwrap())
             },
             Host::IPv4(x) => {
-                write!(formatter, "IPv4({})", str::from_utf8(x).unwrap())
+                write!(formatter, "Host::IPv4({})", str::from_utf8(x).unwrap())
             },
             Host::IPv6(x) => {
-                write!(formatter, "IPv6({})", str::from_utf8(x).unwrap())
+                write!(formatter, "Host::IPv6({})", str::from_utf8(x).unwrap())
             }
         }
     }
@@ -171,13 +171,13 @@ impl<'a> fmt::Debug for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Field(x) => {
-                write!(formatter, "Field({})", str::from_utf8(x).unwrap())
+                write!(formatter, "QuerySegment::Field({})", str::from_utf8(x).unwrap())
             },
             QuerySegment::Flush => {
-                write!(formatter, "Flush")
+                write!(formatter, "QuerySegment::Flush")
             },
             QuerySegment::Value(x) => {
-                write!(formatter, "Value({})", str::from_utf8(x).unwrap())
+                write!(formatter, "QuerySegment::Value({})", str::from_utf8(x).unwrap())
             }
         }
     }
@@ -320,25 +320,25 @@ impl<'a> fmt::Debug for UrlSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             UrlSegment::Fragment(x) => {
-                write!(formatter, "Fragment({})", str::from_utf8(x).unwrap())
+                write!(formatter, "UrlSegment::Fragment({})", str::from_utf8(x).unwrap())
             },
             UrlSegment::Host(ref x) => {
-                write!(formatter, "{:?}", *x)
+                write!(formatter, "UrlSegment::Host({:?})", *x)
             },
             UrlSegment::Path(x) => {
-                write!(formatter, "Path({})", str::from_utf8(x).unwrap())
+                write!(formatter, "UrlSegment::Path({})", str::from_utf8(x).unwrap())
             },
             UrlSegment::Port(x) => {
-                write!(formatter, "Port({})", x)
+                write!(formatter, "UrlSegment::Port({})", x)
             },
             UrlSegment::Query(x) => {
-                write!(formatter, "Query({})", str::from_utf8(x).unwrap())
+                write!(formatter, "UrlSegment::Query({})", str::from_utf8(x).unwrap())
             },
             UrlSegment::Scheme(x) => {
-                write!(formatter, "Scheme({})", str::from_utf8(x).unwrap())
+                write!(formatter, "UrlSegment::Scheme({})", str::from_utf8(x).unwrap())
             },
             UrlSegment::UserInfo(x) => {
-                write!(formatter, "UserInfo({})", str::from_utf8(x).unwrap())
+                write!(formatter, "UrlSegment::UserInfo({})", str::from_utf8(x).unwrap())
             }
         }
     }
