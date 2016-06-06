@@ -21,7 +21,7 @@ This will allow you to limit header and content size.
 - [x] Headers
   - [x] Multiline Header Values
   - [x] Quoted Header Values
-- [x] Query String Parsing
+- [x] Query Parsing
 - [x] URL Component Decoding
 - [ ] Multipart Parsing
 - [x] Chunked Decoding
