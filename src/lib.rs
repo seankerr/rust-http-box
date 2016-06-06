@@ -35,7 +35,7 @@ pub mod stream;
 
 pub mod handler;
 pub mod http1;
-pub mod url;
+pub mod query;
 
 #[cfg(test)]
 mod test;

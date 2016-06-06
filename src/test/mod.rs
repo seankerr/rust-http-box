@@ -21,7 +21,7 @@ use std::fmt::Debug;
 
 mod byte;
 mod http1;
-mod url;
+mod query;
 
 pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
