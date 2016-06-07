@@ -348,16 +348,24 @@ macro_rules! collect_quoted_value {
 // Consume all linear white space until a non-linear white space byte is found.
 macro_rules! consume_linear_space {
     ($parser:expr, $context:expr) => ({
-        loop {
-            if bs_is_eos!($context) {
-                exit_eos!($parser, $context);
-            }
+        if bs_is_eos!($context) {
+            exit_eos!($parser, $context);
+        }
 
-            bs_next!($context);
+        if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
+            loop {
+                if bs_is_eos!($context) {
+                    exit_eos!($parser, $context);
+                }
 
-            if $context.byte == b' ' || $context.byte == b'\t' {
-            } else {
-                break;
+                bs_next!($context);
+
+                if $context.byte == b' ' || $context.byte == b'\t' {
+                } else {
+                    bs_replay!($context);
+
+                    break;
+                }
             }
         }
     });
@@ -1377,7 +1385,6 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_detect(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
-        bs_replay!(context);
 
         transition_fast!(self, context, State::Detect1, detect1);
     }
@@ -1397,8 +1404,6 @@ impl<T: HttpHandler> Parser<T> {
                 }
             );
         }
-
-        exit_if_eos!(self, context);
 
         if bs_starts_with1!(context, b"H") || bs_starts_with1!(context, b"h") {
             if bs_has_bytes!(context, 9) {
@@ -1539,7 +1544,6 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
-        bs_replay!(context);
 
         transition_fast!(self, context, State::FirstHeaderField, first_header_field);
     }
@@ -1647,6 +1651,7 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
+        bs_next!(context);
 
         if context.byte == b'"' {
             transition_fast!(self, context, State::HeaderQuotedValue, header_quoted_value);
@@ -1837,7 +1842,6 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
-        bs_replay!(context);
 
         transition_fast!(self, context, State::RequestUrl, request_url);
     }
@@ -1864,7 +1868,6 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_request_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
-        bs_replay!(context);
 
         transition_fast!(self, context, State::RequestHttp1, request_http1);
     }
@@ -2049,6 +2052,7 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
+        bs_next!(context);
 
         if !is_digit!(context.byte) {
             return Err(ParserError::StatusCode(context.byte));
@@ -2085,7 +2089,6 @@ impl<T: HttpHandler> Parser<T> {
     fn strip_response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(self, context);
-        bs_replay!(context);
 
         transition_fast!(self, context, State::ResponseStatus, response_status);
     }
