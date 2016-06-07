@@ -27,10 +27,10 @@ use std::{ fmt,
            str };
 
 // State flag mask.
-const FLAG_MASK: u64 = 0x7F;
+const FLAG_MASK: u64 = 0xFF;
 
 // State flag shift.
-const FLAG_SHIFT: u8 = 1;
+const FLAG_SHIFT: u8 = 0;
 
 // Lower 8 bits mask.
 const LOWER8_MASK: u64 = 0xFF;
@@ -69,7 +69,10 @@ bitflags! {
         const F_MULTIPART = 1 << 2,
 
         // Parsing request.
-        const F_REQUEST = 1 << 3
+        const F_REQUEST = 1 << 3,
+
+        // Parsing response.
+        const F_RESPONSE = 1 << 4
     }
 }
 
@@ -773,6 +776,53 @@ impl fmt::Display for ParserError {
 
 // -------------------------------------------------------------------------------------------------
 
+/// Parser types.
+#[derive(Clone,Copy)]
+pub enum ParserType {
+    /// Request parser.
+    Request,
+
+    /// Response parser.
+    Response,
+
+    /// Type has not yet been determined.
+    Unknown
+}
+
+impl fmt::Debug for ParserType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ParserType::Request => {
+                write!(formatter, "ParserType::Request")
+            },
+            ParserType::Response => {
+                write!(formatter, "ParserType::Response")
+            },
+            ParserType::Unknown => {
+                write!(formatter, "ParserType::Unknown")
+            }
+        }
+    }
+}
+
+impl fmt::Display for ParserType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ParserType::Request => {
+                write!(formatter, "ParserType::Request")
+            },
+            ParserType::Response => {
+                write!(formatter, "ParserType::Response")
+            },
+            ParserType::Unknown => {
+                write!(formatter, "ParserType::Unknown")
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Parser return values.
 pub enum ParserValue {
     /// Continue the parser loop.
@@ -1283,7 +1333,7 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 pub struct Parser<T: HttpHandler> {
     // Bit data that stores parser bit details.
     //
-    // Bits 1-8: State flags that are checked when states have a dual purpose, such as when header
+    // Bits 1-4: State flags that are checked when states have a dual purpose, such as when header
     //           parsing states also parse chunk encoding trailers.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
@@ -1334,6 +1384,21 @@ impl<T: HttpHandler> Parser<T> {
     /// Retrieve the state function.
     pub fn get_state_function(&self) -> StateFunction<T> {
         self.state_function
+    }
+
+    /// Retrieve the parser type.
+    ///
+    /// The parser type will be `ParserType::Unknown` until either of the following are true:
+    ///  - Requests: `Parser::on_method()` has been executed at least once
+    ///  - Responses: `Parser::on_version()` has been executed
+    pub fn get_type(&self) -> ParserType {
+        if has_flag!(self, F_REQUEST) {
+            ParserType::Request
+        } else if has_flag!(self, F_RESPONSE) {
+            ParserType::Response
+        } else {
+            ParserType::Unknown
+        }
     }
 
     /// Parse HTTP data.
@@ -1393,7 +1458,8 @@ impl<T: HttpHandler> Parser<T> {
     fn detect1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
-            ($major:expr, $minor:expr, $length:expr) => (
+            ($major:expr, $minor:expr, $length:expr) => ({
+                set_flag!(self, F_RESPONSE);
                 bs_jump!(context, $length);
                 set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
@@ -1402,7 +1468,7 @@ impl<T: HttpHandler> Parser<T> {
                 } else {
                     exit_callback!(self, context);
                 }
-            );
+            });
         }
 
         if bs_starts_with1!(context, b"H") || bs_starts_with1!(context, b"h") {
@@ -1494,6 +1560,7 @@ impl<T: HttpHandler> Parser<T> {
         bs_next!(context);
 
         if context.byte == b'/' {
+            set_flag!(self, F_RESPONSE);
             set_upper40!(self, 0);
 
             transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
