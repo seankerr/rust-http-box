@@ -34,7 +34,7 @@ fn byte_check() {
     // invalid bytes
     loop_non_hex(b"", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -48,7 +48,7 @@ fn byte_check() {
     // valid bytes
     loop_hex(b"", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -71,7 +71,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\n", State::ChunkSize);
 
@@ -81,7 +81,7 @@ fn callback_exit() {
 #[test]
 fn missing_size() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -96,7 +96,7 @@ fn missing_size() {
 #[test]
 fn size1() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -107,7 +107,7 @@ fn size1() {
 #[test]
 fn size2() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -118,7 +118,7 @@ fn size2() {
 #[test]
 fn size3() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -129,7 +129,7 @@ fn size3() {
 #[test]
 fn size4() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -140,7 +140,7 @@ fn size4() {
 #[test]
 fn size5() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -151,7 +151,7 @@ fn size5() {
 #[test]
 fn size6() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -162,7 +162,7 @@ fn size6() {
 #[test]
 fn size7() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -173,7 +173,7 @@ fn size7() {
 #[test]
 fn size8() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -184,7 +184,7 @@ fn size8() {
 #[test]
 fn size9() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -195,7 +195,7 @@ fn size9() {
 #[test]
 fn size10() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -206,7 +206,7 @@ fn size10() {
 #[test]
 fn too_long() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

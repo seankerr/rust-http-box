@@ -33,7 +33,7 @@ macro_rules! setup {
 #[test]
 fn basic() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -46,7 +46,7 @@ fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -63,7 +63,7 @@ fn byte_check() {
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -87,7 +87,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
 
@@ -98,7 +98,7 @@ fn callback_exit() {
 #[test]
 fn escaped() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -109,7 +109,7 @@ fn escaped() {
 #[test]
 fn repeat() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

@@ -66,7 +66,10 @@ bitflags! {
         const F_CONTENT_LENGTH = 1 << 1,
 
         // Parsing multipart data.
-        const F_MULTIPART = 1 << 2
+        const F_MULTIPART = 1 << 2,
+
+        // Parsing request.
+        const F_REQUEST = 1 << 3
     }
 }
 
@@ -206,7 +209,7 @@ macro_rules! callback_eos_expr {
 // to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
+        let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
 
@@ -227,7 +230,7 @@ macro_rules! callback_ignore_transition {
 // `Success::Callback`.
 macro_rules! callback_ignore_transition_fast {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        let slice = &$context.stream[$context.mark_index..$context.stream_index - 1];
+        let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
 
@@ -353,7 +356,6 @@ macro_rules! consume_linear_space {
             bs_next!($context);
 
             if $context.byte == b' ' || $context.byte == b'\t' {
-                continue;
             } else {
                 break;
             }
@@ -404,7 +406,7 @@ macro_rules! transition {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
 
-        $context.mark_index = $context.stream_index;
+        bs_mark!($context, $context.stream_index);
 
         return Ok(ParserValue::Continue);
     });
@@ -421,7 +423,7 @@ macro_rules! transition_fast {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
 
-        $context.mark_index = $context.stream_index;
+        bs_mark!($context, $context.stream_index);
 
         return ($parser.state_function)($parser, $context);
     });
@@ -781,12 +783,27 @@ pub enum State {
     /// An error was returned from a call to `Parser::parse()`.
     Dead = 1,
 
+    /// Stripping linear white space before request/response detection.
+    StripDetect,
+
+    /// Detect request/response byte 1.
+    Detect1,
+
+    /// Detect request/response byte 2.
+    Detect2,
+
+    /// Detect request/response byte 3.
+    Detect3,
+
+    /// Detect request/response byte 4.
+    Detect4,
+
+    /// Detect request/response byte 5.
+    Detect5,
+
     // ---------------------------------------------------------------------------------------------
     // REQUEST
     // ---------------------------------------------------------------------------------------------
-
-    /// Stripping linear white space before method.
-    StripRequestMethod,
 
     /// Parsing request method.
     RequestMethod,
@@ -824,24 +841,6 @@ pub enum State {
     // ---------------------------------------------------------------------------------------------
     // RESPONSE
     // ---------------------------------------------------------------------------------------------
-
-    /// Stripping linear white space before response HTTP version.
-    StripResponseHttp,
-
-    /// Parsing response HTTP version byte 1.
-    ResponseHttp1,
-
-    /// Parsing response HTTP version byte 2.
-    ResponseHttp2,
-
-    /// Parsing response HTTP version byte 3.
-    ResponseHttp3,
-
-    /// Parsing response HTTP version byte 4.
-    ResponseHttp4,
-
-    /// Parsing response HTTP version byte 5.
-    ResponseHttp5,
 
     /// Parsing response HTTP major version.
     ResponseVersionMajor,
@@ -1306,26 +1305,12 @@ pub struct Parser<T: HttpHandler> {
 
 impl<T: HttpHandler> Parser<T> {
     /// Create a new `Parser`.
-    fn new(state: State, state_function: StateFunction<T>) -> Parser<T> {
-        Parser{ bit_data:       if state == State::StripRequestMethod {
-                                    1
-                                } else {
-                                    0
-                                },
+    pub fn new() -> Parser<T> {
+        Parser{ bit_data:       0,
                 byte_count:     0,
                 content_type:   ContentType::None,
-                state:          state,
-                state_function: state_function }
-    }
-
-    /// Create a new `Parser` for request parsing.
-    pub fn new_request() -> Parser<T> {
-        Parser::new(State::StripRequestMethod, Parser::strip_request_method)
-    }
-
-    /// Create a new `Parser` for response parsing.
-    pub fn new_response() -> Parser<T> {
-        Parser::new(State::StripResponseHttp, Parser::strip_response_http)
+                state:          State::StripDetect,
+                state_function: Parser::strip_detect }
     }
 
     /// Retrieve the processed byte count since the start of the message.
@@ -1377,18 +1362,145 @@ impl<T: HttpHandler> Parser<T> {
 
     /// Reset the `Parser` back to its original state.
     pub fn reset(&mut self) {
-        self.byte_count   = 0;
-        self.content_type = ContentType::None;
+        self.bit_data       = 0;
+        self.byte_count     = 0;
+        self.content_type   = ContentType::None;
+        self.state          = State::Detect1;
+        self.state_function = Parser::detect1;
+    }
 
-        if self.bit_data & 1 == 1 {
-            self.bit_data       = 1;
-            self.state          = State::StripRequestMethod;
-            self.state_function = Parser::strip_request_method;
-        } else {
-            self.bit_data       = 0;
-            self.state          = State::StripResponseHttp;
-            self.state_function = Parser::strip_response_http;
+    // ---------------------------------------------------------------------------------------------
+    // DETECTION STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn strip_detect(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_linear_space!(self, context);
+        bs_replay!(context);
+
+        transition_fast!(self, context, State::Detect1, detect1);
+    }
+
+    #[inline]
+    fn detect1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        macro_rules! version {
+            ($major:expr, $minor:expr, $length:expr) => (
+                bs_jump!(context, $length);
+                set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
+
+                if context.handler.on_version($major, $minor) {
+                    transition_fast!(self, context);
+                } else {
+                    exit_callback!(self, context);
+                }
+            );
         }
+
+        exit_if_eos!(self, context);
+
+        if bs_starts_with1!(context, b"H") || bs_starts_with1!(context, b"h") {
+            if bs_has_bytes!(context, 9) {
+                if bs_starts_with9!(context, b"HTTP/1.1 ") {
+                    version!(1, 1, 9);
+                } else if bs_starts_with9!(context, b"HTTP/2.0 ") {
+                    version!(2, 0, 9);
+                } else if bs_starts_with9!(context, b"HTTP/1.0 ") {
+                    version!(1, 0, 9);
+                } else if bs_starts_with5!(context, b"HTTP/") {
+                    bs_jump!(context, 5);
+
+                    transition_fast!(self, context,
+                                     State::ResponseVersionMajor, response_version_major);
+                }
+            } else {
+                bs_jump!(context, 1);
+
+                transition_fast!(self, context, State::Detect2, detect2);
+            }
+        }
+
+        // this is a request
+        transition_fast!(self, context, State::RequestMethod, request_method);
+    }
+
+    #[inline]
+    fn detect2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            transition_fast!(self, context, State::Detect3, detect3);
+        }
+
+        // since we're in a detection state and didn't know until right here that we're moving from
+        // detection -> request, we need to manually submit the first n bytes of the of the request
+        // method, and the request method state will do the rest of the work for us
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context, on_method, b"H",
+                                  State::RequestMethod, request_method);
+    }
+
+    #[inline]
+    fn detect3(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'T' || context.byte == b't' {
+            transition_fast!(self, context, State::Detect4, detect4);
+        }
+
+        // since we're in a detection state and didn't know until right here that we're moving from
+        // detection -> request, we need to manually submit the first n bytes of the of the request
+        // method, and the request method state will do the rest of the work for us
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context, on_method, b"HT",
+                                  State::RequestMethod, request_method);
+    }
+
+    #[inline]
+    fn detect4(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'P' || context.byte == b'p' {
+            transition_fast!(self, context, State::Detect5, detect5);
+        }
+
+        // since we're in a detection state and didn't know until right here that we're moving from
+        // detection -> request, we need to manually submit the first n bytes of the of the request
+        // method, and the request method state will do the rest of the work for us
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context, on_method, b"HTT",
+                                  State::RequestMethod, request_method);
+    }
+
+    #[inline]
+    fn detect5(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'/' {
+            set_upper40!(self, 0);
+
+            transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
+        }
+
+        // since we're in a detection state and didn't know until right here that we're moving from
+        // detection -> request, we need to manually submit the first n bytes of the of the request
+        // method, and the request method state will do the rest of the work for us
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context, on_method, b"HTTP",
+                                  State::RequestMethod, request_method);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1663,15 +1775,6 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn strip_request_method(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
-        bs_replay!(context);
-
-        transition_fast!(self, context, State::RequestMethod, request_method);
-    }
-
-    #[inline]
     fn request_method(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         macro_rules! method {
@@ -1683,6 +1786,8 @@ impl<T: HttpHandler> Parser<T> {
                                           State::StripRequestUrl, strip_request_url);
             );
         }
+
+        set_flag!(self, F_REQUEST);
 
         if bs_has_bytes!(context, 8) {
             // have enough bytes to compare all known methods immediately, without collecting
@@ -1899,107 +2004,6 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
     // RESPONSE STATES
     // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn strip_response_http(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
-        bs_replay!(context);
-
-        transition_fast!(self, context, State::ResponseHttp1, response_http1);
-    }
-
-    #[inline]
-    fn response_http1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        macro_rules! version {
-            ($major:expr, $minor:expr, $length:expr) => (
-                bs_jump!(context, $length);
-                set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
-
-                if context.handler.on_version($major, $minor) {
-                    transition_fast!(self, context);
-                } else {
-                    exit_callback!(self, context);
-                }
-            );
-        }
-
-        if bs_has_bytes!(context, 9) {
-            // have enough bytes to compare all known versions immediately, without collecting
-            // individual tokens
-            if bs_starts_with9!(context, b"HTTP/1.1\r") {
-                version!(1, 1, 9);
-            } else if bs_starts_with9!(context, b"HTTP/2.0\r") {
-                version!(2, 0, 9);
-            } else if bs_starts_with9!(context, b"HTTP/1.0\r") {
-                version!(1, 0, 9);
-            }
-        }
-
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'H' || context.byte == b'h' {
-            transition_fast!(self, context, State::ResponseHttp2, response_http2);
-        }
-
-        Err(ParserError::Version(context.byte))
-    }
-
-    #[inline]
-    fn response_http2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'T' || context.byte == b't' {
-            transition_fast!(self, context, State::ResponseHttp3, response_http3);
-        }
-
-        Err(ParserError::Version(context.byte))
-    }
-
-    #[inline]
-    fn response_http3(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'T' || context.byte == b't' {
-            transition_fast!(self, context, State::ResponseHttp4, response_http4);
-        }
-
-        Err(ParserError::Version(context.byte))
-    }
-
-    #[inline]
-    fn response_http4(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'P' || context.byte == b'p' {
-            transition_fast!(self, context, State::ResponseHttp5, response_http5);
-        }
-
-        Err(ParserError::Version(context.byte))
-    }
-
-    #[inline]
-    fn response_http5(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'/' {
-            set_upper40!(self, 0);
-
-            transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
-        }
-
-        Err(ParserError::Version(context.byte))
-    }
 
     #[inline]
     fn response_version_major(&mut self, context: &mut ParserContext<T>)

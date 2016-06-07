@@ -26,7 +26,7 @@ fn byte_check() {
     // invalid bytes
     loop_non_tokens(b" \t", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         if let ParserError::Method(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
@@ -36,12 +36,20 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_tokens(b"", |byte| {
+    loop_tokens(b"Hh", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         assert_eos(&mut p, &mut h, &[byte], State::RequestMethod, 1);
     });
+
+    for n in &[b'H', b'h'] {
+        // valid H|h byte
+        let mut h = DebugHandler::new();
+        let mut p = Parser::new();
+
+        assert_eos(&mut p, &mut h, &[*n as u8], State::Detect2, 1);
+    }
 }
 
 #[test]
@@ -55,7 +63,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_callback(&mut p, &mut h, b"G", State::RequestMethod, 1);
 }
@@ -63,7 +71,7 @@ fn callback_exit() {
 #[test]
 fn multiple_connect() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"C", State::RequestMethod, 1);
     assert_eq!(h.method, b"C");
@@ -93,7 +101,7 @@ fn multiple_connect() {
 #[test]
 fn multiple_delete() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"D", State::RequestMethod, 1);
     assert_eq!(h.method, b"D");
@@ -120,7 +128,7 @@ fn multiple_delete() {
 #[test]
 fn multiple_get() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"G", State::RequestMethod, 1);
     assert_eq!(h.method, b"G");
@@ -138,10 +146,9 @@ fn multiple_get() {
 #[test]
 fn multiple_head() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::RequestMethod, 1);
-    assert_eq!(h.method, b"H");
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
 
     assert_eos(&mut p, &mut h, b"E", State::RequestMethod, 1);
     assert_eq!(h.method, b"HE");
@@ -159,7 +166,7 @@ fn multiple_head() {
 #[test]
 fn multiple_options() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"O", State::RequestMethod, 1);
     assert_eq!(h.method, b"O");
@@ -189,7 +196,7 @@ fn multiple_options() {
 #[test]
 fn multiple_post() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"P", State::RequestMethod, 1);
     assert_eq!(h.method, b"P");
@@ -210,7 +217,7 @@ fn multiple_post() {
 #[test]
 fn multiple_put() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"P", State::RequestMethod, 1);
     assert_eq!(h.method, b"P");
@@ -228,7 +235,7 @@ fn multiple_put() {
 #[test]
 fn multiple_trace() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"T", State::RequestMethod, 1);
     assert_eq!(h.method, b"T");
@@ -252,7 +259,7 @@ fn multiple_trace() {
 #[test]
 fn multiple_unknown() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"U", State::RequestMethod, 1);
     assert_eq!(h.method, b"U");
@@ -282,7 +289,7 @@ fn multiple_unknown() {
 #[test]
 fn single_connect() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"CONNECT ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"CONNECT");
@@ -291,7 +298,7 @@ fn single_connect() {
 #[test]
 fn single_delete() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"DELETE  ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"DELETE");
@@ -300,7 +307,7 @@ fn single_delete() {
 #[test]
 fn single_get() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"GET     ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"GET");
@@ -309,7 +316,7 @@ fn single_get() {
 #[test]
 fn single_head() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"HEAD    ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"HEAD");
@@ -318,7 +325,7 @@ fn single_head() {
 #[test]
 fn single_options() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"OPTIONS ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"OPTIONS");
@@ -327,7 +334,7 @@ fn single_options() {
 #[test]
 fn single_post() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"POST    ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"POST");
@@ -336,7 +343,7 @@ fn single_post() {
 #[test]
 fn single_put() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"PUT     ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"PUT");
@@ -345,7 +352,7 @@ fn single_put() {
 #[test]
 fn single_trace() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"TRACE   ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"TRACE");
@@ -354,7 +361,7 @@ fn single_trace() {
 #[test]
 fn single_unknown() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"UNKNOWN ", State::StripRequestUrl, 8);
     assert_eq!(h.method, b"UNKNOWN");
@@ -363,7 +370,7 @@ fn single_unknown() {
 #[test]
 fn starting_space() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"   ", State::StripRequestMethod, 3);
+    assert_eos(&mut p, &mut h, b"   ", State::StripDetect, 3);
 }

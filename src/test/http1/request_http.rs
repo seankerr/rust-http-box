@@ -37,7 +37,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -47,7 +47,7 @@ fn callback_exit() {
 #[test]
 fn http_1_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -59,7 +59,7 @@ fn http_1_0 () {
 #[test]
 fn http_1_1 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -71,7 +71,7 @@ fn http_1_1 () {
 #[test]
 fn http_2_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -83,7 +83,7 @@ fn http_2_0 () {
 #[test]
 fn h_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -93,7 +93,7 @@ fn h_lower () {
 #[test]
 fn h_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -103,7 +103,7 @@ fn h_upper () {
 #[test]
 fn ht_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -114,7 +114,7 @@ fn ht_lower () {
 #[test]
 fn ht_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -125,7 +125,7 @@ fn ht_upper () {
 #[test]
 fn htt_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -137,7 +137,7 @@ fn htt_lower () {
 #[test]
 fn htt_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -149,7 +149,7 @@ fn htt_upper () {
 #[test]
 fn http_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -162,7 +162,7 @@ fn http_lower () {
 #[test]
 fn http_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -175,7 +175,7 @@ fn http_upper () {
 #[test]
 fn http_slash_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -189,7 +189,7 @@ fn http_slash_lower () {
 #[test]
 fn http_slash_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

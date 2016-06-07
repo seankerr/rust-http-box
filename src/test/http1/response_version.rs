@@ -37,7 +37,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -47,7 +47,7 @@ fn callback_exit() {
 #[test]
 fn v0_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -59,7 +59,7 @@ fn v0_0 () {
 #[test]
 fn v1_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -71,7 +71,7 @@ fn v1_0 () {
 #[test]
 fn v1_1 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -83,7 +83,7 @@ fn v1_1 () {
 #[test]
 fn v2_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -95,7 +95,7 @@ fn v2_0 () {
 #[test]
 fn v999_999 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -107,7 +107,7 @@ fn v999_999 () {
 #[test]
 fn v1000_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -121,7 +121,7 @@ fn v1000_0 () {
 #[test]
 fn v0_1000 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

@@ -31,7 +31,7 @@ macro_rules! setup {
 #[test]
 fn multiple() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -51,7 +51,7 @@ fn multiple() {
 #[test]
 fn single() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

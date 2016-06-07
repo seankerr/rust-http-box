@@ -31,7 +31,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     assert_callback(&mut p, &mut h, b"HTTP/1.0 ", State::StripResponseStatusCode, 9);
 }
@@ -39,7 +39,7 @@ fn callback_exit() {
 #[test]
 fn http_1_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"HTTP/1.0 ", State::StripResponseStatusCode, 9);
     assert_eq!(h.version_major, 1);
@@ -49,7 +49,7 @@ fn http_1_0 () {
 #[test]
 fn http_1_1 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"HTTP/1.1 ", State::StripResponseStatusCode, 9);
     assert_eq!(h.version_major, 1);
@@ -59,7 +59,7 @@ fn http_1_1 () {
 #[test]
 fn http_2_0 () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     assert_eos(&mut p, &mut h, b"HTTP/2.0 ", State::StripResponseStatusCode, 9);
     assert_eq!(h.version_major, 2);
@@ -69,100 +69,100 @@ fn http_2_0 () {
 #[test]
 fn h_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", State::ResponseHttp2, 1);
+    assert_eos(&mut p, &mut h, b"h", State::Detect2, 1);
 }
 
 #[test]
 fn h_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::ResponseHttp2, 1);
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
 }
 
 #[test]
 fn ht_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp3, 1);
+    assert_eos(&mut p, &mut h, b"h", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect3, 1);
 }
 
 #[test]
 fn ht_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp3, 1);
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect3, 1);
 }
 
 #[test]
 fn htt_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp4, 1);
+    assert_eos(&mut p, &mut h, b"h", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect4, 1);
 }
 
 #[test]
 fn htt_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp4, 1);
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect4, 1);
 }
 
 #[test]
 fn http_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp4, 1);
-    assert_eos(&mut p, &mut h, b"p", State::ResponseHttp5, 1);
+    assert_eos(&mut p, &mut h, b"h", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect4, 1);
+    assert_eos(&mut p, &mut h, b"p", State::Detect5, 1);
 }
 
 #[test]
 fn http_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp4, 1);
-    assert_eos(&mut p, &mut h, b"P", State::ResponseHttp5, 1);
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect4, 1);
+    assert_eos(&mut p, &mut h, b"P", State::Detect5, 1);
 }
 
 #[test]
 fn http_slash_lower () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", State::ResponseHttp4, 1);
-    assert_eos(&mut p, &mut h, b"p", State::ResponseHttp5, 1);
+    assert_eos(&mut p, &mut h, b"h", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"t", State::Detect4, 1);
+    assert_eos(&mut p, &mut h, b"p", State::Detect5, 1);
     assert_eos(&mut p, &mut h, b"/", State::ResponseVersionMajor, 1);
 }
 
 #[test]
 fn http_slash_upper () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", State::ResponseHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", State::ResponseHttp4, 1);
-    assert_eos(&mut p, &mut h, b"P", State::ResponseHttp5, 1);
+    assert_eos(&mut p, &mut h, b"H", State::Detect2, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect3, 1);
+    assert_eos(&mut p, &mut h, b"T", State::Detect4, 1);
+    assert_eos(&mut p, &mut h, b"P", State::Detect5, 1);
     assert_eos(&mut p, &mut h, b"/", State::ResponseVersionMajor, 1);
 }
 

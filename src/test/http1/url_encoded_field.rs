@@ -34,7 +34,7 @@ fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -48,7 +48,7 @@ fn byte_check() {
     // valid bytes
     loop_visible(b"=%&", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_request();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -71,7 +71,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\n", State::UrlEncodedField);
 
@@ -81,7 +81,7 @@ fn callback_exit() {
 #[test]
 fn field() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -92,7 +92,7 @@ fn field() {
 #[test]
 fn field_ending_ampersand() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -103,7 +103,7 @@ fn field_ending_ampersand() {
 #[test]
 fn field_ending_equal() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -114,7 +114,7 @@ fn field_ending_equal() {
 #[test]
 fn field_ending_percent() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -125,7 +125,7 @@ fn field_ending_percent() {
 #[test]
 fn field_ending_plus() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -136,7 +136,7 @@ fn field_ending_plus() {
 #[test]
 fn field_hex() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -147,7 +147,7 @@ fn field_hex() {
 #[test]
 fn hex_error() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_request();
+    let mut p = Parser::new();
 
     setup!(p, h);
 

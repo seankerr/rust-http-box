@@ -32,7 +32,7 @@ fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\t ", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_response();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -46,7 +46,7 @@ fn byte_check() {
     // valid bytes
     loop_tokens(b"", |byte| {
         let mut h = DebugHandler::new();
-        let mut p = Parser::new_response();
+        let mut p = Parser::new();
 
         setup!(p, h);
 
@@ -65,7 +65,7 @@ fn callback_exit() {
     }
 
     let mut h = X{};
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -75,7 +75,7 @@ fn callback_exit() {
 #[test]
 fn multiple() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
@@ -88,7 +88,7 @@ fn multiple() {
 #[test]
 fn single() {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_response();
+    let mut p = Parser::new();
 
     setup!(p, h);
 
