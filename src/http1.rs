@@ -58,19 +58,17 @@ const UPPER14_SHIFT: u8 = 18;
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
-// these flags are actually bit shift amounts, not typical power of 2 flag values themselves
-
 // Parsing chunked transfer encoding.
-const F_CHUNKED: u8 = 0;
+const F_CHUNKED: u32 = 1;
 
 // Parsing multipart data.
-const F_MULTIPART: u8 = 1;
+const F_MULTIPART: u32 = 2;
 
 // Parsing request.
-const F_REQUEST: u8 = 2;
+const F_REQUEST: u32 = 4;
 
 // Parsing response.
-const F_RESPONSE: u8 = 3;
+const F_RESPONSE: u32 = 8;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -101,14 +99,14 @@ macro_rules! get_upper14 {
 // Indicates that a state flag is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
-        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & (1 << $flag) == (1 << $flag)
+        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag == $flag
     });
 }
 
 // Set a state flag.
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data |= ((1 << $flag) & FLAG_MASK) << FLAG_SHIFT;
+        $parser.bit_data |= ($flag & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
@@ -145,7 +143,7 @@ macro_rules! set_upper14 {
 // Unset a state flag.
 macro_rules! unset_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data &= !(((1 << $flag) & FLAG_MASK) << FLAG_SHIFT);
+        $parser.bit_data &= !(($flag & FLAG_MASK) << FLAG_SHIFT);
     });
 }
 
