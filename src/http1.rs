@@ -58,17 +58,14 @@ const UPPER14_SHIFT: u8 = 18;
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
-// Parsing chunked transfer encoding.
-const F_CHUNKED: u32 = 1;
-
 // Parsing multipart data.
-const F_MULTIPART: u32 = 2;
+const F_MULTIPART: u32 = 1;
 
 // Parsing request.
-const F_REQUEST: u32 = 4;
+const F_REQUEST: u32 = 2;
 
 // Parsing response.
-const F_RESPONSE: u32 = 8;
+const F_RESPONSE: u32 = 4;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -898,7 +895,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
         if self.state == State::StripDetect {
-            set_flag!(self, F_CHUNKED);
             set_all28!(self, 0);
 
             self.state          = State::ChunkSize1;
@@ -1871,12 +1867,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                              on_chunk_extension_value,
                                              State::ChunkExtensionSemiColon,
                                              chunk_extension_semi_colon);
-        } else {
-            callback_ignore_transition_fast!(self, context,
-                                             on_chunk_extension_value,
-                                             State::ChunkExtensionEscapedValue,
-                                             chunk_extension_escaped_value);
         }
+
+        callback_ignore_transition_fast!(self, context,
+                                         on_chunk_extension_value,
+                                         State::ChunkExtensionEscapedValue,
+                                         chunk_extension_escaped_value);
     }
 
     #[inline]
@@ -1926,26 +1922,21 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn chunk_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        /*
-        if bs_available!(context) as u64 >= get_upper40!(self) {
-            bs_collect_length!(context, get_upper40!(self) as usize);
+        exit_if_eos!(self, context);
 
-            set_upper40!(self, 0);
+        if bs_available!(context) >= get_all28!(self) as usize {
+            bs_collect_length!(context, get_all28!(self) as usize);
+
+            set_all28!(self, 0);
 
             callback_transition!(self, context,
                                  on_chunk_data,
                                  State::ChunkDataNewline1, chunk_data_newline1);
         }
+
+        set_all28!(self, get_all28!(self) - bs_available!(context) as u32);
 
         bs_collect_length!(context, bs_available!(context));
-
-        set_upper40!(self, get_upper40!(self) - bs_available!(context) as u64);
-        */
-        if collect_content_length!(self, context) {
-            callback_transition!(self, context,
-                                 on_chunk_data,
-                                 State::ChunkDataNewline1, chunk_data_newline1);
-        }
 
         callback_transition!(self, context,
                              on_chunk_data,

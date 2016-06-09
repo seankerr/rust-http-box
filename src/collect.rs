@@ -18,21 +18,6 @@
 
 //! Stream collection macros.
 
-/// Collect and convert all digit bytes into a u16 variable.
-///
-/// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
-/// `$max`.
-macro_rules! collect_digits16 {
-    ($context:expr, $error:expr, $digit:expr, $max:expr, $on_eos:expr) => ({
-        bs_collect_digits16!($context, $digit,
-            if $digit > $max {
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-}
-
 /// Collect and convert all digit bytes into a u32 variable.
 ///
 /// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
@@ -45,29 +30,6 @@ macro_rules! collect_digits32 {
             },
             $on_eos
         );
-    });
-}
-
-/// Collect remaining bytes until content length is zero.
-///
-/// Content length is stored in the upper 40 bits.
-macro_rules! collect_content_length {
-    ($parser:expr, $context:expr) => ({
-        exit_if_eos!($parser, $context);
-
-        if bs_has_bytes!($context, get_all28!($parser) as usize) {
-            $context.stream_index += get_all28!($parser) as usize;
-
-            set_all28!($parser, 0);
-
-            true
-        } else {
-            $context.stream_index += $context.stream.len();
-
-            set_all28!($parser, get_all28!($parser) as usize - $context.stream.len());
-
-            false
-        }
     });
 }
 
