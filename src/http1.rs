@@ -22,39 +22,41 @@
 
 use byte::hex_to_byte;
 use byte::is_token;
+use fsm::{ ParserValue,
+           Success };
 
 use std::{ fmt,
            str };
 
 // State flag mask.
-const FLAG_MASK: u64 = 0xFF;
+pub const FLAG_MASK: u64 = 0xFF;
 
 // State flag shift.
-const FLAG_SHIFT: u8 = 0;
+pub const FLAG_SHIFT: u8 = 0;
 
 // Lower 8 bits mask.
-const LOWER8_MASK: u64 = 0xFF;
+pub const LOWER8_MASK: u64 = 0xFF;
 
 // Lower 8 bits shift.
-const LOWER8_SHIFT: u8 = 8;
+pub const LOWER8_SHIFT: u8 = 8;
 
 // Lower 16 bits mask.
-const LOWER16_MASK: u64 = 0xFFFF;
+pub const LOWER16_MASK: u64 = 0xFFFF;
 
 // Lower 16 bits shift.
-const LOWER16_SHIFT: u8 = 8;
+pub const LOWER16_SHIFT: u8 = 8;
 
 // Mid 8 bits mask.
-const MID8_MASK: u64 = 0xFF;
+pub const MID8_MASK: u64 = 0xFF;
 
 // Mid 8 bits shift.
-const MID8_SHIFT: u8 = 16;
+pub const MID8_SHIFT: u8 = 16;
 
 // Upper 40 bits mask.
-const UPPER40_MASK: u64 = 0xFFFFFFFFFF;
+pub const UPPER40_MASK: u64 = 0xFFFFFFFFFF;
 
 // Upper 40 bits shift.
-const UPPER40_SHIFT: u8 = 24;
+pub const UPPER40_SHIFT: u8 = 24;
 
 // Flags used to track state details.
 bitflags! {
@@ -170,440 +172,10 @@ macro_rules! unset_flag {
 }
 
 // -------------------------------------------------------------------------------------------------
-// STREAM MACROS
-// -------------------------------------------------------------------------------------------------
 
-// Execute callback `$function`. If it returns `true`, execute `$exec`. Otherwise exit with
-// `Success::Callback`.
-macro_rules! callback {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
-        if $context.handler.$function($data) {
-            $exec
-        } else {
-            exit_callback!($parser, $context);
-        }
-    });
-
-    ($parser:expr, $context:expr, $function:ident, $exec:expr) => ({
-        let slice = bs_slice!($context);
-
-        if slice.len() > 0 {
-            if $context.handler.$function(slice) {
-                $exec
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            $exec
-        }
-    });
-}
-
-// Reusable callback EOS expression that executes `$function`.
-macro_rules! callback_eos_expr {
-    ($parser:expr, $context:expr, $function:ident) => ({
-        callback!($parser, $context, $function, {
-            exit_eos!($parser, $context);
-        });
-    });
-}
-
-// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
-// to `$state`. Otherwise exit with `Success::Callback`.
-macro_rules! callback_ignore_transition {
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        let slice = bs_slice_ignore!($context);
-
-        set_state!($parser, $state, $state_function);
-
-        if slice.len() > 0 {
-            if $context.handler.$function(slice) {
-                transition!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            transition!($parser, $context);
-        }
-    });
-}
-
-// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
-// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
-// `Success::Callback`.
-macro_rules! callback_ignore_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        let slice = bs_slice_ignore!($context);
-
-        set_state!($parser, $state, $state_function);
-
-        if slice.len() > 0 {
-            if $context.handler.$function(slice) {
-                transition_fast!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            transition_fast!($parser, $context);
-        }
-    });
-}
-
-// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
-// with `Success::Callback`.
-//
-// This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser must exit with `Success::Callback`.
-macro_rules! callback_transition {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
-     $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, $data, {
-            transition!($parser, $context);
-        });
-    });
-
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, {
-            transition!($parser, $context);
-        });
-    });
-}
-
-// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
-// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
-//
-// This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser must exit with `Success::Callback`.
-macro_rules! callback_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
-     $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, $data, {
-            transition_fast!($parser, $context);
-        });
-    });
-
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, {
-            transition_fast!($parser, $context);
-        });
-    });
-}
-
-// Collect remaining bytes until content length is zero.
-//
-// Content length is stored in the upper 40 bits.
-macro_rules! collect_content_length {
-    ($parser:expr, $context:expr) => ({
-        exit_if_eos!($parser, $context);
-
-        if bs_has_bytes!($context, get_upper40!($parser) as usize) {
-            $context.stream_index += get_upper40!($parser) as usize;
-
-            set_upper40!($parser, 0);
-
-            true
-        } else {
-            $context.stream_index += $context.stream.len();
-
-            set_upper40!($parser, get_upper40!($parser) as usize - $context.stream.len());
-
-            false
-        }
-    });
-}
-
-// Collect header value.
-macro_rules! collect_header_value {
-    ($context:expr, $error:expr, $eos:expr) => ({
-        bs_collect!($context, {
-                if $context.byte == b'\r' {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F {
-                    // space + visible
-                    continue;
-                }
-
-                return Err($error($context.byte));
-            },
-            $eos
-        );
-    });
-}
-
-// Collect all bytes that are allowed within a quoted value.
-macro_rules! collect_quoted_value {
-    ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
-        bs_collect!($context,
-            if b'"' == $context.byte || b'\\' == $context.byte {
-                break;
-            } else if is_not_visible_7bit!($context.byte) && $context.byte != b' ' {
-                return Err($error($context.byte));
-            },
-            callback_eos_expr!($parser, $context, $function)
-        );
-    });
-}
-
-// Consume all linear white space until a non-linear white space byte is found.
-macro_rules! consume_linear_space {
-    ($parser:expr, $context:expr) => ({
-        if bs_is_eos!($context) {
-            exit_eos!($parser, $context);
-        }
-
-        if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
-            loop {
-                if bs_is_eos!($context) {
-                    exit_eos!($parser, $context);
-                }
-
-                bs_next!($context);
-
-                if $context.byte == b' ' || $context.byte == b'\t' {
-                } else {
-                    bs_replay!($context);
-
-                    break;
-                }
-            }
-        }
-    });
-}
-
-// Exit parser with `Success::Callback`.
-macro_rules! exit_callback {
-    ($parser:expr, $context:expr) => ({
-        return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
-    });
-}
-
-// Exit parser with `Success::Eos`.
-macro_rules! exit_eos {
-    ($parser:expr, $context:expr) => ({
-        return Ok(ParserValue::Exit(Success::Eos($context.stream_index)));
-    });
-}
-
-// Exit parser with `Success::Finished`.
-macro_rules! exit_finished {
-    ($parser:expr, $context:expr) => ({
-        return Ok(ParserValue::Exit(Success::Finished($context.stream_index)));
-    });
-}
-
-// If the stream is EOS, exit with `Success::Eos`. Otherwise do nothing.
-macro_rules! exit_if_eos {
-    ($parser:expr, $context:expr) => ({
-        if bs_is_eos!($context) {
-            exit_eos!($parser, $context);
-        }
-    });
-}
-
-// Set state and state function.
-macro_rules! set_state {
-    ($parser:expr, $state:expr, $state_function:ident) => ({
-        $parser.state          = $state;
-        $parser.state_function = Parser::$state_function;
-    });
-}
-
-// Transition to `$state`.
-macro_rules! transition {
-    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-
-        bs_mark!($context, $context.stream_index);
-
-        return Ok(ParserValue::Continue);
-    });
-
-    ($parser:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
-
-        return Ok(ParserValue::Continue);
-    });
-}
-
-// Transition to `$state` quickly by directly calling `$state_function`.
-macro_rules! transition_fast {
-    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
-
-        bs_mark!($context, $context.stream_index);
-
-        return ($parser.state_function)($parser, $context);
-    });
-
-    ($parser:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
-
-        return ($parser.state_function)($parser, $context);
-    });
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Parser state function type.
-pub type StateFunction<T> = fn(&mut Parser<T>, &mut ParserContext<T>)
+// Parser state function type.
+type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
     -> Result<ParserValue, ParserError>;
-
-// -------------------------------------------------------------------------------------------------
-
-/// Connection.
-#[derive(Clone,Copy,PartialEq)]
-#[repr(u8)]
-pub enum Connection {
-    /// No connection.
-    None,
-
-    /// Close connection.
-    Close,
-
-    /// Keep connection alive.
-    KeepAlive,
-
-    /// Upgrade connection.
-    Upgrade
-}
-
-impl fmt::Debug for Connection {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Connection::None => {
-                write!(formatter, "Connection::None")
-            },
-            Connection::Close => {
-                write!(formatter, "Connection::Close")
-            },
-            Connection::KeepAlive => {
-                write!(formatter, "Connection::KeepAlive")
-            },
-            Connection::Upgrade => {
-                write!(formatter, "Connection::Upgrade")
-            }
-        }
-    }
-}
-
-impl fmt::Display for Connection {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Connection::None => {
-                write!(formatter, "None")
-            },
-            Connection::Close => {
-                write!(formatter, "Close")
-            },
-            Connection::KeepAlive => {
-                write!(formatter, "KeepAlive")
-            },
-            Connection::Upgrade => {
-                write!(formatter, "Upgrade")
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Content length.
-#[derive(Clone,Copy,PartialEq)]
-pub enum ContentLength {
-    /// No content length.
-    None,
-
-    /// Specified content length.
-    Specified(u64)
-}
-
-impl fmt::Debug for ContentLength {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ContentLength::None => {
-                write!(formatter, "ContentLength::None")
-            },
-            ContentLength::Specified(x) => {
-                write!(formatter, "ContentLength::Specified({})", x)
-            }
-        }
-    }
-}
-
-impl fmt::Display for ContentLength {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ContentLength::None => {
-                write!(formatter, "None")
-            },
-            ContentLength::Specified(x) => {
-                write!(formatter, "{}", x)
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Content type.
-#[derive(Clone,PartialEq)]
-pub enum ContentType {
-    /// No content type.
-    None,
-
-    /// Multipart content type.
-    Multipart(Vec<u8>),
-
-    /// URL encoded content type.
-    UrlEncoded,
-
-    /// Other content type.
-    Other(Vec<u8>),
-}
-
-impl fmt::Debug for ContentType {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ContentType::None => {
-                write!(formatter, "None")
-            },
-            ContentType::Multipart(ref x) => {
-                write!(formatter, "ContentType::Multipart({})",
-                       str::from_utf8((*x).as_slice()).unwrap())
-            },
-            ContentType::UrlEncoded => {
-                write!(formatter, "ContentType::UrlEncoded")
-            },
-            ContentType::Other(ref x) => {
-                write!(formatter, "ContentType::Other({})",
-                       str::from_utf8((*x).as_slice()).unwrap())
-            }
-        }
-    }
-}
-
-impl fmt::Display for ContentType {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ContentType::None => {
-                write!(formatter, "None")
-            },
-            ContentType::Multipart(ref x) => {
-                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
-            },
-            ContentType::UrlEncoded => {
-                write!(formatter, "UrlEncoded")
-            },
-            ContentType::Other(ref x) => {
-                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
-            }
-        }
-    }
-}
 
 // -------------------------------------------------------------------------------------------------
 
@@ -630,9 +202,6 @@ pub enum ParserError {
 
     /// Invalid header value.
     HeaderValue(u8),
-
-    /// Missing an expected Content-Length header.
-    MissingContentLength,
 
     /// Invalid request method.
     Method(u8),
@@ -684,9 +253,6 @@ impl fmt::Debug for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "ParserError::HeaderValue(Invalid header value at byte {})", byte)
-            },
-            ParserError::MissingContentLength => {
-                write!(formatter, "ParserError::MissingContentLength(Missing content length)")
             },
             ParserError::Method(ref byte) => {
                 write!(formatter, "ParserError::Method(Invalid method at byte {})", byte)
@@ -742,9 +308,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "Invalid header value at byte {}", byte)
-            },
-            ParserError::MissingContentLength => {
-                write!(formatter, "Missing content length")
             },
             ParserError::Method(ref byte) => {
                 write!(formatter, "Invalid method at byte {}", byte)
@@ -823,15 +386,6 @@ impl fmt::Display for ParserType {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser return values.
-pub enum ParserValue {
-    /// Continue the parser loop.
-    Continue,
-
-    /// Exit the parser loop.
-    Exit(Success)
-}
-
 /// Parser states.
 ///
 /// These states are in the order that they are processed.
@@ -839,7 +393,7 @@ pub enum ParserValue {
 #[repr(u8)]
 pub enum State {
     /// An error was returned from a call to `Parser::parse()`.
-    Dead = 1,
+    Dead,
 
     /// Stripping linear white space before request/response detection.
     StripDetect,
@@ -973,12 +527,6 @@ pub enum State {
     // BODY
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing body.
-    Body,
-
-    /// Unparsable content.
-    Content,
-
     /// Parsing chunk size.
     ChunkSize,
 
@@ -1009,14 +557,20 @@ pub enum State {
     /// Parsing line feed after chunk data.
     ChunkDataNewline2,
 
-    /// Parsing first hyphen before and after multipart boundary.
+    /// Parsing first hyphen before multipart boundary.
     MultipartHyphen1,
 
-    /// Parsing second hyphen before and after multipart boundary.
+    /// Parsing second hyphen before multipart boundary.
     MultipartHyphen2,
 
-    /// Parsing multipart boundary.
-    MultipartBoundary,
+    /// Parsing potential first hyphen before multipart boundary.
+    MultipartTryHyphen1,
+
+    /// Parsing potential second hyphen before multipart boundary.
+    MultipartTryHyphen2,
+
+    /// Parsing potential multipart boundary.
+    MultipartTryBoundary,
 
     /// Parsing carriage return after multipart boundary.
     MultipartNewline1,
@@ -1064,111 +618,12 @@ pub enum State {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Transfer encoding.
-#[derive(Clone,PartialEq)]
-pub enum TransferEncoding {
-    /// No transfer encoding.
-    None,
-
-    /// Chunked transfer encoding.
-    Chunked,
-
-    /// Compress transfer encoding.
-    Compress,
-
-    /// Deflate transfer encoding.
-    Deflate,
-
-    /// Gzip transfer encoding.
-    Gzip,
-
-    /// Other transfer encoding.
-    Other(Vec<u8>)
-}
-
-impl fmt::Debug for TransferEncoding {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TransferEncoding::None => {
-                write!(formatter, "TransferEncoding::None")
-            },
-            TransferEncoding::Chunked => {
-                write!(formatter, "TransferEncoding::Chunked")
-            },
-            TransferEncoding::Compress => {
-                write!(formatter, "TransferEncoding::Compress")
-            },
-            TransferEncoding::Deflate => {
-                write!(formatter, "TransferEncoding::Deflate")
-            },
-            TransferEncoding::Gzip => {
-                write!(formatter, "TransferEncoding::Gzip")
-            },
-            TransferEncoding::Other(ref x) => {
-                write!(formatter, "TransferEncoding::Other({})",
-                       str::from_utf8((*x).as_slice()).unwrap())
-            }
-        }
-    }
-}
-
-impl fmt::Display for TransferEncoding {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TransferEncoding::None => {
-                write!(formatter, "None")
-            },
-            TransferEncoding::Chunked => {
-                write!(formatter, "Chunked")
-            },
-            TransferEncoding::Compress => {
-                write!(formatter, "Compress")
-            },
-            TransferEncoding::Deflate => {
-                write!(formatter, "Deflate")
-            },
-            TransferEncoding::Gzip => {
-                write!(formatter, "Gzip")
-            },
-            TransferEncoding::Other(ref x) => {
-                write!(formatter, "{}", str::from_utf8((*x).as_slice()).unwrap())
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
 /// Type that handles HTTP parser events.
 #[allow(unused_variables)]
 pub trait HttpHandler {
-    /// Retrieve the most recent Connection header.
-    fn get_connection(&mut self) -> Connection {
-        Connection::None
-    }
-
-    /// Retrieve the most recent Content-Length header.
-    fn get_content_length(&mut self) -> ContentLength {
-        ContentLength::None
-    }
-
-    /// Retrieve the most recent Content-Type header.
-    fn get_content_type(&mut self) -> ContentType {
-        ContentType::None
-    }
-
-    /// Retrieve the most recent Transfer-Encoding header.
-    fn get_transfer_encoding(&mut self) -> TransferEncoding {
-        TransferEncoding::None
-    }
-
-    /// Callback that is executed when raw body data has been received.
-    ///
-    /// This may be executed multiple times in order to supply the entire body.
-    ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_body(&mut self, body: &[u8]) -> bool {
-        true
+    /// Retrieve the multipart boundary.
+    fn get_boundary(&mut self) -> Option<&[u8]> {
+        None
     }
 
     /// Callback that is executed when a chunk of data has been parsed.
@@ -1224,8 +679,7 @@ pub trait HttpHandler {
     }
 
     /// Callback that is executed when header parsing has completed successfully.
-    fn on_headers_finished(&mut self) -> bool {
-        true
+    fn on_headers_finished(&mut self) {
     }
 
     /// Callback that is executed when a request method has been located.
@@ -1297,8 +751,8 @@ pub trait HttpHandler {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser context data.
-pub struct ParserContext<'a, T: HttpHandler + 'a> {
+// Parser context data.
+struct ParserContext<'a, T: HttpHandler + 'a> {
     // Current byte.
     byte: u8,
 
@@ -1330,14 +784,14 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser data.
-pub struct Parser<T: HttpHandler> {
+pub struct Parser<'a, T: HttpHandler> {
     // Bit data that stores parser bit details.
     //
-    // Bits 1-4: State flags that are checked when states have a dual purpose, such as when header
+    // Bits 1-8: State flags that are checked when states have a dual purpose, such as when header
     //           parsing states also parse chunk encoding trailers.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
-    // Bits 5-64: Used to store various numbers depending on state. Content length, chunk size,
+    // Bits 9-64: Used to store various numbers depending on state. Content length, chunk size,
     //            HTTP major/minor versions are all stored in here. Depending on macro used, more
     //            bits are accessible.
     // Macros:    get_lower8!(), set_lower8!()   -- lower 8 bits
@@ -1351,46 +805,53 @@ pub struct Parser<T: HttpHandler> {
     // Once the headers are finished processing, this is reset to 0 to track the body length.
     byte_count: usize,
 
-    // Content type.
-    content_type: ContentType,
-
     // Current state.
     state: State,
 
     // Current state function.
-    state_function: StateFunction<T>
+    state_function: StateFunction<'a, T>
 }
 
-impl<T: HttpHandler> Parser<T> {
+impl<'a, T: HttpHandler> Parser<'a, T> {
     /// Create a new `Parser`.
-    pub fn new() -> Parser<T> {
+    ///
+    /// The initial state `Parser` is set to is a type detection state that determines if the
+    /// stream is a HTTP request or HTTP response.
+    pub fn new() -> Parser<'a, T> {
         Parser{ bit_data:       0,
                 byte_count:     0,
-                content_type:   ContentType::None,
                 state:          State::StripDetect,
                 state_function: Parser::strip_detect }
     }
 
-    /// Retrieve the processed byte count since the start of the message.
+    /// Retrieve the total byte count processed since the instantiation of `Parser`.
+    ///
+    /// The byte count is updated when any of the parsing functions completes. This means that if a
+    /// call to `get_byte_count()` is executed from within a callback, it will be accurate within
+    /// `stream.len()` bytes. For precise accuracy, the best time to retrieve the byte count is
+    /// outside of all callbacks, and outside of the following functions:
+    ///
+    /// - [HttpHandler::parse_chunked()](#method.parse_chunked)
+    /// - [HttpHandler::parse_multipart()](#method.parse_multipart)
+    /// - [HttpHandler::parse_url_encoded()](#method.parse_url_encoded)
     pub fn get_byte_count(&self) -> usize {
         self.byte_count
     }
 
-    /// Retrieve the state.
+    /// Retrieve the current state.
     pub fn get_state(&self) -> State {
         self.state
     }
 
-    /// Retrieve the state function.
-    pub fn get_state_function(&self) -> StateFunction<T> {
-        self.state_function
-    }
-
     /// Retrieve the parser type.
     ///
-    /// The parser type will be `ParserType::Unknown` until either of the following are true:
-    ///  - Requests: `Parser::on_method()` has been executed at least once
-    ///  - Responses: `Parser::on_version()` has been executed
+    /// The parser type will be [ParserType::Unknown](enum.ParserType.html#variant.Unknown) until
+    /// either of the following are true:
+    ///
+    ///  - For requests: [HttpHandler::on_method()](trait.HttpHandler.html#method.on_method) has
+    ///    been executed
+    ///  - For responses: [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    ///    has been executed
     pub fn get_type(&self) -> ParserType {
         if has_flag!(self, F_REQUEST) {
             ParserType::Request
@@ -1401,13 +862,9 @@ impl<T: HttpHandler> Parser<T> {
         }
     }
 
-    /// Parse HTTP data.
-    ///
-    /// If `Success` is returned, you may resuming parsing data with an additional call to
-    /// `Parser::parse()`. If `ParserError` is returned, parsing cannot be resumed without a call
-    /// to `Parser::reset()`.
+    /// Main parser loop.
     #[inline]
-    pub fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
+    fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
         let mut context = ParserContext::new(handler, stream);
 
         loop {
@@ -1424,8 +881,9 @@ impl<T: HttpHandler> Parser<T> {
                     return Ok(success);
                 },
                 Err(error) => {
-                    self.byte_count += context.stream_index;
-                    self.state       = State::Dead;
+                    self.byte_count     += context.stream_index;
+                    self.state           = State::Dead;
+                    self.state_function  = Parser::dead;
 
                     return Err(error);
                 }
@@ -1433,11 +891,139 @@ impl<T: HttpHandler> Parser<T> {
         }
     }
 
-    /// Reset the `Parser` back to its original state.
+    /// Parse chunked transfer encoded data.
+    ///
+    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
+    /// `false` and parsing exited prematurely. This can be treated the same as
+    /// [Success::Eos](enum.Success.html#variant.Eos).
+    ///
+    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
+    /// expected. You must call `parse_chunked()` again until
+    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    ///
+    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
+    /// successfully.
+    ///
+    /// **The following callbacks are used by `parse_chunked()`:**
+    ///
+    /// - [HttpHandler::on_chunk_data()](trait.HttpHandler.html#method.on_chunk_data)
+    /// - [HttpHandler::on_chunk_extension_name()](trait.HttpHandler.html#method.on_chunk_extension_name)
+    /// - [HttpHandler::on_chunk_extension_value()](trait.HttpHandler.html#method.on_chunk_extension_value)
+    /// - [HttpHandler::on_chunk_size()](trait.HttpHandler.html#method.on_chunk_size)
+    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
+    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
+    #[inline]
+    pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
+    -> Result<Success, ParserError> {
+        if self.state == State::StripDetect {
+            set_flag!(self, F_CHUNKED);
+            set_lower8!(self, 0);
+            set_upper40!(self, 0);
+
+            self.state          = State::ChunkSize;
+            self.state_function = Parser::chunk_size;
+        }
+
+        self.parse(handler, stream)
+    }
+
+    /// Parse initial request/response line and all headers.
+    ///
+    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
+    /// `false` and parsing exited prematurely. This can be treated the same as
+    /// [Success::Eos](enum.Success.html#variant.Eos).
+    ///
+    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
+    /// expected. You must call `parse_headers()` again until
+    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    ///
+    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
+    /// successfully.
+    ///
+    /// **The following callbacks are used by `parse_headers()`:**
+    ///
+    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
+    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
+    ///
+    /// **Request callbacks:**
+    ///
+    /// - [HttpHandler::on_method()](trait.HttpHandler.html#method.on_method)
+    /// - [HttpHandler::on_url()](trait.HttpHandler.html#method.on_url)
+    /// - [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    ///
+    /// **Response callbacks:**
+    ///
+    /// - [HttpHandler::on_status()](trait.HttpHandler.html#method.on_status)
+    /// - [HttpHandler::on_status_code()](trait.HttpHandler.html#method.on_status_code)
+    /// - [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    #[inline]
+    pub fn parse_headers(&mut self, handler: &mut T, stream: &[u8])
+    -> Result<Success, ParserError> {
+        self.parse(handler, stream)
+    }
+
+    /// Parse multipart data.
+    ///
+    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
+    /// `false` and parsing exited prematurely. This can be treated the same as
+    /// [Success::Eos](enum.Success.html#variant.Eos).
+    ///
+    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
+    /// expected. You must call `parse_multipart()` again until
+    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    ///
+    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
+    /// successfully.
+    ///
+    /// **The following callbacks are used by `parse_multipart()`:**
+    ///
+    /// - [HttpHandler::get_boundary()](trait.HttpHandler.html#method.get_boundary)
+    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
+    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
+    /// - [HttpHandler::on_multipart_data()](trait.HttpHandler.html#method.on_multipart_data)
+    #[inline]
+    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
+    -> Result<Success, ParserError> {
+        if self.state == State::StripDetect {
+            self.state          = State::MultipartHyphen1;
+            self.state_function = Parser::multipart_hyphen1;
+        }
+
+        self.parse(handler, stream)
+    }
+
+    /// Parse URL encoded data.
+    ///
+    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
+    /// `false` and parsing exited prematurely. This can be treated the same as
+    /// [Success::Eos](enum.Success.html#variant.Eos).
+    ///
+    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
+    /// expected. You must call `parse_url_encoded()` again until
+    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    ///
+    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
+    /// successfully.
+    ///
+    /// **The following callbacks are used by `parse_url_encoded()`:**
+    ///
+    /// - [HttpHandler::on_url_encoded_field()](trait.HttpHandler.html#method.on_url_encoded_field)
+    /// - [HttpHandler::on_url_encoded_value()](trait.HttpHandler.html#method.on_url_encoded_value)
+    #[inline]
+    pub fn parse_url_encoded(&mut self, handler: &mut T, stream: &[u8])
+    -> Result<Success, ParserError> {
+        if self.state == State::StripDetect {
+            self.state          = State::UrlEncodedField;
+            self.state_function = Parser::url_encoded_field;
+        }
+
+        self.parse(handler, stream)
+    }
+
+    /// Reset the `Parser` back to its initial state.
     pub fn reset(&mut self) {
         self.bit_data       = 0;
         self.byte_count     = 0;
-        self.content_type   = ContentType::None;
         self.state          = State::Detect1;
         self.state_function = Parser::detect1;
     }
@@ -1824,19 +1410,9 @@ impl<T: HttpHandler> Parser<T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            if has_flag!(self, F_CHUNKED) {
-                context.handler.on_headers_finished();
+            context.handler.on_headers_finished();
 
-                transition_fast!(self, context, State::Finished, finished);
-            }
-
-            set_state!(self, State::Body, body);
-
-            if context.handler.on_headers_finished() {
-                transition_fast!(self, context);
-            } else {
-                exit_callback!(self, context);
-            }
+            transition_fast!(self, context, State::Finished, finished);
         }
 
         Err(ParserError::CrlfSequence(context.byte))
@@ -2164,6 +1740,7 @@ impl<T: HttpHandler> Parser<T> {
     fn response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         bs_collect!(context,
+            // collect loop
             if context.byte == b'\r' {
                 break;
             } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
@@ -2171,6 +1748,8 @@ impl<T: HttpHandler> Parser<T> {
             } else {
                 return Err(ParserError::Status(context.byte));
             },
+
+            // on end-of-stream
             callback!(self, context, on_status, {
                 exit_eos!(self, context);
             })
@@ -2184,37 +1763,6 @@ impl<T: HttpHandler> Parser<T> {
     // ---------------------------------------------------------------------------------------------
     // BODY STATES
     // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn body(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        if context.handler.get_transfer_encoding() == TransferEncoding::Chunked {
-            set_upper40!(self, 0);
-            set_lower8!(self, 0);
-            set_flag!(self, F_CHUNKED);
-
-            transition!(self, context, State::ChunkSize, chunk_size);
-        } else {
-            self.content_type = context.handler.get_content_type();
-
-            match self.content_type {
-                ContentType::UrlEncoded => {
-                    transition_fast!(self, context, State::UrlEncodedField, url_encoded_field);
-                },
-                _ => {
-                    println!("This content type is not handled yet");
-                }
-            }
-        }
-
-        exit_eos!(self, context);
-    }
-
-    #[inline]
-    fn content(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
-    }
 
     #[inline]
     fn chunk_size(&mut self, context: &mut ParserContext<T>)
@@ -2375,6 +1923,21 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn chunk_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
+        /*
+        if bs_available!(context) as u64 >= get_upper40!(self) {
+            bs_collect_length!(context, get_upper40!(self) as usize);
+
+            set_upper40!(self, 0);
+
+            callback_transition!(self, context,
+                                 on_chunk_data,
+                                 State::ChunkDataNewline1, chunk_data_newline1);
+        }
+
+        bs_collect_length!(context, bs_available!(context));
+
+        set_upper40!(self, get_upper40!(self) - bs_available!(context) as u64);
+        */
         if collect_content_length!(self, context) {
             callback_transition!(self, context,
                                  on_chunk_data,
@@ -2415,17 +1978,43 @@ impl<T: HttpHandler> Parser<T> {
     #[inline]
     fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'-' {
+            transition_fast!(self, context, State::MultipartHyphen2, multipart_hyphen2);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
     fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'-' {
+            transition_fast!(self, context, State::MultipartTryBoundary, multipart_try_boundary);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_try_hyphen1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
         exit_eos!(self, context);
     }
 
     #[inline]
-    fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
+    fn multipart_try_hyphen2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_eos!(self, context);
+    }
+
+    #[inline]
+    fn multipart_try_boundary(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_eos!(self, context);
     }
@@ -2606,8 +2195,14 @@ impl<T: HttpHandler> Parser<T> {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // FINISHED STATES
+    // DEAD & FINISHED STATES
     // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn dead(&mut self, _context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        Err(ParserError::Dead)
+    }
 
     #[inline]
     fn finished_newline1(&mut self, context: &mut ParserContext<T>)
@@ -2639,52 +2234,5 @@ impl<T: HttpHandler> Parser<T> {
     fn finished(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Success response types.
-#[derive(Clone,Copy,PartialEq)]
-pub enum Success {
-    /// Callback returned false.
-    Callback(usize),
-
-    /// Additional data expected.
-    Eos(usize),
-
-    /// Finished successfully.
-    Finished(usize)
-}
-
-impl fmt::Debug for Success {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Success::Callback(length) => {
-                write!(formatter, "Success::Callback({})", length)
-            },
-            Success::Eos(length) => {
-                write!(formatter, "Success::Eos({})", length)
-            },
-            Success::Finished(length) => {
-                write!(formatter, "Success::Finished({})", length)
-            }
-        }
-    }
-}
-
-impl fmt::Display for Success {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Success::Callback(length) => {
-                write!(formatter, "{}", length)
-            },
-            Success::Eos(length) => {
-                write!(formatter, "{}", length)
-            },
-            Success::Finished(length) => {
-                write!(formatter, "{}", length)
-            }
-        }
     }
 }

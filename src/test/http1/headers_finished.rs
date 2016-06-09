@@ -22,26 +22,9 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: Value", State::HeaderValue);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: Value",
+              State::HeaderValue);
     });
-}
-
-#[test]
-fn callback_exit() {
-    struct X;
-
-    impl HttpHandler for X {
-        fn on_headers_finished(&mut self) -> bool {
-            false
-        }
-    }
-
-    let mut h = X{};
-    let mut p = Parser::new();
-
-    setup!(p, h);
-
-    assert_callback(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
 }
 
 #[test]
@@ -51,6 +34,6 @@ fn finished() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\r\n\r\n", State::Body, 4);
+    assert_finished(&mut p, &mut h, b"\r\n\r\n", State::Finished, 4);
     assert!(h.headers_finished);
 }

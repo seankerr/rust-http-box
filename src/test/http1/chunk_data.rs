@@ -22,10 +22,8 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        $handler.set_transfer_encoding(TransferEncoding::Chunked);
-
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nF;extension1=value1\r\n",
-              State::ChunkData);
+        chunked_setup(&mut $parser, &mut $handler, b"F;extension1=value1\r\n",
+                      State::ChunkData);
     });
 }
 

@@ -23,9 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        $handler.set_transfer_encoding(TransferEncoding::Chunked);
-
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
+        chunked_setup(&mut $parser, &mut $handler, b"F;", State::ChunkExtensionName);
     });
 }
 
@@ -38,7 +36,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::ChunkExtensionName(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::ChunkExtensionName(x) = chunked_assert_error(&mut p, &mut h,
+                                                                         &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -52,7 +51,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionName, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionName, 1);
     });
 }
 
@@ -61,10 +60,6 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn get_transfer_encoding(&mut self) -> TransferEncoding {
-            TransferEncoding::Chunked
-        }
-
         fn on_chunk_extension_name(&mut self, _name: &[u8]) -> bool {
             false
         }
@@ -73,9 +68,9 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
+    setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"ChunkExtension=", State::ChunkExtensionValue, 15);
+    chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=", State::ChunkExtensionValue, 15);
 }
 
 #[test]
@@ -85,6 +80,6 @@ fn valid() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"valid-extension=", State::ChunkExtensionValue, 16);
+    chunked_assert_eos(&mut p, &mut h, b"valid-extension=", State::ChunkExtensionValue, 16);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
 }

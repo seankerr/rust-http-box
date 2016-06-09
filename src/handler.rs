@@ -18,21 +18,15 @@
 
 //! Handler implementations.
 
-use http1::{ Connection,
-             ContentLength,
-             ContentType,
-             HttpHandler,
-             TransferEncoding };
+use http1::HttpHandler;
 
 use std::str;
 
 pub struct DebugHandler {
-    pub body:                  Vec<u8>,
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
     pub chunk_extension_value: Vec<u8>,
     pub chunk_size:            u64,
-    pub content_type:          ContentType,
     pub header_field:          Vec<u8>,
     pub header_value:          Vec<u8>,
     pub headers_finished:      bool,
@@ -40,7 +34,6 @@ pub struct DebugHandler {
     pub multipart_data:        Vec<u8>,
     pub status:                Vec<u8>,
     pub status_code:           u16,
-    pub transfer_encoding:     TransferEncoding,
     pub url:                   Vec<u8>,
     pub url_encoded_field:     Vec<u8>,
     pub url_encoded_value:     Vec<u8>,
@@ -50,12 +43,10 @@ pub struct DebugHandler {
 
 impl DebugHandler {
     pub fn new() -> DebugHandler {
-        DebugHandler{ body:                  Vec::new(),
-                      chunk_data:            Vec::new(),
+        DebugHandler{ chunk_data:            Vec::new(),
                       chunk_extension_name:  Vec::new(),
                       chunk_extension_value: Vec::new(),
                       chunk_size:            0,
-                      content_type:          ContentType::None,
                       header_field:          Vec::new(),
                       header_value:          Vec::new(),
                       headers_finished:      false,
@@ -63,7 +54,6 @@ impl DebugHandler {
                       multipart_data:        Vec::new(),
                       status:                Vec::new(),
                       status_code:           0,
-                      transfer_encoding:     TransferEncoding::None,
                       url:                   Vec::new(),
                       url_encoded_field:     Vec::new(),
                       url_encoded_value:     Vec::new(),
@@ -72,12 +62,10 @@ impl DebugHandler {
     }
 
     pub fn reset(&mut self) {
-        self.body                  = Vec::new();
         self.chunk_data            = Vec::new();
         self.chunk_extension_name  = Vec::new();
         self.chunk_extension_value = Vec::new();
         self.chunk_size            = 0;
-        self.content_type          = ContentType::None;
         self.header_field          = Vec::new();
         self.header_value          = Vec::new();
         self.headers_finished      = false;
@@ -85,88 +73,15 @@ impl DebugHandler {
         self.multipart_data        = Vec::new();
         self.status                = Vec::new();
         self.status_code           = 0;
-        self.transfer_encoding     = TransferEncoding::None;
         self.url                   = Vec::new();
         self.url_encoded_field     = Vec::new();
         self.url_encoded_value     = Vec::new();
         self.version_major         = 0;
         self.version_minor         = 0;
     }
-
-    pub fn set_content_type(&mut self, content_type: ContentType) {
-        self.content_type = content_type;
-    }
-
-    pub fn set_transfer_encoding(&mut self, transfer_encoding: TransferEncoding) {
-        self.transfer_encoding = transfer_encoding;
-    }
 }
 
 impl HttpHandler for DebugHandler {
-    fn get_connection(&mut self) -> Connection {
-        Connection::None
-    }
-
-    fn get_content_length(&mut self) -> ContentLength {
-        ContentLength::None
-    }
-
-    fn get_content_type(&mut self) -> ContentType {
-        match self.content_type {
-            ContentType::None => {
-                println!("get_content_type: ContentType::None");
-                ContentType::None
-            },
-            ContentType::Multipart(ref x) => {
-                println!("get_content_type: ContentType::Multipart({:?})", x);
-                ContentType::Multipart(x.to_owned())
-            },
-            ContentType::UrlEncoded => {
-                println!("get_content_type: ContentType::UrlEncoded");
-                ContentType::UrlEncoded
-            },
-            ContentType::Other(ref x) => {
-                println!("get_content_type: ContentType::Other({:?})", x);
-                ContentType::Other(x.to_owned())
-            },
-        }
-    }
-
-    fn get_transfer_encoding(&mut self) -> TransferEncoding {
-        match self.transfer_encoding {
-            TransferEncoding::None => {
-                println!("get_transfer_encoding: None");
-                TransferEncoding::None
-            },
-            TransferEncoding::Chunked => {
-                println!("get_transfer_encoding: Chunked");
-                TransferEncoding::Chunked
-            },
-            TransferEncoding::Compress => {
-                println!("get_transfer_encoding: Compress");
-                TransferEncoding::Compress
-            },
-            TransferEncoding::Deflate => {
-                println!("get_transfer_encoding: Deflate");
-                TransferEncoding::Deflate
-            },
-            TransferEncoding::Gzip => {
-                println!("get_transfer_encoding: Gzip");
-                TransferEncoding::Gzip
-            },
-            TransferEncoding::Other(ref x) => {
-                println!("get_transfer_encoding: Other({:?})", x);
-                TransferEncoding::Other(x.to_owned())
-            }
-        }
-    }
-
-    fn on_body(&mut self, body: &[u8]) -> bool {
-        println!("on_body [{}]: {:?}", body.len(), str::from_utf8(body).unwrap());
-        self.body.extend_from_slice(body);
-        true
-    }
-
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         self.chunk_data.extend_from_slice(data);
 
@@ -211,10 +126,9 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_headers_finished(&mut self) -> bool {
+    fn on_headers_finished(&mut self) {
         println!("on_headers_finished");
         self.headers_finished = true;
-        true
     }
 
     fn on_method(&mut self, method: &[u8]) -> bool {

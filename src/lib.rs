@@ -31,6 +31,9 @@ extern crate byte_slice;
 pub mod byte;
 
 #[macro_use]
+mod fsm;
+
+#[macro_use]
 pub mod stream;
 
 pub mod handler;

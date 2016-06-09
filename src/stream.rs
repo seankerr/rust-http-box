@@ -33,19 +33,42 @@ macro_rules! collect_digits {
     });
 }
 
-/// Collect `$length` bytes as long as `$allow` yields `true`. Otherwise return `$error`.
+/// Collect remaining bytes until content length is zero.
 ///
-/// This macro assumes that `$length` bytes are available for reading.
+/// Content length is stored in the upper 40 bits.
+macro_rules! collect_content_length {
+    ($parser:expr, $context:expr) => ({
+        exit_if_eos!($parser, $context);
+
+        if bs_has_bytes!($context, get_upper40!($parser) as usize) {
+            $context.stream_index += get_upper40!($parser) as usize;
+
+            set_upper40!($parser, 0);
+
+            true
+        } else {
+            $context.stream_index += $context.stream.len();
+
+            set_upper40!($parser, get_upper40!($parser) as usize - $context.stream.len());
+
+            false
+        }
+    });
+}
+
+/// Collect all bytes that are allowed within a quoted value.
 ///
-/// End-of-stream returns `$error`.
-macro_rules! collect_length {
-    ($context:expr, $error:expr, $length:expr, $allow:expr) => ({
-        bs_collect_length!($context,
-            if !$allow {
+/// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
+/// non-visible 7-bit byte that also isn't a space.
+macro_rules! collect_quoted_value {
+    ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
+        bs_collect!($context,
+            if b'"' == $context.byte || b'\\' == $context.byte {
+                break;
+            } else if is_not_visible_7bit!($context.byte) && $context.byte != b' ' {
                 return Err($error($context.byte));
-            }, {
-                return Err($error($context.byte))
-            }
+            },
+            callback_eos_expr!($parser, $context, $function)
         );
     });
 }
@@ -97,5 +120,33 @@ macro_rules! collect_visible {
             },
             $on_eos
         );
+    });
+}
+
+/// Consume all linear white space bytes.
+///
+/// Exit the collection loop when a non-linear white space byte is found.
+macro_rules! consume_linear_space {
+    ($parser:expr, $context:expr) => ({
+        if bs_is_eos!($context) {
+            exit_eos!($parser, $context);
+        }
+
+        if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
+            loop {
+                if bs_is_eos!($context) {
+                    exit_eos!($parser, $context);
+                }
+
+                bs_next!($context);
+
+                if $context.byte == b' ' || $context.byte == b'\t' {
+                } else {
+                    bs_replay!($context);
+
+                    break;
+                }
+            }
+        }
     });
 }

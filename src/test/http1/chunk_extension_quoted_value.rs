@@ -23,10 +23,8 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        $handler.set_transfer_encoding(TransferEncoding::Chunked);
-
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nF;extension1=",
-              State::ChunkExtensionValue);
+        chunked_setup(&mut $parser, &mut $handler, b"F;extension1=",
+                      State::ChunkExtensionValue);
     });
 }
 
@@ -37,7 +35,7 @@ fn basic() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
+    chunked_assert_eos(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -50,10 +48,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
 
-        if let ParserError::ChunkExtensionValue(x) = assert_error(&mut p, &mut h,
-                                                                  &[byte]).unwrap() {
+        if let ParserError::ChunkExtensionValue(x) = chunked_assert_error(&mut p, &mut h,
+                                                                          &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -67,8 +65,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
-        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
     });
 }
 
@@ -77,10 +75,6 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn get_transfer_encoding(&mut self) -> TransferEncoding {
-            TransferEncoding::Chunked
-        }
-
         fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
             false
         }
@@ -89,10 +83,10 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
+    setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"ChunkExtension=\"ExtensionValue\"",
-                    State::ChunkExtensionSemiColon, 31);
+    assert_callback(&mut p, &mut h, b"\"ExtensionValue\"",
+                    State::ChunkExtensionSemiColon, 16);
 }
 
 #[test]
@@ -102,7 +96,9 @@ fn escaped() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkSizeNewline, 23);
+    chunked_assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkSizeNewline,
+                       23);
+
     assert_eq!(h.chunk_extension_value, b"valid \"value\" here");
 }
 
@@ -113,7 +109,9 @@ fn repeat() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"valid-value1;extension2=valid-value2;", State::ChunkExtensionName, 37);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value1;extension2=valid-value2;",
+                       State::ChunkExtensionName, 37);
+
     assert_eq!(h.chunk_extension_name, b"extension1extension2");
     assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");
 }

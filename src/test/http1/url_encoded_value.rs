@@ -23,9 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        $handler.set_content_type(ContentType::UrlEncoded);
-
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nField=", State::UrlEncodedValue);
+        url_encoded_setup(&mut $parser, &mut $handler, b"Field=", State::UrlEncodedValue);
     });
 }
 
@@ -38,7 +36,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::UrlEncodedValue(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::UrlEncodedValue(x) = url_encoded_assert_error(&mut p, &mut h,
+                                                                          &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -52,7 +51,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::UrlEncodedValue, 1);
+        url_encoded_assert_eos(&mut p, &mut h, &[byte], State::UrlEncodedValue, 1);
     });
 }
 
@@ -61,10 +60,6 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn get_content_type(&mut self) -> ContentType {
-            ContentType::UrlEncoded
-        }
-
         fn on_url_encoded_value(&mut self, _value: &[u8]) -> bool {
             false
         }
@@ -73,7 +68,7 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nValue=", State::UrlEncodedValue);
+    setup!(p, h);
 
     assert_callback(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
 }
@@ -85,7 +80,8 @@ fn equal_error() {
 
     setup!(p, h);
 
-    if let ParserError::UrlEncodedValue(x) = assert_error(&mut p, &mut h, b"=").unwrap() {
+    if let ParserError::UrlEncodedValue(x) = url_encoded_assert_error(&mut p, &mut h,
+                                                                      b"=").unwrap() {
         assert_eq!(x, b'=');
     } else {
         panic!();
@@ -99,7 +95,7 @@ fn finished() {
 
     setup!(p, h);
 
-    assert_finished(&mut p, &mut h, b"Value\r\n", State::Finished, 7);
+    url_encoded_assert_finished(&mut p, &mut h, b"Value\r\n", State::Finished, 7);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -110,7 +106,8 @@ fn hex_error() {
 
     setup!(p, h);
 
-    if let ParserError::UrlEncodedValue(x) = assert_error(&mut p, &mut h, b"%2z").unwrap() {
+    if let ParserError::UrlEncodedValue(x) = url_encoded_assert_error(&mut p, &mut h,
+                                                                      b"%2z").unwrap() {
         assert_eq!(x, b'%');
     } else {
         panic!();
@@ -124,7 +121,7 @@ fn value() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value", State::UrlEncodedValue, 5);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -135,7 +132,7 @@ fn value_ending_ampersand() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value&", State::UrlEncodedField, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value&", State::UrlEncodedField, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -146,7 +143,7 @@ fn value_ending_percent() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -157,7 +154,7 @@ fn value_ending_plus() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 6);
     assert_eq!(h.url_encoded_value, b"Value ");
 }
 
@@ -168,6 +165,6 @@ fn value_hex() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 8);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 8);
     assert_eq!(h.url_encoded_value, b"Value!");
 }

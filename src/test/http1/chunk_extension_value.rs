@@ -23,10 +23,8 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        $handler.set_transfer_encoding(TransferEncoding::Chunked);
-
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n\r\nF;extension=",
-              State::ChunkExtensionValue);
+        chunked_setup(&mut $parser, &mut $handler, b"F;extension=",
+                      State::ChunkExtensionValue);
     });
 }
 
@@ -39,8 +37,8 @@ fn byte_check_unquoted() {
 
         setup!(p, h);
 
-        if let ParserError::ChunkExtensionValue(x) = assert_error(&mut p, &mut h,
-                                                                  &[byte]).unwrap() {
+        if let ParserError::ChunkExtensionValue(x) = chunked_assert_error(&mut p, &mut h,
+                                                                          &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -54,7 +52,7 @@ fn byte_check_unquoted() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionValue, 1);
     });
 }
 
@@ -65,7 +63,7 @@ fn basic() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"valid-value;", State::ChunkExtensionName, 12);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value;", State::ChunkExtensionName, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -74,10 +72,6 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn get_transfer_encoding(&mut self) -> TransferEncoding {
-            TransferEncoding::Chunked
-        }
-
         fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
             false
         }
@@ -86,9 +80,9 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    setup(&mut p, &mut h, b"GET / HTTP/1.1\r\n\r\nF;", State::ChunkExtensionName);
+    setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"ChunkExtension=ExtensionValue", State::ChunkExtensionValue, 29);
+    assert_callback(&mut p, &mut h, b"ExtensionValue", State::ChunkExtensionValue, 14);
 }
 
 #[test]
@@ -98,6 +92,6 @@ fn repeat() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"valid-value\r", State::ChunkSizeNewline, 12);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", State::ChunkSizeNewline, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
