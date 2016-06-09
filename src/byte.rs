@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Byte verification macros and functions.
+//! Byte verification functions and macros.
 
 /// Encode a byte into a hex sequence *XX*.
 ///

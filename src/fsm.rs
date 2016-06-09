@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Finite state machine macros.
+//! Finite state machine macros and enums.
 
 use std::fmt;
 
