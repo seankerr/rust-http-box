@@ -36,12 +36,18 @@ fn byte_check() {
     });
 
     // valid bytes
-    loop_hex(b"", |byte| {
+    loop_hex(b"0", |byte| {
         let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkSize, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkSize2, 1);
     });
+
+    // starting 0 (end chunk)
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    chunked_assert_eos(&mut p, &mut h, b"0", State::ChunkSizeEnd, 1);
 }
 
 #[test]
@@ -49,7 +55,7 @@ fn callback_exit() {
     struct X;
 
     impl Http1Handler for X {
-        fn on_chunk_size(&mut self, _size: u64) -> bool {
+        fn on_chunk_size(&mut self, _size: u32) -> bool {
             false
         }
     }
@@ -137,40 +143,13 @@ fn size7() {
 }
 
 #[test]
-fn size8() {
-    let mut h = DebugHttp1Handler::new();
-    let mut p = Parser::new();
-
-    chunked_assert_eos(&mut p, &mut h, b"FFFFFFFF\r", State::ChunkSizeNewline, 9);
-    assert_eq!(h.chunk_size, 4294967295);
-}
-
-#[test]
-fn size9() {
-    let mut h = DebugHttp1Handler::new();
-    let mut p = Parser::new();
-
-    chunked_assert_eos(&mut p, &mut h, b"FFFFFFFFF\r", State::ChunkSizeNewline, 10);
-    assert_eq!(h.chunk_size, 68719476735);
-}
-
-#[test]
-fn size10() {
-    let mut h = DebugHttp1Handler::new();
-    let mut p = Parser::new();
-
-    chunked_assert_eos(&mut p, &mut h, b"FFFFFFFFFF\r", State::ChunkSizeNewline, 11);
-    assert_eq!(h.chunk_size, 1099511627775);
-}
-
-#[test]
 fn too_long() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     if let ParserError::ChunkSize(x) = chunked_assert_error(&mut p, &mut h,
-                                                            b"FFFFFFFFFF0").unwrap() {
-        assert_eq!(x, b'0');
+                                                            b"FFFFFFF1").unwrap() {
+        assert_eq!(x, b'1');
     } else {
         panic!();
     }

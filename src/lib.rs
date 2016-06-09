@@ -22,9 +22,6 @@
 #![cfg_attr(test, plugin(clippy))]
 
 #[macro_use]
-extern crate bitflags;
-
-#[macro_use]
 extern crate byte_slice;
 
 #[macro_use]

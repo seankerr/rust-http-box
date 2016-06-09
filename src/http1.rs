@@ -28,146 +28,124 @@ use fsm::{ ParserValue,
 use std::{ fmt,
            str };
 
+// -------------------------------------------------------------------------------------------------
+
+// All 28 bits mask.
+const ALL28_MASK: u32 = 0xFFFFFFF;
+
+// All 28 bits shift.
+const ALL28_SHIFT: u32 = 4;
+
 // State flag mask.
-const FLAG_MASK: u64 = 0xFF;
+const FLAG_MASK: u32 = 0x4;
 
 // State flag shift.
 const FLAG_SHIFT: u8 = 0;
 
-// Lower 8 bits mask.
-const LOWER8_MASK: u64 = 0xFF;
+// Lower 14 bits mask.
+const LOWER14_MASK: u32 = 0x3FFF;
 
-// Lower 8 bits shift.
-const LOWER8_SHIFT: u8 = 8;
+// Lower 14 bits shift.
+const LOWER14_SHIFT: u8 = 4;
 
-// Lower 16 bits mask.
-const LOWER16_MASK: u64 = 0xFFFF;
+// Upper 14 bits mask.
+const UPPER14_MASK: u32 = 0x3FFF;
 
-// Lower 16 bits shift.
-const LOWER16_SHIFT: u8 = 8;
+// Upper 14 bits shift.
+const UPPER14_SHIFT: u8 = 18;
 
-// Mid 8 bits mask.
-const MID8_MASK: u64 = 0xFF;
+// -------------------------------------------------------------------------------------------------
+// FLAGS
+// -------------------------------------------------------------------------------------------------
 
-// Mid 8 bits shift.
-const MID8_SHIFT: u8 = 16;
+// these flags are actually bit shift amounts, not typical power of 2 flag values themselves
 
-// Upper 40 bits mask.
-const UPPER40_MASK: u64 = 0xFFFFFFFFFF;
+// Parsing chunked transfer encoding.
+const F_CHUNKED: u8 = 0;
 
-// Upper 40 bits shift.
-const UPPER40_SHIFT: u8 = 24;
+// Parsing multipart data.
+const F_MULTIPART: u8 = 1;
 
-// Flags used to track state details.
-bitflags! {
-    flags Flag: u64 {
-        // Parsing chunked transfer encoding.
-        const F_CHUNKED = 1 << 0,
+// Parsing request.
+const F_REQUEST: u8 = 2;
 
-        // Parsing data that needs to check against content length.
-        const F_CONTENT_LENGTH = 1 << 1,
-
-        // Parsing multipart data.
-        const F_MULTIPART = 1 << 2,
-
-        // Parsing request.
-        const F_REQUEST = 1 << 3,
-
-        // Parsing response.
-        const F_RESPONSE = 1 << 4
-    }
-}
+// Parsing response.
+const F_RESPONSE: u8 = 3;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
 
-// Retrieve the lower 8 bits.
-macro_rules! get_lower8 {
+// Retrieve all 28 bits.
+macro_rules! get_all28 {
     ($parser:expr) => ({
-        (($parser.bit_data >> LOWER8_SHIFT) & LOWER8_MASK) as u8
+        ($parser.bit_data >> ALL28_SHIFT) & ALL28_MASK
     });
 }
 
-// Retrieve the lower 16 bits.
-macro_rules! get_lower16 {
+
+// Retrieve the lower 14 bits.
+macro_rules! get_lower14 {
     ($parser:expr) => ({
-        (($parser.bit_data >> LOWER16_SHIFT) & LOWER16_MASK) as u16
+        ($parser.bit_data >> LOWER14_SHIFT) & LOWER14_MASK
     });
 }
 
-// Retrieve the mid 8 bits.
-macro_rules! get_mid8 {
+// Retrieve the upper 14 bits.
+macro_rules! get_upper14 {
     ($parser:expr) => ({
-        (($parser.bit_data >> MID8_SHIFT) & MID8_MASK) as u8
-    });
-}
-
-// Retrieve the upper 40 bits.
-macro_rules! get_upper40 {
-    ($parser:expr) => ({
-        ($parser.bit_data >> UPPER40_SHIFT) & UPPER40_MASK
+        ($parser.bit_data >> UPPER14_SHIFT) & UPPER14_MASK
     });
 }
 
 // Indicates that a state flag is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
-        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag.bits == $flag.bits
+        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & (1 << $flag) == (1 << $flag)
     });
 }
 
 // Set a state flag.
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data |= ($flag.bits & FLAG_MASK) << FLAG_SHIFT;
+        $parser.bit_data |= ((1 << $flag) & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
-// Set the lower 8 bits.
-macro_rules! set_lower8 {
+// Set all 28 bits.
+macro_rules! set_all28 {
     ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
+        let bits = $bits as u32;
 
-        $parser.bit_data &= !(LOWER8_MASK << LOWER8_SHIFT);
-        $parser.bit_data |= bits << LOWER8_SHIFT;
+        $parser.bit_data &= !(ALL28_MASK << ALL28_SHIFT);
+        $parser.bit_data |= bits << ALL28_SHIFT;
     });
 }
 
-// Set the mid 8 bits.
-macro_rules! set_mid8 {
+// Set the lower 14 bits.
+macro_rules! set_lower14 {
     ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
+        let bits = $bits as u32;
 
-        $parser.bit_data &= !(MID8_MASK << MID8_SHIFT);
-        $parser.bit_data |= bits << MID8_SHIFT;
+        $parser.bit_data &= !(LOWER14_MASK << LOWER14_SHIFT);
+        $parser.bit_data |= bits << LOWER14_SHIFT;
     });
 }
 
-// Set the lower 16 bits.
-macro_rules! set_lower16 {
+// Set the upper 14 bits.
+macro_rules! set_upper14 {
     ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
+        let bits = $bits as u32;
 
-        $parser.bit_data &= !(LOWER16_MASK << LOWER16_SHIFT);
-        $parser.bit_data |= bits << LOWER16_SHIFT;
-    });
-}
-
-// Set the upper 40 bits.
-macro_rules! set_upper40 {
-    ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u64;
-
-        $parser.bit_data &= !(UPPER40_MASK << UPPER40_SHIFT);
-        $parser.bit_data |= bits << UPPER40_SHIFT;
+        $parser.bit_data &= !(UPPER14_MASK << UPPER14_SHIFT);
+        $parser.bit_data |= bits << UPPER14_SHIFT;
     });
 }
 
 // Unset a state flag.
 macro_rules! unset_flag {
     ($parser:expr, $flag:expr) => ({
-        $parser.bit_data &= !(($flag.bits & FLAG_MASK) << FLAG_SHIFT);
+        $parser.bit_data &= !(((1 << $flag) & FLAG_MASK) << FLAG_SHIFT);
     });
 }
 
@@ -527,8 +505,14 @@ pub enum State {
     // BODY
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing chunk size.
-    ChunkSize,
+    /// Parsing chunk size byte 1.
+    ChunkSize1,
+
+    /// Parsing chunk size byte 2.
+    ChunkSize2,
+
+    /// Parsing chunk size end (when chunk size is 0).
+    ChunkSizeEnd,
 
     /// Parsing chunk extension name.
     ChunkExtensionName,
@@ -656,7 +640,7 @@ pub trait Http1Handler {
     /// Callback that is executed when a chunk size has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_chunk_size(&mut self, size: u64) -> bool {
+    fn on_chunk_size(&mut self, size: u32) -> bool {
         true
     }
 
@@ -787,11 +771,11 @@ impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
 pub struct Parser<'a, T: Http1Handler> {
     // Bit data that stores parser bit details.
     //
-    // Bits 1-8: State flags that are checked when states have a dual purpose, such as when header
+    // Bits 1-4: State flags that are checked when states have a dual purpose, such as when header
     //           parsing states also parse chunk encoding trailers.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
-    // Bits 9-64: Used to store various numbers depending on state. Content length, chunk size,
+    // Bits 5-32: Used to store various numbers depending on state. Content length, chunk size,
     //            HTTP major/minor versions are all stored in here. Depending on macro used, more
     //            bits are accessible.
     // Macros:    get_lower8!(), set_lower8!()   -- lower 8 bits
@@ -799,7 +783,7 @@ pub struct Parser<'a, T: Http1Handler> {
     //            get_lower16!(), set_lower16!() -- lower 16 bits
     //                                              (when not using the lower8/mid8 macros)
     //            get_upper40!(), set_upper40!() -- upper 40 bits
-    bit_data: u64,
+    bit_data: u32,
 
     // Total byte count processed for headers, and body.
     // Once the headers are finished processing, this is reset to 0 to track the body length.
@@ -917,11 +901,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<Success, ParserError> {
         if self.state == State::StripDetect {
             set_flag!(self, F_CHUNKED);
-            set_lower8!(self, 0);
-            set_upper40!(self, 0);
+            set_all28!(self, 0);
 
-            self.state          = State::ChunkSize;
-            self.state_function = Parser::chunk_size;
+            self.state          = State::ChunkSize1;
+            self.state_function = Parser::chunk_size1;
         }
 
         self.parse(handler, stream)
@@ -1147,7 +1130,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'/' {
             set_flag!(self, F_RESPONSE);
-            set_upper40!(self, 0);
+            set_all28!(self, 0);
 
             transition_fast!(self, context, State::ResponseVersionMajor, response_version_major);
         }
@@ -1599,7 +1582,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'/' {
-            set_upper40!(self, 0);
+            set_all28!(self, 0);
 
             transition_fast!(self, context, State::RequestVersionMajor, request_version_major);
         }
@@ -1610,15 +1593,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn request_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_lower16!(self) as u64;
+        let mut digit = get_lower14!(self);
 
-        collect_digits!(context, ParserError::Version, digit, 999, {
-            set_lower16!(self, digit as u16);
+        collect_digits32!(context, ParserError::Version, digit, 999, {
+            set_lower14!(self, digit);
 
             exit_eos!(self, context);
         });
 
-        set_lower16!(self, digit as u16);
+        set_lower14!(self, digit);
 
         if context.byte == b'.' {
             transition_fast!(self, context, State::RequestVersionMinor, request_version_minor);
@@ -1630,17 +1613,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn request_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self);
+        let mut digit = get_upper14!(self);
 
-        collect_digits!(context, ParserError::Version, digit, 999, {
-            set_upper40!(self, digit);
+        collect_digits32!(context, ParserError::Version, digit, 999, {
+            set_upper14!(self, digit);
 
             exit_eos!(self, context);
         });
 
         set_state!(self, State::PreHeaders1, pre_headers1);
 
-        if context.handler.on_version(get_lower16!(self), digit as u16) {
+        if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -1654,15 +1637,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn response_version_major(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_lower16!(self) as u64;
+        let mut digit = get_lower14!(self);
 
-        collect_digits!(context, ParserError::Version, digit, 999, {
-            set_lower16!(self, digit as u16);
+        collect_digits32!(context, ParserError::Version, digit, 999, {
+            set_lower14!(self, digit);
 
             exit_eos!(self, context);
         });
 
-        set_lower16!(self, digit as u16);
+        set_lower14!(self, digit);
 
         if context.byte == b'.' {
             transition_fast!(self, context, State::ResponseVersionMinor, response_version_minor);
@@ -1674,17 +1657,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn response_version_minor(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self);
+        let mut digit = get_upper14!(self);
 
-        collect_digits!(context, ParserError::Version, digit, 999, {
-            set_upper40!(self, digit);
+        collect_digits32!(context, ParserError::Version, digit, 999, {
+            set_upper14!(self, digit);
 
             exit_eos!(self, context);
         });
 
         set_state!(self, State::StripResponseStatusCode, strip_response_status_code);
 
-        if context.handler.on_version(get_lower16!(self), digit as u16) {
+        if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -1703,7 +1686,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         bs_replay!(context);
 
-        set_upper40!(self, 0);
+        set_lower14!(self, 0);
 
         transition_fast!(self, context, State::ResponseStatusCode, response_status_code);
     }
@@ -1711,10 +1694,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        let mut digit = get_upper40!(self);
+        let mut digit = get_lower14!(self);
 
-        collect_digits!(context, ParserError::StatusCode, digit, 999, {
-            set_upper40!(self, digit);
+        collect_digits32!(context, ParserError::StatusCode, digit, 999, {
+            set_lower14!(self, digit);
             exit_eos!(self, context);
         });
 
@@ -1765,49 +1748,71 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn chunk_size(&mut self, context: &mut ParserContext<T>)
+    fn chunk_size1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'0' {
+            transition_fast!(self, context, State::ChunkSizeEnd, chunk_size_end);
+        } else if !is_hex!(context.byte) {
+            return Err(ParserError::ChunkSize(context.byte));
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(self, context, State::ChunkSize2, chunk_size2);
+    }
+
+    #[inline]
+    fn chunk_size2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
         match hex_to_byte(&[context.byte]) {
             Some(byte) => {
-                if get_lower8!(self) == 10 {
-                    // beyond max size
+                if (get_all28!(self) << 4) + byte as u32 > 0xFFFFFFF {
+                    // beyond maximum chunk size (28 bits)
                     return Err(ParserError::ChunkSize(context.byte));
                 }
 
-                set_upper40!(self, get_upper40!(self) << 4);
-                set_upper40!(self, get_upper40!(self) + byte as u64);
-                set_lower8!(self, get_lower8!(self) + 1);
+                set_all28!(self, get_all28!(self) << 4);
+                set_all28!(self, get_all28!(self) + byte as u32);
 
-                transition!(self, context, State::ChunkSize, chunk_size);
+                transition!(self, context, State::ChunkSize2, chunk_size2);
             },
             None => {
-                if get_lower8!(self) == 0 {
-                    // no size supplied
-                    return Err(ParserError::ChunkSize(context.byte));
-                }
+                bs_replay!(context);
 
-                if get_upper40!(self) == 0 {
-                    callback_transition_fast!(self, context,
-                                              on_chunk_size, get_upper40!(self),
-                                              State::Newline2, newline2);
-                } else if context.byte == b'\r' {
-                    callback_transition_fast!(self, context,
-                                              on_chunk_size, get_upper40!(self),
-                                              State::ChunkSizeNewline, chunk_size_newline);
-                } else if context.byte == b';' {
-                    set_lower16!(self, 1);
-
-                    callback_transition_fast!(self, context,
-                                              on_chunk_size, get_upper40!(self),
-                                              State::ChunkExtensionName, chunk_extension_name);
-                } else {
-                    Err(ParserError::ChunkSize(context.byte))
-                }
+                transition_fast!(self, context, State::ChunkSizeEnd, chunk_size_end);
             }
         }
+    }
+
+    #[inline]
+    fn chunk_size_end(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            if get_all28!(self) == 0 {
+                callback_transition_fast!(self, context,
+                                          on_chunk_size, get_all28!(self),
+                                          State::Newline2, newline2);
+            }
+
+            callback_transition_fast!(self, context,
+                                      on_chunk_size, get_all28!(self),
+                                      State::ChunkSizeNewline, chunk_size_newline);
+        } else if context.byte == b';' {
+            callback_transition_fast!(self, context,
+                                      on_chunk_size, get_all28!(self),
+                                      State::ChunkExtensionName, chunk_extension_name);
+        }
+
+        Err(ParserError::ChunkSize(context.byte))
     }
 
     #[inline]
@@ -1969,7 +1974,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            transition_fast!(self, context, State::ChunkSize, chunk_size);
+            transition_fast!(self, context, State::ChunkSize1, chunk_size1);
         }
 
         Err(ParserError::CrlfSequence(context.byte))

@@ -59,7 +59,7 @@ fn multiple_chunks() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"abcdefghijklmno\r\n", State::ChunkSize, 17);
+    assert_eos(&mut p, &mut h, b"abcdefghijklmno\r\n", State::ChunkSize1, 17);
     assert_eq!(h.chunk_data, b"abcdefghijklmno");
     assert_eos(&mut p, &mut h, b"5\r\n", State::ChunkData, 3);
     assert_eos(&mut p, &mut h, b"pqrst", State::ChunkDataNewline1, 5);

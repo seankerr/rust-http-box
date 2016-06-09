@@ -11,12 +11,10 @@ keywords    = ["http", "url", "parser", "encoder", "decoder"]
 exclude     = [".gitignore"]
 
 [dependencies]
-bitflags   = "*"
 byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
 
 [dev-dependencies]
-bitflags   = "*"
 byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
 clippy     = "*"
