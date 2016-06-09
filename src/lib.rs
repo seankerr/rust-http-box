@@ -34,7 +34,7 @@ pub mod byte;
 mod fsm;
 
 #[macro_use]
-pub mod stream;
+pub mod collect;
 
 pub mod handler;
 pub mod http1;
