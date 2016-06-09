@@ -37,7 +37,7 @@ const ALL28_MASK: u32 = 0xFFFFFFF;
 const ALL28_SHIFT: u32 = 4;
 
 // State flag mask.
-const FLAG_MASK: u32 = 0x4;
+const FLAG_MASK: u32 = 0xF;
 
 // State flag shift.
 const FLAG_SHIFT: u8 = 0;
@@ -58,14 +58,17 @@ const UPPER14_SHIFT: u8 = 18;
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
+// Headers are finished parsing.
+const F_HEADERS_FINISHED: u32 = 1;
+
 // Parsing multipart data.
-const F_MULTIPART: u32 = 1;
+const F_MULTIPART: u32 = 2;
 
 // Parsing request.
-const F_REQUEST: u32 = 2;
+const F_REQUEST: u32 = 4;
 
 // Parsing response.
-const F_RESPONSE: u32 = 4;
+const F_RESPONSE: u32 = 8;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -179,6 +182,9 @@ pub enum ParserError {
     /// Invalid request method on byte `u8`.
     Method(u8),
 
+    /// Maximum headers length has been met.
+    MaxHeadersLength,
+
     /// Invalid multipart boundary on byte `u8`.
     MultipartBoundary(u8),
 
@@ -226,6 +232,9 @@ impl fmt::Debug for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "ParserError::HeaderValue(Invalid header value on byte {})", byte)
+            },
+            ParserError::MaxHeadersLength => {
+                write!(formatter, "ParserError::MaxHeadersLength(Maximum headers length has been met)")
             },
             ParserError::Method(ref byte) => {
                 write!(formatter, "ParserError::Method(Invalid method on byte {})", byte)
@@ -281,6 +290,9 @@ impl fmt::Display for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "Invalid header value on byte {}", byte)
+            },
+            ParserError::MaxHeadersLength => {
+                write!(formatter, "Maximum headers length has been met")
             },
             ParserError::Method(ref byte) => {
                 write!(formatter, "Invalid method on byte {}", byte)
@@ -766,18 +778,17 @@ impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
 pub struct Parser<'a, T: Http1Handler> {
     // Bit data that stores parser bit details.
     //
-    // Bits 1-4: State flags that are checked when states have a dual purpose, such as when header
-    //           parsing states also parse chunk encoding trailers.
+    // Bits 1-4: Holds the type of HTTP data: request / response / unknown, as well as state flags,
+    //           such as when multipart data is being processed.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
     // Bits 5-32: Used to store various numbers depending on state. Content length, chunk size,
     //            HTTP major/minor versions are all stored in here. Depending on macro used, more
     //            bits are accessible.
-    // Macros:    get_lower8!(), set_lower8!()   -- lower 8 bits
-    //            get_mid8!(), set_mid8!()       -- mid 8 bits
-    //            get_lower16!(), set_lower16!() -- lower 16 bits
-    //                                              (when not using the lower8/mid8 macros)
-    //            get_upper40!(), set_upper40!() -- upper 40 bits
+    // Macros:    get_lower14!(), set_lower14!() -- lower 14 bits
+    //            get_upper14!(), set_upper14!() -- upper 14 bits
+    //            get_all28!(), set_all28!()     -- all 28 bits
+    //                                              (when not using lower14/upper14)
     bit_data: u32,
 
     // Total byte count processed for headers, and body.
@@ -934,9 +945,58 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
     /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     #[inline]
-    pub fn parse_headers(&mut self, handler: &mut T, stream: &[u8])
+    pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: u32)
     -> Result<Success, ParserError> {
-        self.parse(handler, stream)
+        if max_length == 0 {
+            return self.parse(handler, stream);
+        }
+
+        if get_all28!(self) == 0 {
+            // length hasn't been set yet
+            set_all28!(self, max_length & ALL28_MASK);
+        }
+
+        if (get_all28!(self) as usize) < stream.len() {
+            // amount of data to process is less than the stream length, so let's cut it
+            // off and only process what we need
+            stream = &stream[0..get_all28!(self) as usize];
+        }
+
+        match self.parse(handler, stream) {
+            Ok(Success::Eos(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                    Ok(Success::Eos(length))
+                } else {
+                    // maximum headers length has been met
+                    Err(ParserError::MaxHeadersLength)
+                }
+            },
+            Ok(Success::Finished(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                    Ok(Success::Finished(length))
+                } else {
+                    // maximum headers length has been met
+                    Err(ParserError::MaxHeadersLength)
+                }
+            },
+            Ok(Success::Callback(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                    Ok(Success::Callback(length))
+                } else {
+                    // maximum headers length has been met
+                    Err(ParserError::MaxHeadersLength)
+                }
+            },
+            error => {
+                error
+            }
+        }
     }
 
     /// Parse multipart data.
@@ -1335,6 +1395,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     fn newline1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if bs_has_bytes!(context, 2) && bs_starts_with2!(context, b"\r\n") {
+            bs_jump!(context, 2);
+
             transition_fast!(self, context, State::Newline3, newline3);
         }
 
@@ -1387,6 +1449,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
+            set_flag!(self, F_HEADERS_FINISHED);
+
             context.handler.on_headers_finished();
 
             transition_fast!(self, context, State::Finished, finished);

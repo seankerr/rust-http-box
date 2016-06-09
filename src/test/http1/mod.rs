@@ -52,7 +52,7 @@ mod url_encoded_value;
 
 pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                        state: State, length: usize) {
-    assert!(match parser.parse_headers(handler, stream) {
+    assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.get_state(), state);
@@ -64,7 +64,7 @@ pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
 
 pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                   state: State, length: usize) {
-    assert!(match parser.parse_headers(handler, stream) {
+    assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.get_state(), state);
@@ -76,7 +76,7 @@ pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stre
 
 pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
-    match parser.parse_headers(handler, stream) {
+    match parser.parse_headers(handler, stream, 0) {
         Err(error) => {
             assert_eq!(parser.get_state(), State::Dead);
             Some(error)
@@ -90,7 +90,7 @@ pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
 
 pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                        state: State, length: usize) {
-    assert!(match parser.parse_headers(handler, stream) {
+    assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.get_state(), state);
@@ -163,7 +163,7 @@ pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
 }
 
 pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
-    assert!(match parser.parse_headers(handler, stream) {
+    assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
             assert_eq!(parser.get_state(), state);

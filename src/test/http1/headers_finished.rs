@@ -16,6 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use fsm::*;
 use handler::*;
 use http1::*;
 use test::http1::*;
@@ -36,4 +37,32 @@ fn finished() {
 
     assert_finished(&mut p, &mut h, b"\r\n\r\n", State::Finished, 4);
     assert!(h.headers_finished);
+}
+
+#[test]
+fn max_headers_length_error() {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    assert!(match p.parse_headers(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 31) {
+        Err(ParserError::MaxHeadersLength) => {
+            true
+        },
+        _ => {
+            false
+        }
+    });
+}
+
+#[test]
+fn max_headers_length_ok() {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    assert!(match p.parse_headers(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 32) {
+        Ok(Success::Finished(32)) => {
+            true
+        },
+        _ => false
+    });
 }
