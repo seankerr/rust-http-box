@@ -31,7 +31,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r\t ", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -45,7 +45,7 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(b"\"", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -58,7 +58,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl HttpHandler for X {
+    impl Http1Handler for X {
         fn on_header_value(&mut self, _field: &[u8]) -> bool {
             false
         }
@@ -74,7 +74,7 @@ fn callback_exit() {
 
 #[test]
 fn multiline() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -87,7 +87,7 @@ fn multiline() {
 
 #[test]
 fn multiple() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -100,7 +100,7 @@ fn multiple() {
 
 #[test]
 fn single() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -111,7 +111,7 @@ fn single() {
 
 #[test]
 fn space() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

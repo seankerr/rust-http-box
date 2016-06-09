@@ -18,11 +18,11 @@
 
 //! Handler implementations.
 
-use http1::HttpHandler;
+use http1::Http1Handler;
 
 use std::str;
 
-pub struct DebugHttpHandler {
+pub struct DebugHttp1Handler {
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
     pub chunk_extension_value: Vec<u8>,
@@ -41,9 +41,9 @@ pub struct DebugHttpHandler {
     pub version_minor:         u16
 }
 
-impl DebugHttpHandler {
-    pub fn new() -> DebugHttpHandler {
-        DebugHttpHandler{ chunk_data:            Vec::new(),
+impl DebugHttp1Handler {
+    pub fn new() -> DebugHttp1Handler {
+        DebugHttp1Handler{ chunk_data:            Vec::new(),
                           chunk_extension_name:  Vec::new(),
                           chunk_extension_value: Vec::new(),
                           chunk_size:            0,
@@ -81,7 +81,7 @@ impl DebugHttpHandler {
     }
 }
 
-impl HttpHandler for DebugHttpHandler {
+impl Http1Handler for DebugHttp1Handler {
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         self.chunk_data.extend_from_slice(data);
 

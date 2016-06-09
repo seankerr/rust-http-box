@@ -29,7 +29,7 @@ macro_rules! setup {
 
 #[test]
 fn finished() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

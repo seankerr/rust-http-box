@@ -620,7 +620,7 @@ pub enum State {
 
 /// Type that handles HTTP parser events.
 #[allow(unused_variables)]
-pub trait HttpHandler {
+pub trait Http1Handler {
     /// Retrieve the multipart boundary.
     fn get_boundary(&mut self) -> Option<&[u8]> {
         None
@@ -752,7 +752,7 @@ pub trait HttpHandler {
 // -------------------------------------------------------------------------------------------------
 
 // Parser context data.
-struct ParserContext<'a, T: HttpHandler + 'a> {
+struct ParserContext<'a, T: Http1Handler + 'a> {
     // Current byte.
     byte: u8,
 
@@ -769,7 +769,7 @@ struct ParserContext<'a, T: HttpHandler + 'a> {
     stream_index: usize
 }
 
-impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
+impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
     /// Create a new `ParserContext`.
     pub fn new(handler: &'a mut T, stream: &'a [u8])
     -> ParserContext<'a, T> {
@@ -784,7 +784,7 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 1.1 parser.
-pub struct Parser<'a, T: HttpHandler> {
+pub struct Parser<'a, T: Http1Handler> {
     // Bit data that stores parser bit details.
     //
     // Bits 1-8: State flags that are checked when states have a dual purpose, such as when header
@@ -812,7 +812,7 @@ pub struct Parser<'a, T: HttpHandler> {
     state_function: StateFunction<'a, T>
 }
 
-impl<'a, T: HttpHandler> Parser<'a, T> {
+impl<'a, T: Http1Handler> Parser<'a, T> {
     /// Create a new `Parser`.
     ///
     /// The initial state `Parser` is set to is a type detection state that determines if the
@@ -831,9 +831,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// `stream.len()` bytes. For precise accuracy, the best time to retrieve the byte count is
     /// outside of all callbacks, and outside of the following functions:
     ///
-    /// - [HttpHandler::parse_chunked()](#method.parse_chunked)
-    /// - [HttpHandler::parse_multipart()](#method.parse_multipart)
-    /// - [HttpHandler::parse_url_encoded()](#method.parse_url_encoded)
+    /// - [Http1Handler::parse_chunked()](#method.parse_chunked)
+    /// - [Http1Handler::parse_multipart()](#method.parse_multipart)
+    /// - [Http1Handler::parse_url_encoded()](#method.parse_url_encoded)
     pub fn get_byte_count(&self) -> usize {
         self.byte_count
     }
@@ -848,9 +848,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// The parser type will be [ParserType::Unknown](enum.ParserType.html#variant.Unknown) until
     /// `parse_headers()` is executed, and either of the following has occurred:
     ///
-    ///  - For requests: [HttpHandler::on_method()](trait.HttpHandler.html#method.on_method) has
+    ///  - For requests: [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method) has
     ///    been executed
-    ///  - For responses: [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    ///  - For responses: [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     ///    has been executed
     pub fn get_type(&self) -> ParserType {
         if has_flag!(self, F_REQUEST) {
@@ -862,7 +862,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
     }
 
-    /// Main parser loop.
+    // Main parser loop.
     #[inline]
     fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
         let mut context = ParserContext::new(handler, stream);
@@ -906,12 +906,12 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// **The following callbacks are used by `parse_chunked()`:**
     ///
-    /// - [HttpHandler::on_chunk_data()](trait.HttpHandler.html#method.on_chunk_data)
-    /// - [HttpHandler::on_chunk_extension_name()](trait.HttpHandler.html#method.on_chunk_extension_name)
-    /// - [HttpHandler::on_chunk_extension_value()](trait.HttpHandler.html#method.on_chunk_extension_value)
-    /// - [HttpHandler::on_chunk_size()](trait.HttpHandler.html#method.on_chunk_size)
-    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
-    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
+    /// - [Http1Handler::on_chunk_data()](trait.Http1Handler.html#method.on_chunk_data)
+    /// - [Http1Handler::on_chunk_extension_name()](trait.Http1Handler.html#method.on_chunk_extension_name)
+    /// - [Http1Handler::on_chunk_extension_value()](trait.Http1Handler.html#method.on_chunk_extension_value)
+    /// - [Http1Handler::on_chunk_size()](trait.Http1Handler.html#method.on_chunk_size)
+    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
+    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
     #[inline]
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -942,20 +942,20 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// **The following callbacks are used by `parse_headers()`:**
     ///
-    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
-    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
+    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
+    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
     ///
     /// **Request callbacks:**
     ///
-    /// - [HttpHandler::on_method()](trait.HttpHandler.html#method.on_method)
-    /// - [HttpHandler::on_url()](trait.HttpHandler.html#method.on_url)
-    /// - [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    /// - [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method)
+    /// - [Http1Handler::on_url()](trait.Http1Handler.html#method.on_url)
+    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     ///
     /// **Response callbacks:**
     ///
-    /// - [HttpHandler::on_status()](trait.HttpHandler.html#method.on_status)
-    /// - [HttpHandler::on_status_code()](trait.HttpHandler.html#method.on_status_code)
-    /// - [HttpHandler::on_version()](trait.HttpHandler.html#method.on_version)
+    /// - [Http1Handler::on_status()](trait.Http1Handler.html#method.on_status)
+    /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
+    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     #[inline]
     pub fn parse_headers(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -977,10 +977,10 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// **The following callbacks are used by `parse_multipart()`:**
     ///
-    /// - [HttpHandler::get_boundary()](trait.HttpHandler.html#method.get_boundary)
-    /// - [HttpHandler::on_header_field()](trait.HttpHandler.html#method.on_header_field)
-    /// - [HttpHandler::on_header_value()](trait.HttpHandler.html#method.on_header_value)
-    /// - [HttpHandler::on_multipart_data()](trait.HttpHandler.html#method.on_multipart_data)
+    /// - [Http1Handler::get_boundary()](trait.Http1Handler.html#method.get_boundary)
+    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
+    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
+    /// - [Http1Handler::on_multipart_data()](trait.Http1Handler.html#method.on_multipart_data)
     #[inline]
     pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -1007,8 +1007,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// **The following callbacks are used by `parse_url_encoded()`:**
     ///
-    /// - [HttpHandler::on_url_encoded_field()](trait.HttpHandler.html#method.on_url_encoded_field)
-    /// - [HttpHandler::on_url_encoded_value()](trait.HttpHandler.html#method.on_url_encoded_value)
+    /// - [Http1Handler::on_url_encoded_field()](trait.Http1Handler.html#method.on_url_encoded_field)
+    /// - [Http1Handler::on_url_encoded_value()](trait.Http1Handler.html#method.on_url_encoded_value)
     #[inline]
     pub fn parse_url_encoded(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -1020,7 +1020,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.parse(handler, stream)
     }
 
-    /// Reset the `Parser` back to its initial state.
+    /// Reset the parser back to its initial state.
     pub fn reset(&mut self) {
         self.bit_data       = 0;
         self.byte_count     = 0;

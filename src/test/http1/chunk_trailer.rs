@@ -22,7 +22,7 @@ use http1::*;
 
 #[test]
 fn multiple() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     h.headers_finished = false;
@@ -40,7 +40,7 @@ fn multiple() {
 
 #[test]
 fn single() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     h.headers_finished = false;

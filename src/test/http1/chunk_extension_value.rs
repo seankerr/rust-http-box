@@ -32,7 +32,7 @@ macro_rules! setup {
 fn byte_check_unquoted() {
     // invalid bytes
     loop_non_tokens(b"\r;=\"", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -47,7 +47,7 @@ fn byte_check_unquoted() {
 
     // valid bytes
     loop_tokens(b"", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -58,7 +58,7 @@ fn byte_check_unquoted() {
 
 #[test]
 fn basic() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -71,7 +71,7 @@ fn basic() {
 fn callback_exit() {
     struct X;
 
-    impl HttpHandler for X {
+    impl Http1Handler for X {
         fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
             false
         }
@@ -87,7 +87,7 @@ fn callback_exit() {
 
 #[test]
 fn repeat() {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

@@ -31,7 +31,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_digits(b" \t", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -45,7 +45,7 @@ fn byte_check() {
 
     // valid bytes
     loop_digits(b"", |byte| {
-        let mut h = DebugHttpHandler::new();
+        let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -58,7 +58,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl HttpHandler for X {
+    impl Http1Handler for X {
         fn on_status_code(&mut self, _code: u16) -> bool {
             false
         }
@@ -74,7 +74,7 @@ fn callback_exit() {
 
 #[test]
 fn v0 () {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -85,7 +85,7 @@ fn v0 () {
 
 #[test]
 fn v999 () {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -96,7 +96,7 @@ fn v999 () {
 
 #[test]
 fn v1000 () {
-    let mut h = DebugHttpHandler::new();
+    let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

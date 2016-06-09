@@ -23,4 +23,4 @@ use test::http1::*;
 struct H {
 }
 
-impl HttpHandler for H {}
+impl Http1Handler for H {}
