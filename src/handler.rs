@@ -22,7 +22,7 @@ use http1::HttpHandler;
 
 use std::str;
 
-pub struct DebugHandler {
+pub struct DebugHttpHandler {
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
     pub chunk_extension_value: Vec<u8>,
@@ -41,24 +41,24 @@ pub struct DebugHandler {
     pub version_minor:         u16
 }
 
-impl DebugHandler {
-    pub fn new() -> DebugHandler {
-        DebugHandler{ chunk_data:            Vec::new(),
-                      chunk_extension_name:  Vec::new(),
-                      chunk_extension_value: Vec::new(),
-                      chunk_size:            0,
-                      header_field:          Vec::new(),
-                      header_value:          Vec::new(),
-                      headers_finished:      false,
-                      method:                Vec::new(),
-                      multipart_data:        Vec::new(),
-                      status:                Vec::new(),
-                      status_code:           0,
-                      url:                   Vec::new(),
-                      url_encoded_field:     Vec::new(),
-                      url_encoded_value:     Vec::new(),
-                      version_major:         0,
-                      version_minor:         0 }
+impl DebugHttpHandler {
+    pub fn new() -> DebugHttpHandler {
+        DebugHttpHandler{ chunk_data:            Vec::new(),
+                          chunk_extension_name:  Vec::new(),
+                          chunk_extension_value: Vec::new(),
+                          chunk_size:            0,
+                          header_field:          Vec::new(),
+                          header_value:          Vec::new(),
+                          headers_finished:      false,
+                          method:                Vec::new(),
+                          multipart_data:        Vec::new(),
+                          status:                Vec::new(),
+                          status_code:           0,
+                          url:                   Vec::new(),
+                          url_encoded_field:     Vec::new(),
+                          url_encoded_value:     Vec::new(),
+                          version_major:         0,
+                          version_minor:         0 }
     }
 
     pub fn reset(&mut self) {
@@ -81,7 +81,7 @@ impl DebugHandler {
     }
 }
 
-impl HttpHandler for DebugHandler {
+impl HttpHandler for DebugHttpHandler {
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         self.chunk_data.extend_from_slice(data);
 

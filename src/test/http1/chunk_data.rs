@@ -30,7 +30,7 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     for byte in 0..255 {
-        let mut h = DebugHandler::new();
+        let mut h = DebugHttpHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -41,7 +41,7 @@ fn byte_check() {
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -54,7 +54,7 @@ fn multiple() {
 
 #[test]
 fn multiple_chunks() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -68,7 +68,7 @@ fn multiple_chunks() {
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

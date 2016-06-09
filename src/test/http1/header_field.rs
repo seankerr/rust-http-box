@@ -31,7 +31,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\n \t:", |byte| {
-        let mut h = DebugHandler::new();
+        let mut h = DebugHttpHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -45,7 +45,7 @@ fn byte_check() {
 
     // valid bytes
     loop_tokens(b"\r\n \t:", |byte| {
-        let mut h = DebugHandler::new();
+        let mut h = DebugHttpHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -56,7 +56,7 @@ fn byte_check() {
 
 #[test]
 fn by_name_accept() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -66,7 +66,7 @@ fn by_name_accept() {
 
 #[test]
 fn by_name_accept_charset() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -76,7 +76,7 @@ fn by_name_accept_charset() {
 
 #[test]
 fn by_name_accept_encoding() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -86,7 +86,7 @@ fn by_name_accept_encoding() {
 
 #[test]
 fn by_name_accept_language() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -96,7 +96,7 @@ fn by_name_accept_language() {
 
 #[test]
 fn by_name_authorization() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -106,7 +106,7 @@ fn by_name_authorization() {
 
 #[test]
 fn by_name_connection() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -116,7 +116,7 @@ fn by_name_connection() {
 
 #[test]
 fn by_name_content_type() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -126,7 +126,7 @@ fn by_name_content_type() {
 
 #[test]
 fn by_name_content_length() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -135,7 +135,7 @@ fn by_name_content_length() {
 }
 #[test]
 fn by_name_cookie() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -144,7 +144,7 @@ fn by_name_cookie() {
 }
 #[test]
 fn by_name_cache_control() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -153,7 +153,7 @@ fn by_name_cache_control() {
 }
 #[test]
 fn by_name_content_security_policy() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -162,7 +162,7 @@ fn by_name_content_security_policy() {
 }
 #[test]
 fn by_name_location() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -171,7 +171,7 @@ fn by_name_location() {
 }
 #[test]
 fn by_name_last_modified() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -180,7 +180,7 @@ fn by_name_last_modified() {
 }
 #[test]
 fn by_name_pragma() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -189,7 +189,7 @@ fn by_name_pragma() {
 }
 #[test]
 fn by_name_set_cookie() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -199,7 +199,7 @@ fn by_name_set_cookie() {
 
 #[test]
 fn by_name_transfer_encoding() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -209,7 +209,7 @@ fn by_name_transfer_encoding() {
 
 #[test]
 fn by_name_user_agent() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -218,7 +218,7 @@ fn by_name_user_agent() {
 }
 #[test]
 fn by_name_upgrade() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -228,7 +228,7 @@ fn by_name_upgrade() {
 
 #[test]
 fn by_name_x_powered_by() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -238,7 +238,7 @@ fn by_name_x_powered_by() {
 
 #[test]
 fn by_name_x_forwarded_for() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -248,7 +248,7 @@ fn by_name_x_forwarded_for() {
 
 #[test]
 fn by_name_x_forwarded_host() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -258,7 +258,7 @@ fn by_name_x_forwarded_host() {
 
 #[test]
 fn by_name_x_xss_protection() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -268,7 +268,7 @@ fn by_name_x_xss_protection() {
 
 #[test]
 fn by_name_x_webkit_csp() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -278,7 +278,7 @@ fn by_name_x_webkit_csp() {
 
 #[test]
 fn by_name_x_content_security_policy() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -288,7 +288,7 @@ fn by_name_x_content_security_policy() {
 
 #[test]
 fn by_name_www_authenticate() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -316,7 +316,7 @@ fn callback_exit() {
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -344,7 +344,7 @@ fn multiple() {
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

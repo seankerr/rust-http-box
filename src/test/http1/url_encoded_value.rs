@@ -31,7 +31,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r", |byte| {
-        let mut h = DebugHandler::new();
+        let mut h = DebugHttpHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -46,7 +46,7 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(b"&%=", |byte| {
-        let mut h = DebugHandler::new();
+        let mut h = DebugHttpHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -75,7 +75,7 @@ fn callback_exit() {
 
 #[test]
 fn equal_error() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -90,7 +90,7 @@ fn equal_error() {
 
 #[test]
 fn finished() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -101,7 +101,7 @@ fn finished() {
 
 #[test]
 fn hex_error() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -116,7 +116,7 @@ fn hex_error() {
 
 #[test]
 fn value() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -127,7 +127,7 @@ fn value() {
 
 #[test]
 fn value_ending_ampersand() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -138,7 +138,7 @@ fn value_ending_ampersand() {
 
 #[test]
 fn value_ending_percent() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -149,7 +149,7 @@ fn value_ending_percent() {
 
 #[test]
 fn value_ending_plus() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -160,7 +160,7 @@ fn value_ending_plus() {
 
 #[test]
 fn value_hex() {
-    let mut h = DebugHandler::new();
+    let mut h = DebugHttpHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
