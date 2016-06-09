@@ -22,6 +22,7 @@ use http1::Http1Handler;
 
 use std::str;
 
+/// Debug handler useful for dumping callback details.
 pub struct DebugHttp1Handler {
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
@@ -86,7 +87,7 @@ impl Http1Handler for DebugHttp1Handler {
         self.chunk_data.extend_from_slice(data);
 
         for byte in data {
-            if *byte > 127 {
+            if !is_visible_7bit!(*byte) {
                 println!("on_chunk_data [{}]: *hidden*", data.len());
                 return true;
             }
