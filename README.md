@@ -42,6 +42,9 @@ triggered the error when it occurred.
   - Extension value
   - Raw data
 - Multipart (in the works)
+  - Fields
+  - Values
+  - File support
 - URL encoded:
   - Field
   - Value
