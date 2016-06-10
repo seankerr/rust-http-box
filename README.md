@@ -25,3 +25,7 @@ This will allow you to limit header and content size.
 - [x] URL Component Decoding
 - [ ] Multipart Parsing
 - [x] Chunked Decoding
+
+## API Documentation
+
+http://metatomic.org/docs/http_box/index.html
