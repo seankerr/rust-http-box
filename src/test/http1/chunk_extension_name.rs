@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        chunked_setup(&mut $parser, &mut $handler, b"F;", State::ChunkExtensionName);
+        chunked_setup(&mut $parser, &mut $handler, b"F;", ParserState::ChunkExtensionName);
     });
 }
 
@@ -51,7 +51,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionName, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionName, 1);
     });
 }
 
@@ -70,7 +70,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=", State::ChunkExtensionValue, 15);
+    chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=", ParserState::ChunkExtensionValue, 15);
 }
 
 #[test]
@@ -80,6 +80,6 @@ fn valid() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-extension=", State::ChunkExtensionValue, 16);
+    chunked_assert_eos(&mut p, &mut h, b"valid-extension=", ParserState::ChunkExtensionValue, 16);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
 }

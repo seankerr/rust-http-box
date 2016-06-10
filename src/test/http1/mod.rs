@@ -51,7 +51,7 @@ mod url_encoded_field;
 mod url_encoded_value;
 
 pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                       state: State, length: usize) {
+                                       state: ParserState, length: usize) {
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -63,7 +63,7 @@ pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
 }
 
 pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                  state: State, length: usize) {
+                                  state: ParserState, length: usize) {
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -78,18 +78,18 @@ pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
 -> Option<ParserError> {
     match parser.parse_headers(handler, stream, 0) {
         Err(error) => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             None
         }
     }
 }
 
 pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                       state: State, length: usize) {
+                                       state: ParserState, length: usize) {
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -101,7 +101,7 @@ pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
 }
 
 pub fn chunked_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                               stream: &[u8], state: State, length: usize) {
+                                               stream: &[u8], state: ParserState, length: usize) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -113,7 +113,7 @@ pub fn chunked_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler:
 }
 
 pub fn chunked_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                          state: State, length: usize) {
+                                          state: ParserState, length: usize) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -128,18 +128,18 @@ pub fn chunked_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
 -> Option<ParserError> {
     match parser.parse_chunked(handler, stream) {
         Err(error) => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             None
         }
     }
 }
 
 pub fn chunked_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                               stream: &[u8], state: State, length: usize) {
+                                               stream: &[u8], state: ParserState, length: usize) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
@@ -151,7 +151,7 @@ pub fn chunked_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler:
 }
 
 pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                    state: State) {
+                                    state: ParserState) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
@@ -162,7 +162,7 @@ pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
     });
 }
 
-pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: State) {
+pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
@@ -174,7 +174,7 @@ pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[
 }
 
 pub fn url_encoded_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                                    stream: &[u8], state: State, data_length: u32,
+                                                    stream: &[u8], state: ParserState, data_length: u32,
                                                     length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Callback(byte_count)) => {
@@ -187,7 +187,7 @@ pub fn url_encoded_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, hand
 }
 
 pub fn url_encoded_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                              stream: &[u8], state: State, data_length: u32,
+                                              stream: &[u8], state: ParserState, data_length: u32,
                                               length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Eos(byte_count)) => {
@@ -204,18 +204,18 @@ pub fn url_encoded_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler
 -> Option<ParserError> {
     match parser.parse_url_encoded(handler, stream, data_length) {
         Err(error) => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), State::Dead);
+            assert_eq!(parser.get_state(), ParserState::Dead);
             None
         }
     }
 }
 
 pub fn url_encoded_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                                    stream: &[u8], state: State, data_length: u32,
+                                                    stream: &[u8], state: ParserState, data_length: u32,
                                                     length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Finished(byte_count)) => {
@@ -228,7 +228,7 @@ pub fn url_encoded_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, hand
 }
 
 pub fn url_encoded_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
-                                         state: State, data_length: u32) {
+                                         state: ParserState, data_length: u32) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());

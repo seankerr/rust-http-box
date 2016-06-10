@@ -24,7 +24,7 @@ use test::http1::*;
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: Value",
-              State::HeaderValue);
+              ParserState::HeaderValue);
     });
 }
 
@@ -35,7 +35,7 @@ fn finished() {
 
     setup!(p, h);
 
-    assert_finished(&mut p, &mut h, b"\r\n\r\n", State::Finished, 4);
+    assert_finished(&mut p, &mut h, b"\r\n\r\n", ParserState::Finished, 4);
     assert!(h.headers_finished);
 }
 

@@ -24,7 +24,7 @@ use test::http1::*;
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         chunked_setup(&mut $parser, &mut $handler, b"F;extension1=",
-                      State::ChunkExtensionValue);
+                      ParserState::ChunkExtensionValue);
     });
 }
 
@@ -35,7 +35,7 @@ fn basic() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"\"valid-value\"", State::ChunkExtensionSemiColon, 13);
+    chunked_assert_eos(&mut p, &mut h, b"\"valid-value\"", ParserState::ChunkExtensionSemiColon, 13);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -48,7 +48,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[b'"'], ParserState::ChunkExtensionQuotedValue, 1);
 
         if let ParserError::ChunkExtensionValue(x) = chunked_assert_error(&mut p, &mut h,
                                                                           &[byte]).unwrap() {
@@ -65,8 +65,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[b'"'], State::ChunkExtensionQuotedValue, 1);
-        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[b'"'], ParserState::ChunkExtensionQuotedValue, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionQuotedValue, 1);
     });
 }
 
@@ -86,7 +86,7 @@ fn callback_exit() {
     setup!(p, h);
 
     assert_callback(&mut p, &mut h, b"\"ExtensionValue\"",
-                    State::ChunkExtensionSemiColon, 16);
+                    ParserState::ChunkExtensionSemiColon, 16);
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn escaped() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", State::ChunkLengthNewline,
+    chunked_assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", ParserState::ChunkLengthNewline,
                        23);
 
     assert_eq!(h.chunk_extension_value, b"valid \"value\" here");
@@ -110,7 +110,7 @@ fn repeat() {
     setup!(p, h);
 
     chunked_assert_eos(&mut p, &mut h, b"valid-value1;extension2=valid-value2;",
-                       State::ChunkExtensionName, 37);
+                       ParserState::ChunkExtensionName, 37);
 
     assert_eq!(h.chunk_extension_name, b"extension1extension2");
     assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");

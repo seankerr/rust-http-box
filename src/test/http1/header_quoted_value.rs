@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", State::StripHeaderValue);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", ParserState::StripHeaderValue);
     });
 }
 
@@ -36,7 +36,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], State::HeaderQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[b'"'], ParserState::HeaderQuotedValue, 1);
 
         if let ParserError::HeaderValue(x) = assert_error(&mut p, &mut h,
                                                           &[byte]).unwrap() {
@@ -53,8 +53,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], State::HeaderQuotedValue, 1);
-        assert_eos(&mut p, &mut h, &[byte], State::HeaderQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[b'"'], ParserState::HeaderQuotedValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::HeaderQuotedValue, 1);
     });
 }
 
@@ -65,11 +65,11 @@ fn escaped_multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value", State::HeaderQuotedValue, 6);
+    assert_eos(&mut p, &mut h, b"\"Value", ParserState::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"\\\"", State::HeaderQuotedValue, 2);
+    assert_eos(&mut p, &mut h, b"\\\"", ParserState::HeaderQuotedValue, 2);
     assert_eq!(h.header_value, b"Value\"");
-    assert_eos(&mut p, &mut h, b"Time\"", State::Newline1, 5);
+    assert_eos(&mut p, &mut h, b"Time\"", ParserState::Newline1, 5);
     assert_eq!(h.header_value, b"Value\"Time");
 }
 
@@ -80,7 +80,7 @@ fn escaped_single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value\\\"Time\"", State::Newline1, 13);
+    assert_eos(&mut p, &mut h, b"\"Value\\\"Time\"", ParserState::Newline1, 13);
     assert_eq!(h.header_value, b"Value\"Time");
 }
 
@@ -91,9 +91,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value", State::HeaderQuotedValue, 6);
+    assert_eos(&mut p, &mut h, b"\"Value", ParserState::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"Time\"", State::Newline1, 5);
+    assert_eos(&mut p, &mut h, b"Time\"", ParserState::Newline1, 5);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -104,6 +104,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value Time\"", State::Newline1, 12);
+    assert_eos(&mut p, &mut h, b"\"Value Time\"", ParserState::Newline1, 12);
     assert_eq!(h.header_value, b"Value Time");
 }

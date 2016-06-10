@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"HTTP/1.0 ", State::StripResponseStatusCode);
+        setup(&mut $parser, &mut $handler, b"HTTP/1.0 ", ParserState::StripResponseStatusCode);
     });
 }
 
@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::ResponseStatusCode, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::ResponseStatusCode, 1);
     });
 }
 
@@ -69,7 +69,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"100 ", State::StripResponseStatus, 3);
+    assert_callback(&mut p, &mut h, b"100 ", ParserState::StripResponseStatus, 3);
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn v0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"0 ", State::StripResponseStatus, 2);
+    assert_eos(&mut p, &mut h, b"0 ", ParserState::StripResponseStatus, 2);
     assert_eq!(h.status_code, 0);
 }
 
@@ -90,7 +90,7 @@ fn v999 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"999 ", State::StripResponseStatus, 4);
+    assert_eos(&mut p, &mut h, b"999 ", ParserState::StripResponseStatus, 4);
     assert_eq!(h.status_code, 999);
 }
 

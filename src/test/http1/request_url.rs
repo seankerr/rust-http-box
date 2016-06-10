@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET ", State::StripRequestUrl);
+        setup(&mut $parser, &mut $handler, b"GET ", ParserState::StripRequestUrl);
     });
 }
 
@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::RequestUrl, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::RequestUrl, 1);
     });
 }
 
@@ -69,7 +69,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"/", State::RequestUrl, 1);
+    assert_callback(&mut p, &mut h, b"/", ParserState::RequestUrl, 1);
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn with_schema() {
     setup!(p, h);
 
     assert_eos(&mut p, &mut h, b"http://host.com:443/path?query_string#fragment ",
-               State::StripRequestHttp, 47);
+               ParserState::StripRequestHttp, 47);
     vec_eq(&h.url, b"http://host.com:443/path?query_string#fragment");
 }
 
@@ -92,6 +92,6 @@ fn without_schema() {
     setup!(p, h);
 
     assert_eos(&mut p, &mut h, b"/path?query_string#fragment ",
-               State::StripRequestHttp, 28);
+               ParserState::StripRequestHttp, 28);
     vec_eq(&h.url, b"/path?query_string#fragment");
 }

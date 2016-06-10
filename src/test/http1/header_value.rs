@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", State::StripHeaderValue);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", ParserState::StripHeaderValue);
     });
 }
 
@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::HeaderValue, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::HeaderValue, 1);
     });
 }
 
@@ -69,7 +69,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", State::HeaderValue, 1);
+    assert_callback(&mut p, &mut h, b"F", ParserState::HeaderValue, 1);
 }
 
 #[test]
@@ -79,9 +79,9 @@ fn multiline() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value1\r\n", State::Newline3, 8);
+    assert_eos(&mut p, &mut h, b"Value1\r\n", ParserState::Newline3, 8);
     assert_eq!(h.header_value, b"Value1");
-    assert_eos(&mut p, &mut h, b" Value2\r", State::Newline2, 8);
+    assert_eos(&mut p, &mut h, b" Value2\r", ParserState::Newline2, 8);
     assert_eq!(h.header_value, b"Value1 Value2");
 }
 
@@ -92,9 +92,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value", State::HeaderValue, 5);
+    assert_eos(&mut p, &mut h, b"Value", ParserState::HeaderValue, 5);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"Time\r", State::Newline2, 5);
+    assert_eos(&mut p, &mut h, b"Time\r", ParserState::Newline2, 5);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -105,7 +105,7 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"ValueTime\r", State::Newline2, 10);
+    assert_eos(&mut p, &mut h, b"ValueTime\r", ParserState::Newline2, 10);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -116,6 +116,6 @@ fn space() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value Time\r", State::Newline2, 11);
+    assert_eos(&mut p, &mut h, b"Value Time\r", ParserState::Newline2, 11);
     assert_eq!(h.header_value, b"Value Time");
 }

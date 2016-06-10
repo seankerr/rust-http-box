@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr, $data_length:expr) => ({
-        url_encoded_setup(&mut $parser, &mut $handler, b"Field=", State::UrlEncodedValue,
+        url_encoded_setup(&mut $parser, &mut $handler, b"Field=", ParserState::UrlEncodedValue,
                           $data_length);
     });
 }
@@ -52,7 +52,7 @@ fn byte_check() {
 
         setup!(p, h, 7);
 
-        url_encoded_assert_eos(&mut p, &mut h, &[byte], State::UrlEncodedValue, 1, 1);
+        url_encoded_assert_eos(&mut p, &mut h, &[byte], ParserState::UrlEncodedValue, 1, 1);
     });
 }
 
@@ -71,7 +71,7 @@ fn callback_exit() {
 
     setup!(p, h, 11);
 
-    url_encoded_assert_callback(&mut p, &mut h, b"Value", State::UrlEncodedValue, 11, 5);
+    url_encoded_assert_callback(&mut p, &mut h, b"Value", ParserState::UrlEncodedValue, 11, 5);
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn value() {
 
     setup!(p, h, 11);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value", State::UrlEncodedValue, 11, 5);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value", ParserState::UrlEncodedValue, 11, 5);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -122,7 +122,7 @@ fn value_ending_ampersand() {
 
     setup!(p, h, 12);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value&", State::UrlEncodedField, 12, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value&", ParserState::UrlEncodedField, 12, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -133,7 +133,7 @@ fn value_ending_percent() {
 
     setup!(p, h, 12);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value%", State::UrlEncodedValueHex, 12, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value%", ParserState::UrlEncodedValueHex, 12, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 
@@ -144,7 +144,7 @@ fn value_ending_plus() {
 
     setup!(p, h, 12);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value+", State::UrlEncodedValue, 12, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value+", ParserState::UrlEncodedValue, 12, 6);
     assert_eq!(h.url_encoded_value, b"Value ");
 }
 
@@ -155,6 +155,6 @@ fn value_hex() {
 
     setup!(p, h, 14);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value%21", State::UrlEncodedValue, 14, 8);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value%21", ParserState::UrlEncodedValue, 14, 8);
     assert_eq!(h.url_encoded_value, b"Value!");
 }

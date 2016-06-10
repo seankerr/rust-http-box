@@ -23,7 +23,7 @@ use test::http1::*;
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         chunked_setup(&mut $parser, &mut $handler, b"F;extension1=value1\r\n",
-                      State::ChunkData);
+                      ParserState::ChunkData);
     });
 }
 
@@ -35,7 +35,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::ChunkData, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkData, 1);
     }
 }
 
@@ -46,9 +46,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"abcdefg", State::ChunkData, 7);
+    assert_eos(&mut p, &mut h, b"abcdefg", ParserState::ChunkData, 7);
     assert_eq!(h.chunk_data, b"abcdefg");
-    assert_eos(&mut p, &mut h, b"hijklmno", State::ChunkDataNewline1, 8);
+    assert_eos(&mut p, &mut h, b"hijklmno", ParserState::ChunkDataNewline1, 8);
     assert_eq!(h.chunk_data, b"abcdefghijklmno");
 }
 
@@ -59,10 +59,10 @@ fn multiple_chunks() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"abcdefghijklmno\r\n", State::ChunkLength1, 17);
+    assert_eos(&mut p, &mut h, b"abcdefghijklmno\r\n", ParserState::ChunkLength1, 17);
     assert_eq!(h.chunk_data, b"abcdefghijklmno");
-    assert_eos(&mut p, &mut h, b"5\r\n", State::ChunkData, 3);
-    assert_eos(&mut p, &mut h, b"pqrst", State::ChunkDataNewline1, 5);
+    assert_eos(&mut p, &mut h, b"5\r\n", ParserState::ChunkData, 3);
+    assert_eos(&mut p, &mut h, b"pqrst", ParserState::ChunkDataNewline1, 5);
     assert_eq!(h.chunk_data, b"abcdefghijklmnopqrst");
 }
 
@@ -73,6 +73,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"abcdefghijklmno", State::ChunkDataNewline1, 15);
+    assert_eos(&mut p, &mut h, b"abcdefghijklmno", ParserState::ChunkDataNewline1, 15);
     assert_eq!(h.chunk_data, b"abcdefghijklmno");
 }

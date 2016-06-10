@@ -22,7 +22,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/", State::RequestVersionMajor);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/", ParserState::RequestVersionMajor);
     });
 }
 
@@ -41,7 +41,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"1.0\r", State::PreHeaders1, 4);
+    assert_callback(&mut p, &mut h, b"1.0\r", ParserState::PreHeaders1, 4);
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn v0_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"0.0\r", State::PreHeaders1, 4);
+    assert_eos(&mut p, &mut h, b"0.0\r", ParserState::PreHeaders1, 4);
     assert_eq!(h.version_major, 0);
     assert_eq!(h.version_minor, 0);
 }
@@ -63,7 +63,7 @@ fn v1_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"1.0\r", State::PreHeaders1, 4);
+    assert_eos(&mut p, &mut h, b"1.0\r", ParserState::PreHeaders1, 4);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -75,7 +75,7 @@ fn v1_1 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"1.1\r", State::PreHeaders1, 4);
+    assert_eos(&mut p, &mut h, b"1.1\r", ParserState::PreHeaders1, 4);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -87,7 +87,7 @@ fn v2_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"2.0\r", State::PreHeaders1, 4);
+    assert_eos(&mut p, &mut h, b"2.0\r", ParserState::PreHeaders1, 4);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }
@@ -99,7 +99,7 @@ fn v999_999 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"999.999\r", State::PreHeaders1, 8);
+    assert_eos(&mut p, &mut h, b"999.999\r", ParserState::PreHeaders1, 8);
     assert_eq!(h.version_major, 999);
     assert_eq!(h.version_minor, 999);
 }

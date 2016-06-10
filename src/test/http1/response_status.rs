@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"HTTP/1.1 200 ", State::StripResponseStatus);
+        setup(&mut $parser, &mut $handler, b"HTTP/1.1 200 ", ParserState::StripResponseStatus);
     });
 }
 
@@ -50,7 +50,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], State::ResponseStatus, 1);
+        assert_eos(&mut p, &mut h, &[byte], ParserState::ResponseStatus, 1);
     });
 }
 
@@ -69,7 +69,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", State::PreHeaders1, 14);
+    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", ParserState::PreHeaders1, 14);
 }
 
 #[test]
@@ -79,9 +79,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"NOT ", State::ResponseStatus, 4);
+    assert_eos(&mut p, &mut h, b"NOT ", ParserState::ResponseStatus, 4);
     assert_eq!(h.status, b"NOT ");
-    assert_eos(&mut p, &mut h, b"FOUND\r", State::PreHeaders1, 6);
+    assert_eos(&mut p, &mut h, b"FOUND\r", ParserState::PreHeaders1, 6);
     assert_eq!(h.status, b"NOT FOUND");
 }
 
@@ -92,6 +92,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"NOT FOUND\r", State::PreHeaders1, 10);
+    assert_eos(&mut p, &mut h, b"NOT FOUND\r", ParserState::PreHeaders1, 10);
     assert_eq!(h.status, b"NOT FOUND");
 }

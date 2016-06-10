@@ -41,14 +41,14 @@ fn byte_check() {
         let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], State::ChunkLength2, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkLength2, 1);
     });
 
     // starting 0 (end chunk)
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"0", State::ChunkLengthEnd, 1);
+    chunked_assert_eos(&mut p, &mut h, b"0", ParserState::ChunkLengthEnd, 1);
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    chunked_assert_callback(&mut p, &mut h, b"F\r", State::ChunkLengthNewline, 2);
+    chunked_assert_callback(&mut p, &mut h, b"F\r", ParserState::ChunkLengthNewline, 2);
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn length1() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"F\r", State::ChunkLengthNewline, 2);
+    chunked_assert_eos(&mut p, &mut h, b"F\r", ParserState::ChunkLengthNewline, 2);
     assert_eq!(h.chunk_length, 15);
 }
 
@@ -94,7 +94,7 @@ fn length2() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FF\r", State::ChunkLengthNewline, 3);
+    chunked_assert_eos(&mut p, &mut h, b"FF\r", ParserState::ChunkLengthNewline, 3);
     assert_eq!(h.chunk_length, 255);
 }
 
@@ -103,7 +103,7 @@ fn length3() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFF\r", State::ChunkLengthNewline, 4);
+    chunked_assert_eos(&mut p, &mut h, b"FFF\r", ParserState::ChunkLengthNewline, 4);
     assert_eq!(h.chunk_length, 4095);
 }
 
@@ -112,7 +112,7 @@ fn length4() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFFF\r", State::ChunkLengthNewline, 5);
+    chunked_assert_eos(&mut p, &mut h, b"FFFF\r", ParserState::ChunkLengthNewline, 5);
     assert_eq!(h.chunk_length, 65535);
 }
 
@@ -121,7 +121,7 @@ fn length5() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFFFF\r", State::ChunkLengthNewline, 6);
+    chunked_assert_eos(&mut p, &mut h, b"FFFFF\r", ParserState::ChunkLengthNewline, 6);
     assert_eq!(h.chunk_length, 1048575);
 }
 
@@ -130,7 +130,7 @@ fn length6() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFFFFF\r", State::ChunkLengthNewline, 7);
+    chunked_assert_eos(&mut p, &mut h, b"FFFFFF\r", ParserState::ChunkLengthNewline, 7);
     assert_eq!(h.chunk_length, 16777215);
 }
 
@@ -139,7 +139,7 @@ fn length7() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFFFFFF\r", State::ChunkLengthNewline, 8);
+    chunked_assert_eos(&mut p, &mut h, b"FFFFFFF\r", ParserState::ChunkLengthNewline, 8);
     assert_eq!(h.chunk_length, 268435455);
 }
 
