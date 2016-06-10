@@ -52,7 +52,7 @@ triggered the error when it occurred.
 ## Performance
 
 Currently rust-http-box is on par with the speeds seen from [fast-http](https://github.com/fukamachi/fast-http),
-a Common Lisp HTTP parser.
+a Common Lisp HTTP parser. Official benchmarks don't exist yet.
 
 ## API Documentation
 
