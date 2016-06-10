@@ -164,8 +164,8 @@ pub enum ParserError {
     /// Invalid chunk extension value on byte `u8`.
     ChunkExtensionValue(u8),
 
-    /// Invalid chunk size on byte `u8`.
-    ChunkSize(u8),
+    /// Invalid chunk length on byte `u8`.
+    ChunkLength(u8),
 
     /// Invalid CRLF sequence on byte `u8`.
     CrlfSequence(u8),
@@ -179,11 +179,14 @@ pub enum ParserError {
     /// Invalid header value on byte `u8`.
     HeaderValue(u8),
 
-    /// Invalid request method on byte `u8`.
-    Method(u8),
+    /// Maximum chunk length has been met.
+    MaxChunkLength,
 
     /// Maximum headers length has been met.
     MaxHeadersLength,
+
+    /// Invalid request method on byte `u8`.
+    Method(u8),
 
     /// Invalid multipart boundary on byte `u8`.
     MultipartBoundary(u8),
@@ -218,8 +221,8 @@ impl fmt::Debug for ParserError {
                 write!(formatter, "ParserError::ChunkExtensionValue(Invalid chunk extension value on byte {})",
                        byte)
             },
-            ParserError::ChunkSize(ref byte) => {
-                write!(formatter, "ParserError::ChunkSize(Invalid chunk size on byte {})", byte)
+            ParserError::ChunkLength(ref byte) => {
+                write!(formatter, "ParserError::ChunkLength(Invalid chunk length on byte {})", byte)
             },
             ParserError::CrlfSequence(ref byte) => {
                 write!(formatter, "ParserError::CrlfSequence(Invalid CRLF sequence on byte {})", byte)
@@ -232,6 +235,9 @@ impl fmt::Debug for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "ParserError::HeaderValue(Invalid header value on byte {})", byte)
+            },
+            ParserError::MaxChunkLength => {
+                write!(formatter, "ParserError::MaxChunkLength(Maximum chunk length has been met)")
             },
             ParserError::MaxHeadersLength => {
                 write!(formatter, "ParserError::MaxHeadersLength(Maximum headers length has been met)")
@@ -276,8 +282,8 @@ impl fmt::Display for ParserError {
             ParserError::ChunkExtensionValue(ref byte) => {
                 write!(formatter, "Invalid chunk extension value on byte {}", byte)
             },
-            ParserError::ChunkSize(ref byte) => {
-                write!(formatter, "Invalid chunk size on byte {}", byte)
+            ParserError::ChunkLength(ref byte) => {
+                write!(formatter, "Invalid chunk length on byte {}", byte)
             },
             ParserError::CrlfSequence(ref byte) => {
                 write!(formatter, "Invalid CRLF sequence on byte {}", byte)
@@ -290,6 +296,9 @@ impl fmt::Display for ParserError {
             },
             ParserError::HeaderValue(ref byte) => {
                 write!(formatter, "Invalid header value on byte {}", byte)
+            },
+            ParserError::MaxChunkLength => {
+                write!(formatter, "Maximum chunk length has been met")
             },
             ParserError::MaxHeadersLength => {
                 write!(formatter, "Maximum headers length has been met")
@@ -512,14 +521,14 @@ pub enum State {
     // BODY
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing chunk size byte 1.
-    ChunkSize1,
+    /// Parsing chunk length byte 1.
+    ChunkLength1,
 
-    /// Parsing chunk size byte 2.
-    ChunkSize2,
+    /// Parsing chunk length byte 2.
+    ChunkLength2,
 
-    /// Parsing chunk size end (when chunk size is 0).
-    ChunkSizeEnd,
+    /// Parsing chunk length end (when chunk length is 0).
+    ChunkLengthEnd,
 
     /// Parsing chunk extension name.
     ChunkExtensionName,
@@ -536,8 +545,8 @@ pub enum State {
     /// Parsing potential semi-colon or carriage return after chunk extension quoted value.
     ChunkExtensionSemiColon,
 
-    /// Parsing line feed after chunk size.
-    ChunkSizeNewline,
+    /// Parsing line feed after chunk length.
+    ChunkLengthNewline,
 
     /// Parsing chunk data.
     ChunkData,
@@ -597,12 +606,6 @@ pub enum State {
     // FINISHED
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing carriage return at end of message.
-    FinishedNewline1,
-
-    /// Parsing line feed at end of message.
-    FinishedNewline2,
-
     /// Parsing has finished successfully.
     Finished
 }
@@ -644,10 +647,10 @@ pub trait Http1Handler {
         true
     }
 
-    /// Callback that is executed when a chunk size has been located.
+    /// Callback that is executed when a chunk length has been located.
     ///
     /// Returns `true` when parsing should continue. Otherwise `false`.
-    fn on_chunk_size(&mut self, size: u32) -> bool {
+    fn on_chunk_length(&mut self, size: u32) -> bool {
         true
     }
 
@@ -782,7 +785,7 @@ pub struct Parser<'a, T: Http1Handler> {
     //           such as when multipart data is being processed.
     // Macros:   has_flag!(), set_flag!(), unset_flag!()
     //
-    // Bits 5-32: Used to store various numbers depending on state. Content length, chunk size,
+    // Bits 5-32: Used to store various numbers depending on state. Content length, chunk length,
     //            HTTP major/minor versions are all stored in here. Depending on macro used, more
     //            bits are accessible.
     // Macros:    get_lower14!(), set_lower14!() -- lower 14 bits
@@ -821,9 +824,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// `stream.len()` bytes. For precise accuracy, the best time to retrieve the byte count is
     /// outside of all callbacks, and outside of the following functions:
     ///
-    /// - [Http1Handler::parse_chunked()](#method.parse_chunked)
-    /// - [Http1Handler::parse_multipart()](#method.parse_multipart)
-    /// - [Http1Handler::parse_url_encoded()](#method.parse_url_encoded)
+    /// - `parse_chunked()`
+    /// - `parse_headers()`
+    /// - `parse_multipart()`
+    /// - `parse_url_encoded()`
     pub fn get_byte_count(&self) -> usize {
         self.byte_count
     }
@@ -883,33 +887,44 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse chunked transfer encoded data.
     ///
-    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
-    /// `false` and parsing exited prematurely. This can be treated the same as
-    /// [Success::Eos](enum.Success.html#variant.Eos).
+    /// **Note:** The maximum parsable chunk length is 28-bit or *268,435,455*. This is because its
+    /// storage is shared with 4 bits of flags.
     ///
-    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
-    /// expected. You must call `parse_chunked()` again until
-    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    /// # Success
     ///
-    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
-    /// successfully.
+    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
+    ///   and parsing exited prematurely. This can be treated the same as
+    ///   `Success::Eos`.
+    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
+    ///   Continue calling `parse_chunked()` until `Success::Finished` is returned.
+    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
+    ///   successfully.
     ///
-    /// **The following callbacks are used by `parse_chunked()`:**
+    /// # Errors
+    ///
+    /// - [ParserError::ChunkExtensionName](enum.ParserError.html#variant.ChunkExtensionName)
+    /// - [ParserError::ChunkExtensionValue](enum.ParserError.html#variant.ChunkExtensionValue)
+    /// - [ParserError::ChunkLength](enum.ParserError.html#variant.ChunkLength)
+    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
+    /// - [ParserError::MaxChunkLength](enum.ParserError.html#variant.MaxChunkLength)
+    ///
+    /// # Callbacks
     ///
     /// - [Http1Handler::on_chunk_data()](trait.Http1Handler.html#method.on_chunk_data)
     /// - [Http1Handler::on_chunk_extension_name()](trait.Http1Handler.html#method.on_chunk_extension_name)
     /// - [Http1Handler::on_chunk_extension_value()](trait.Http1Handler.html#method.on_chunk_extension_value)
-    /// - [Http1Handler::on_chunk_size()](trait.Http1Handler.html#method.on_chunk_size)
+    /// - [Http1Handler::on_chunk_length()](trait.Http1Handler.html#method.on_chunk_length)
     /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
     /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
+    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
     #[inline]
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
         if self.state == State::StripDetect {
             set_all28!(self, 0);
 
-            self.state          = State::ChunkSize1;
-            self.state_function = Parser::chunk_size1;
+            self.state          = State::ChunkLength1;
+            self.state_function = Parser::chunk_length1;
         }
 
         self.parse(handler, stream)
@@ -917,29 +932,48 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse initial request/response line and all headers.
     ///
-    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
-    /// `false` and parsing exited prematurely. This can be treated the same as
-    /// [Success::Eos](enum.Success.html#variant.Eos).
+    /// The `max_length` argument allows you to specify the maximum byte count to be processed.
     ///
-    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
-    /// expected. You must call `parse_headers()` again until
-    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    /// **Note:** Although `max_length` is `u32`, its maximum is 28-bit or *268,435,455*. This is
+    /// because its storage is shared with 4 bits of flags.
     ///
-    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
-    /// successfully.
+    /// # Success
     ///
-    /// **The following callbacks are used by `parse_headers()`:**
+    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
+    ///   and parsing exited prematurely. This can be treated the same as
+    ///   `Success::Eos`.
+    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
+    ///   Continue calling `parse_headers()` until `Success::Finished` is returned.
+    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
+    ///   successfully.
+    ///
+    /// # Errors
+    ///
+    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
+    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
+    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
+    /// - [ParserError::MaxHeadersLength](enum.ParserError.html#variant.MaxHeadersLength)
+    /// - [ParserError::Method](enum.ParserError.html#variant.Method)
+    /// - [ParserError::Status](enum.ParserError.html#variant.Status)
+    /// - [ParserError::StatusCode](enum.ParserError.html#variant.StatusCode)
+    /// - [ParserError::Url](enum.ParserError.html#variant.Url)
+    /// - [ParserError::Version](enum.ParserError.html#variant.Version)
+    ///
+    /// # Callbacks
+    ///
+    /// Callbacks for request and response:
     ///
     /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
     /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
+    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
     ///
-    /// **Request callbacks:**
+    /// Request callbacks:
     ///
     /// - [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method)
     /// - [Http1Handler::on_url()](trait.Http1Handler.html#method.on_url)
     /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     ///
-    /// **Response callbacks:**
+    /// Response callbacks:
     ///
     /// - [Http1Handler::on_status()](trait.Http1Handler.html#method.on_status)
     /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
@@ -951,9 +985,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             return self.parse(handler, stream);
         }
 
-        if get_all28!(self) == 0 {
-            // length hasn't been set yet
-            set_all28!(self, max_length & ALL28_MASK);
+        if self.state == State::StripDetect {
+            set_all28!(self, max_length);
         }
 
         if (get_all28!(self) as usize) < stream.len() {
@@ -1001,22 +1034,28 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse multipart data.
     ///
-    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
-    /// `false` and parsing exited prematurely. This can be treated the same as
-    /// [Success::Eos](enum.Success.html#variant.Eos).
+    /// # Success
     ///
-    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
-    /// expected. You must call `parse_multipart()` again until
-    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
+    ///   and parsing exited prematurely. This can be treated the same as
+    ///   `Success::Eos`.
+    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
+    ///   Continue calling `parse_multipart()` until `Success::Finished` is returned.
+    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
+    ///   successfully.
     ///
-    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
-    /// successfully.
+    /// # Errors
     ///
-    /// **The following callbacks are used by `parse_multipart()`:**
+    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
+    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
+    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
+    ///
+    /// # Callbacks
     ///
     /// - [Http1Handler::get_boundary()](trait.Http1Handler.html#method.get_boundary)
     /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
     /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
+    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
     /// - [Http1Handler::on_multipart_data()](trait.Http1Handler.html#method.on_multipart_data)
     #[inline]
     pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
@@ -1031,30 +1070,64 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse URL encoded data.
     ///
-    /// If [Success::Callback](enum.Success.html#variant.Callback) is returned, a callback returned
-    /// `false` and parsing exited prematurely. This can be treated the same as
-    /// [Success::Eos](enum.Success.html#variant.Eos).
+    /// **Note:** Although `length` is `u32`, its maximum is 28-bit or *268,435,455*. This is
+    /// because its storage is shared with 4 bits of flags.
     ///
-    /// If [Success::Eos](enum.Success.html#variant.Eos) is returned, additional `stream` data is
-    /// expected. You must call `parse_url_encoded()` again until
-    /// [Success::Finished](enum.Success.html#variant.Finished) is returned.
+    /// # Success
     ///
-    /// If [Success::Finished](enum.Success.html#variant.Finished) is returned, parsing has finished
-    /// successfully.
+    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
+    ///   and parsing exited prematurely. This can be treated the same as
+    ///   `Success::Eos`.
+    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
+    ///   Continue calling `parse_url_encoded()` until `Success::Finished` is returned.
+    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
+    ///   successfully.
     ///
-    /// **The following callbacks are used by `parse_url_encoded()`:**
+    /// # Errors
+    ///
+    /// - [ParserError::UrlEncodedField](enum.ParserError.html#variant.UrlEncodedField)
+    /// - [ParserError::UrlEncodedValue](enum.ParserError.html#variant.UrlEncodedValue)
+    ///
+    /// # Callbacks
     ///
     /// - [Http1Handler::on_url_encoded_field()](trait.Http1Handler.html#method.on_url_encoded_field)
     /// - [Http1Handler::on_url_encoded_value()](trait.Http1Handler.html#method.on_url_encoded_value)
     #[inline]
-    pub fn parse_url_encoded(&mut self, handler: &mut T, stream: &[u8])
+    pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: u32)
     -> Result<Success, ParserError> {
         if self.state == State::StripDetect {
             self.state          = State::UrlEncodedField;
             self.state_function = Parser::url_encoded_field;
+
+            set_all28!(self, length);
         }
 
-        self.parse(handler, stream)
+        if (get_all28!(self) as usize) < stream.len() {
+            // amount of data to process is less than the stream length, so let's cut it
+            // off and only process what we need
+            stream = &stream[0..get_all28!(self) as usize];
+        }
+
+        match self.parse(handler, stream) {
+            Ok(Success::Eos(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                Ok(Success::Eos(length))
+            },
+            Ok(Success::Finished(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                Ok(Success::Finished(length))
+            },
+            Ok(Success::Callback(length)) => {
+                set_all28!(self, get_all28!(self) as usize - length);
+
+                Ok(Success::Callback(length))
+            },
+            error => {
+                error
+            }
+        }
     }
 
     /// Reset the parser back to its initial state.
@@ -1806,24 +1879,24 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn chunk_size1(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
         if context.byte == b'0' {
-            transition_fast!(self, context, State::ChunkSizeEnd, chunk_size_end);
+            transition_fast!(self, context, State::ChunkLengthEnd, chunk_length_end);
         } else if !is_hex!(context.byte) {
-            return Err(ParserError::ChunkSize(context.byte));
+            return Err(ParserError::ChunkLength(context.byte));
         }
 
         bs_replay!(context);
 
-        transition_fast!(self, context, State::ChunkSize2, chunk_size2);
+        transition_fast!(self, context, State::ChunkLength2, chunk_length2);
     }
 
     #[inline]
-    fn chunk_size2(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1831,25 +1904,25 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         match hex_to_byte(&[context.byte]) {
             Some(byte) => {
                 if (get_all28!(self) << 4) + byte as u32 > 0xFFFFFFF {
-                    // beyond maximum chunk size (28 bits)
-                    return Err(ParserError::ChunkSize(context.byte));
+                    // beyond maximum chunk length (28 bits)
+                    return Err(ParserError::MaxChunkLength);
                 }
 
                 set_all28!(self, get_all28!(self) << 4);
                 set_all28!(self, get_all28!(self) + byte as u32);
 
-                transition!(self, context, State::ChunkSize2, chunk_size2);
+                transition!(self, context, State::ChunkLength2, chunk_length2);
             },
             None => {
                 bs_replay!(context);
 
-                transition_fast!(self, context, State::ChunkSizeEnd, chunk_size_end);
+                transition_fast!(self, context, State::ChunkLengthEnd, chunk_length_end);
             }
         }
     }
 
     #[inline]
-    fn chunk_size_end(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length_end(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1857,20 +1930,20 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         if context.byte == b'\r' {
             if get_all28!(self) == 0 {
                 callback_transition_fast!(self, context,
-                                          on_chunk_size, get_all28!(self),
+                                          on_chunk_length, get_all28!(self),
                                           State::Newline2, newline2);
             }
 
             callback_transition_fast!(self, context,
-                                      on_chunk_size, get_all28!(self),
-                                      State::ChunkSizeNewline, chunk_size_newline);
+                                      on_chunk_length, get_all28!(self),
+                                      State::ChunkLengthNewline, chunk_length_newline);
         } else if context.byte == b';' {
             callback_transition_fast!(self, context,
-                                      on_chunk_size, get_all28!(self),
+                                      on_chunk_length, get_all28!(self),
                                       State::ChunkExtensionName, chunk_extension_name);
         }
 
-        Err(ParserError::ChunkSize(context.byte))
+        Err(ParserError::ChunkLength(context.byte))
     }
 
     #[inline]
@@ -1906,7 +1979,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             b'\r' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_chunk_extension_value,
-                                                 State::ChunkSizeNewline, chunk_size_newline);
+                                                 State::ChunkLengthNewline, chunk_length_newline);
             },
             b';' => {
                 callback_ignore_transition_fast!(self, context,
@@ -1964,14 +2037,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         if context.byte == b';' {
             transition!(self, context, State::ChunkExtensionName, chunk_extension_name);
         } else if context.byte == b'\r' {
-            transition!(self, context, State::ChunkSizeNewline, chunk_size_newline);
+            transition!(self, context, State::ChunkLengthNewline, chunk_length_newline);
         }
 
         Err(ParserError::ChunkExtensionName(context.byte))
     }
 
     #[inline]
-    fn chunk_size_newline(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length_newline(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2027,7 +2100,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            transition_fast!(self, context, State::ChunkSize1, chunk_size1);
+            transition_fast!(self, context, State::ChunkLength1, chunk_length1);
         }
 
         Err(ParserError::CrlfSequence(context.byte))
@@ -2103,8 +2176,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                context.byte == b'='
             || context.byte == b'%'
             || context.byte == b'&'
-            || context.byte == b'+'
-            || context.byte == b'\r',
+            || context.byte == b'+',
 
             // on end-of-stream
             callback_eos_expr!(self, context, on_url_encoded_field)
@@ -2127,16 +2199,11 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                                  State::UrlEncodedFieldAmpersand,
                                                  url_encoded_field_ampersand);
             },
-            b'+' => {
+            _ => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_url_encoded_field,
                                                  State::UrlEncodedFieldPlus,
                                                  url_encoded_field_plus);
-            },
-            _ => {
-                callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_field,
-                                                 State::FinishedNewline2, finished_newline2);
             }
         }
     }
@@ -2187,7 +2254,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                context.byte == b'%'
             || context.byte == b'&'
             || context.byte == b'+'
-            || context.byte == b'\r'
             || context.byte == b'=',
 
             // on end-of-stream
@@ -2211,11 +2277,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                                  on_url_encoded_value,
                                                  State::UrlEncodedValuePlus,
                                                  url_encoded_value_plus);
-            },
-            b'\r' => {
-                callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_value,
-                                                 State::FinishedNewline2, finished_newline2);
             },
             _ => {
                 Err(ParserError::UrlEncodedValue(context.byte))
@@ -2260,32 +2321,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     fn dead(&mut self, _context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         Err(ParserError::Dead)
-    }
-
-    #[inline]
-    fn finished_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            transition_fast!(self, context, State::FinishedNewline2, finished_newline2);
-        }
-
-        Err(ParserError::CrlfSequence(context.byte))
-    }
-
-    #[inline]
-    fn finished_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\n' {
-            transition_fast!(self, context, State::Finished, finished);
-        }
-
-        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]

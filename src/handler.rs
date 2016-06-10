@@ -27,7 +27,7 @@ pub struct DebugHttp1Handler {
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
     pub chunk_extension_value: Vec<u8>,
-    pub chunk_size:            u32,
+    pub chunk_length:          u32,
     pub header_field:          Vec<u8>,
     pub header_value:          Vec<u8>,
     pub headers_finished:      bool,
@@ -44,10 +44,10 @@ pub struct DebugHttp1Handler {
 
 impl DebugHttp1Handler {
     pub fn new() -> DebugHttp1Handler {
-        DebugHttp1Handler{ chunk_data:            Vec::new(),
+        DebugHttp1Handler{ chunk_data:           Vec::new(),
                           chunk_extension_name:  Vec::new(),
                           chunk_extension_value: Vec::new(),
-                          chunk_size:            0,
+                          chunk_length:          0,
                           header_field:          Vec::new(),
                           header_value:          Vec::new(),
                           headers_finished:      false,
@@ -66,7 +66,7 @@ impl DebugHttp1Handler {
         self.chunk_data            = Vec::new();
         self.chunk_extension_name  = Vec::new();
         self.chunk_extension_value = Vec::new();
-        self.chunk_size            = 0;
+        self.chunk_length          = 0;
         self.header_field          = Vec::new();
         self.header_value          = Vec::new();
         self.headers_finished      = false;
@@ -109,9 +109,9 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 
-    fn on_chunk_size(&mut self, size: u32) -> bool {
-        println!("on_chunk_size: {}", size);
-        self.chunk_size = size;
+    fn on_chunk_length(&mut self, length: u32) -> bool {
+        println!("on_chunk_length: {}", length);
+        self.chunk_length = length;
         true
     }
 

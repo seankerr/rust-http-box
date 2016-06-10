@@ -92,6 +92,6 @@ fn repeat() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", State::ChunkSizeNewline, 12);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", State::ChunkLengthNewline, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
