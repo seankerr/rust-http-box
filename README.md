@@ -1,30 +1,55 @@
-# HTTP Box
+# rust-http-box
 
-HTTP Box is a zero-copy streaming HTTP parser, URL parser, and component decoder/encoder.
+rust-http-box is a fast push/callback oriented HTTP/1.1 (HTTP/2.0 coming soon) parser that works
+only with slices of data, and never copies parsed data. Because of this, it is
+possible to parse HTTP data one byte at a time. Parsing can be interrupted during any callback,
+and at the end of each parsed chunk.
 
-Making a fast, embeddable HTTP 1.1/2.x parser is the primary objective. HTTP Box is the perfect
-library if you want to create a web server or HTTP proxy.
+This is purely an HTTP parsing library and is not tied to any networking framework. Use it to parse
+stored HTTP request logs, test data, or to write a server and/or client.
 
-Development is currently in progress but moving forward steadily.
+Errors are handled intelligently letting you know what state the parser was in and which byte
+triggered the error when it occurred.
 
-## Maintain Control
+## Features
 
-Each chunk of data is passed to a callback function. This callback function allows you to
-prematurely exit the parser, but you remain in control, and can resume parsing at any point.
-This will allow you to limit header and content size.
+- Understands persistent requests
+- Easily upgradable from HTTP/1.1 parsing to HTTP/2.0 in the same stream
+- Parses:
+  - Requests
+  - Responses
+  - Headers
+  - Chunk encoded data
+  - Query strings / URL encoded data
+  - Multipart (in the works)
 
-## Parsing Roadmap
+## Access To:
 
-- [x] Semi-Strict Parsing
-- [x] Response Line
-- [x] Request Line
-- [x] Headers
-  - [x] Multiline Header Values
-  - [x] Quoted Header Values
-- [x] Query Parsing
-- [x] URL Component Decoding
-- [ ] Multipart Parsing
-- [x] Chunked Decoding
+- Request:
+  - Method
+  - URL
+  - Version
+- Response:
+  - Status
+  - Status code
+  - Version
+- Headers (quoted and multi-line values are supported):
+  - Field
+  - Value
+- Chunk encoded:
+  - Size
+  - Extension name
+  - Extension value
+  - Raw data
+- Multipart (in the works)
+- URL encoded:
+  - Field
+  - Value
+
+## Performance
+
+Currently rust-http-box is on par with the speeds seen from [fast-http](https://github.com/fukamachi/fast-http),
+a Common Lisp HTTP parser.
 
 ## API Documentation
 
