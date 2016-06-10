@@ -890,23 +890,16 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// **Note:** The maximum parsable chunk length is 28-bit or *268,435,455*. This is because its
     /// storage is shared with 4 bits of flags.
     ///
-    /// # Success
+    /// # Arguments
     ///
-    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
-    ///   and parsing exited prematurely. This can be treated the same as
-    ///   `Success::Eos`.
-    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
-    ///   Continue calling `parse_chunked()` until `Success::Finished` is returned.
-    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
-    ///   successfully.
+    /// **`handler`**
     ///
-    /// # Errors
+    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// the callbacks used by this function.
     ///
-    /// - [ParserError::ChunkExtensionName](enum.ParserError.html#variant.ChunkExtensionName)
-    /// - [ParserError::ChunkExtensionValue](enum.ParserError.html#variant.ChunkExtensionValue)
-    /// - [ParserError::ChunkLength](enum.ParserError.html#variant.ChunkLength)
-    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
-    /// - [ParserError::MaxChunkLength](enum.ParserError.html#variant.MaxChunkLength)
+    /// **`stream`**
+    ///
+    /// The stream of data to be parsed.
     ///
     /// # Callbacks
     ///
@@ -917,6 +910,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
     /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
     /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
+    ///
+    /// # Errors
+    ///
+    /// - [ParserError::ChunkExtensionName](enum.ParserError.html#variant.ChunkExtensionName)
+    /// - [ParserError::ChunkExtensionValue](enum.ParserError.html#variant.ChunkExtensionValue)
+    /// - [ParserError::ChunkLength](enum.ParserError.html#variant.ChunkLength)
+    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
+    /// - [ParserError::MaxChunkLength](enum.ParserError.html#variant.MaxChunkLength)
     #[inline]
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -932,20 +933,46 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse initial request/response line and all headers.
     ///
-    /// The `max_length` argument allows you to specify the maximum byte count to be processed.
+    /// # Arguments
     ///
-    /// **Note:** Although `max_length` is `u32`, its maximum is 28-bit or *268,435,455*. This is
-    /// because its storage is shared with 4 bits of flags.
+    /// **`handler`**
     ///
-    /// # Success
+    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// the callbacks used by this function.
     ///
-    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
-    ///   and parsing exited prematurely. This can be treated the same as
-    ///   `Success::Eos`.
-    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
-    ///   Continue calling `parse_headers()` until `Success::Finished` is returned.
-    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
-    ///   successfully.
+    /// **`stream`**
+    ///
+    /// The stream of data to be parsed.
+    ///
+    /// **`max_length`**
+    ///
+    /// The maximum byte count to process before returning
+    /// [ParserError::MaxHeadersLength](enum.ParserError.html#variant.MaxHeadersLength).
+    ///
+    /// Set this to `0` to disable it.
+    ///
+    /// Although the type is `u32`, its maximum value is *268,435,455*, because its storage is
+    /// shared with 4 bits of parser flags.
+    ///
+    /// # Callbacks
+    ///
+    /// Request & Response:
+    ///
+    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
+    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
+    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
+    ///
+    /// Request:
+    ///
+    /// - [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method)
+    /// - [Http1Handler::on_url()](trait.Http1Handler.html#method.on_url)
+    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
+    ///
+    /// Response:
+    ///
+    /// - [Http1Handler::on_status()](trait.Http1Handler.html#method.on_status)
+    /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
+    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     ///
     /// # Errors
     ///
@@ -958,26 +985,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [ParserError::StatusCode](enum.ParserError.html#variant.StatusCode)
     /// - [ParserError::Url](enum.ParserError.html#variant.Url)
     /// - [ParserError::Version](enum.ParserError.html#variant.Version)
-    ///
-    /// # Callbacks
-    ///
-    /// Callbacks for request and response:
-    ///
-    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
-    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
-    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
-    ///
-    /// Request callbacks:
-    ///
-    /// - [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method)
-    /// - [Http1Handler::on_url()](trait.Http1Handler.html#method.on_url)
-    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
-    ///
-    /// Response callbacks:
-    ///
-    /// - [Http1Handler::on_status()](trait.Http1Handler.html#method.on_status)
-    /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
-    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
     #[inline]
     pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: u32)
     -> Result<Success, ParserError> {
@@ -1032,23 +1039,19 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         }
     }
 
+    #[doc(hidden)]
     /// Parse multipart data.
     ///
-    /// # Success
+    /// # Arguments
     ///
-    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
-    ///   and parsing exited prematurely. This can be treated the same as
-    ///   `Success::Eos`.
-    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
-    ///   Continue calling `parse_multipart()` until `Success::Finished` is returned.
-    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
-    ///   successfully.
+    /// **`handler`**
     ///
-    /// # Errors
+    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// the callbacks used by this function.
     ///
-    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
-    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
-    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
+    /// **`stream`**
+    ///
+    /// The stream of data to be parsed.
     ///
     /// # Callbacks
     ///
@@ -1057,6 +1060,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
     /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
     /// - [Http1Handler::on_multipart_data()](trait.Http1Handler.html#method.on_multipart_data)
+    ///
+    /// # Errors
+    ///
+    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
+    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
+    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
     #[inline]
     pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -1068,30 +1077,33 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         self.parse(handler, stream)
     }
 
-    /// Parse URL encoded data.
+    /// Parse URL encoded data or query string data.
     ///
-    /// **Note:** Although `length` is `u32`, its maximum is 28-bit or *268,435,455*. This is
-    /// because its storage is shared with 4 bits of flags.
+    /// # Arguments
     ///
-    /// # Success
+    /// **`handler`**
     ///
-    /// - [Success::Callback](enum.Success.html#variant.Callback): A callback returned `false`
-    ///   and parsing exited prematurely. This can be treated the same as
-    ///   `Success::Eos`.
-    /// - [Success::Eos](enum.Success.html#variant.Eos): Additional `stream` data is expected.
-    ///   Continue calling `parse_url_encoded()` until `Success::Finished` is returned.
-    /// - [Success::Finished](enum.Success.html#variant.Finished): Parsing has finished
-    ///   successfully.
+    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// the callbacks used by this function.
     ///
-    /// # Errors
+    /// **`stream`**
     ///
-    /// - [ParserError::UrlEncodedField](enum.ParserError.html#variant.UrlEncodedField)
-    /// - [ParserError::UrlEncodedValue](enum.ParserError.html#variant.UrlEncodedValue)
+    /// The stream of data to be parsed.
+    ///
+    /// **`length`**
+    ///
+    /// The length of entire chunk of URL encoded data. Although the type is `u32`, its maximum
+    /// value is *268,435,455*, because its storage is shared with 4 bits of parser flags.
     ///
     /// # Callbacks
     ///
     /// - [Http1Handler::on_url_encoded_field()](trait.Http1Handler.html#method.on_url_encoded_field)
     /// - [Http1Handler::on_url_encoded_value()](trait.Http1Handler.html#method.on_url_encoded_value)
+    ///
+    /// # Errors
+    ///
+    /// - [ParserError::UrlEncodedField](enum.ParserError.html#variant.UrlEncodedField)
+    /// - [ParserError::UrlEncodedValue](enum.ParserError.html#variant.UrlEncodedValue)
     #[inline]
     pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: u32)
     -> Result<Success, ParserError> {
@@ -1112,11 +1124,18 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             Ok(Success::Eos(length)) => {
                 set_all28!(self, get_all28!(self) as usize - length);
 
-                Ok(Success::Eos(length))
+                if get_all28!(self) == 0 {
+                    self.state          = ParserState::Finished;
+                    self.state_function = Parser::finished;
+
+                    Ok(Success::Finished(length))
+                } else {
+                    Ok(Success::Eos(length))
+                }
             },
             Ok(Success::Finished(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
-
+                // this will never happen, because URL encoded data has no finished state and needs
+                // manually manipulated in this function
                 Ok(Success::Finished(length))
             },
             Ok(Success::Callback(length)) => {

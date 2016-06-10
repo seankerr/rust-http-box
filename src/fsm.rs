@@ -232,7 +232,7 @@ macro_rules! transition_fast {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser return values.
+/// Parsing function return values.
 pub enum ParserValue {
     /// Continue the parser loop.
     Continue,
@@ -243,22 +243,42 @@ pub enum ParserValue {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser success return values.
+/// Parsing function success return values.
 #[derive(Clone,Copy,PartialEq)]
 pub enum Success {
-    /// Callback returned `false`.
+    /// A callback returned `false` and the parser function exited prematurely. This can be
+    /// treated the same as `Success::Finished`.
     ///
-    /// The `usize` argument is the amount of `stream` bytes that were processed.
+    /// # Arguments
+    ///
+    /// **(1)**: The amount of `stream` bytes that were processed before the callback was executed.
     Callback(usize),
 
-    /// Additional data expected.
+    /// Additional `stream` data is expectd. Continue executing the parser function until
+    /// `Success::Finished` is returned.
     ///
-    /// The `usize` argument is the amount of `stream` bytes that were processed.
+    /// # Arguments
+    ///
+    /// **(1)**: The amount of `stream` bytes that were processed. Under some circumstances this
+    ///          will be less than `stream.len()`. At that point it is essential to execute the
+    ///          parser function again, with a new stream of data that consists of the unprocessed
+    ///          data along with new data. If you execute the parser function again with just the
+    ///          remaining unprocessed data, it will yield the same result.
     Eos(usize),
 
-    /// Finished successfully.
+    /// The parser function finished successfully.
     ///
-    /// The `usize` argument is the amount of `stream` bytes that were processed.
+    /// # Arguments
+    ///
+    /// **(1)**: The amount of `stream` bytes that were processed. Under some circumstances this
+    ///          will be less than `stream.len()`. This indicates that there must be a transition
+    ///          between the current parser function and the next one. For example, a typical HTTP
+    ///          request would consist of a call to
+    ///          [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers), and
+    ///          depending on the content type you may need to transition to
+    ///          [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked),
+    ///          [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart), or
+    ///          [Parser::parse_url_encoded()](../http1/struct.Parser.html#method.parse_url_encoded).
     Finished(usize)
 }
 

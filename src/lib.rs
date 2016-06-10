@@ -28,7 +28,7 @@ extern crate byte_slice;
 pub mod byte;
 
 #[macro_use]
-mod fsm;
+pub mod fsm;
 
 #[macro_use]
 mod collect;
