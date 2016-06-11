@@ -30,7 +30,7 @@ fn multiple() {
     assert!(match p.parse_chunked(&mut h, b"0\r\nField1: Value1\r\nField2: Value2\r\n\r\n") {
         Ok(Success::Finished(37)) => {
             assert!(h.headers_finished);
-            assert_eq!(h.header_field, b"Field1Field2");
+            assert_eq!(h.header_field, b"field1field2");
             assert_eq!(h.header_value, b"Value1Value2");
             true
         },
@@ -48,7 +48,7 @@ fn single() {
     assert!(match p.parse_chunked(&mut h, b"0\r\nField: Value\r\n\r\n") {
         Ok(Success::Finished(19)) => {
             assert!(h.headers_finished);
-            assert_eq!(h.header_field, b"Field");
+            assert_eq!(h.header_field, b"field");
             assert_eq!(h.header_value, b"Value");
             true
         },

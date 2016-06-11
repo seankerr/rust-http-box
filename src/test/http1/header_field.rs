@@ -348,23 +348,23 @@ fn multiple() {
     setup!(p, h);
 
     assert_eos(&mut p, &mut h, b"F", ParserState::UpperHeaderField, 1);
-    assert_eq!(h.header_field, b"F");
+    assert_eq!(h.header_field, b"f");
     assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"Fi");
+    assert_eq!(h.header_field, b"fi");
     assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"Fie");
+    assert_eq!(h.header_field, b"fie");
     assert_eos(&mut p, &mut h, b"l", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"Fiel");
+    assert_eq!(h.header_field, b"fiel");
     assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"Field");
+    assert_eq!(h.header_field, b"field");
     assert_eos(&mut p, &mut h, b"N", ParserState::UpperHeaderField, 1);
-    assert_eq!(h.header_field, b"FieldN");
+    assert_eq!(h.header_field, b"fieldn");
     assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"FieldNa");
+    assert_eq!(h.header_field, b"fieldna");
     assert_eos(&mut p, &mut h, b"m", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"FieldNam");
+    assert_eq!(h.header_field, b"fieldnam");
     assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"FieldName");
+    assert_eq!(h.header_field, b"fieldname");
     assert_eos(&mut p, &mut h, b":", ParserState::StripHeaderValue, 1);
 }
 
@@ -376,5 +376,5 @@ fn single() {
     setup!(p, h);
 
     assert_eos(&mut p, &mut h, b"FieldName:", ParserState::StripHeaderValue, 10);
-    assert_eq!(h.header_field, b"FieldName");
+    assert_eq!(h.header_field, b"fieldname");
 }

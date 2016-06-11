@@ -1551,27 +1551,31 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn upper_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(context, ParserError::HeaderField,
-            // stop on these bytes
-               context.byte == b':'
-            || (context.byte > 0x60 && context.byte < 0x7B),
+        exit_if_eos!(self, context);
+        bs_next!(context);
 
-            // on end-of-stream
-            callback_eos_expr!(self, context, on_header_field)
-        );
+        if is_token(context.byte) {
+            if context.byte > 0x60 && context.byte < 0x7B {
+                // lower-cased character
+                bs_replay!(context);
 
-        if context.byte == b':' {
-            callback_ignore_transition_fast!(self, context,
-                                             on_header_field,
-                                             ParserState::StripHeaderValue, strip_header_value);
+                transition_fast!(self, context, ParserState::LowerHeaderField, lower_header_field);
+            } else if context.byte > 0x40 && context.byte < 0x5B {
+                // submit this byte as lower-cased
+                callback_transition!(self, context,
+                                     on_header_field, &[context.byte + 0x20],
+                                     ParserState::UpperHeaderField, upper_header_field);
+            } else {
+                // non-alphabetical
+                callback_transition!(self, context,
+                                     on_header_field, &[context.byte],
+                                     ParserState::UpperHeaderField, upper_header_field);
+            }
+        } else if context.byte == b':' {
+            transition_fast!(self, context, ParserState::StripHeaderValue, strip_header_value);
+        } else {
+            Err(ParserError::HeaderField(context.byte))
         }
-
-        // lower-cased character
-        bs_replay!(context);
-
-        callback_transition_fast!(self, context,
-                                  on_header_field,
-                                  ParserState::LowerHeaderField, lower_header_field);
     }
 
     #[inline]
