@@ -1556,12 +1556,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if is_token(context.byte) {
             if context.byte > 0x60 && context.byte < 0x7B {
-                // lower-cased character
+                // lower-cased byte
                 bs_replay!(context);
 
                 transition_fast!(self, context, ParserState::LowerHeaderField, lower_header_field);
             } else if context.byte > 0x40 && context.byte < 0x5B {
-                // submit this byte as lower-cased
+                // upper-cased byte, let's lower-case it
                 callback_transition!(self, context,
                                      on_header_field, &[context.byte + 0x20],
                                      ParserState::UpperHeaderField, upper_header_field);
