@@ -43,14 +43,40 @@ fn byte_check() {
         }
     });
 
-    // valid bytes
+    // valid non-alphabetical bytes
     loop_tokens(b"\r\n \t:", |byte| {
-        let mut h = DebugHttp1Handler::new();
-        let mut p = Parser::new();
+        if !is_alpha!(byte) {
+            let mut h = DebugHttp1Handler::new();
+            let mut p = Parser::new();
 
-        setup!(p, h);
+            setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], ParserState::HeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::UpperHeaderField, 1);
+        }
+    });
+
+    // valid lower-cased alphabetical bytes
+    loop_tokens(b"\r\n \t:", |byte| {
+        if byte > 0x60 && byte < 0x7B {
+            let mut h = DebugHttp1Handler::new();
+            let mut p = Parser::new();
+
+            setup!(p, h);
+
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
+        }
+    });
+
+    // valid upper-cased alphabetical bytes
+    loop_tokens(b"\r\n \t:", |byte| {
+        if byte > 0x40 && byte < 0x5B {
+            let mut h = DebugHttp1Handler::new();
+            let mut p = Parser::new();
+
+            setup!(p, h);
+
+            assert_eos(&mut p, &mut h, &[byte], ParserState::UpperHeaderField, 1);
+        }
     });
 }
 
@@ -311,7 +337,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", ParserState::HeaderField, 1);
+    assert_callback(&mut p, &mut h, b"F", ParserState::UpperHeaderField, 1);
 }
 
 #[test]
@@ -321,23 +347,23 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"F", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"F", ParserState::UpperHeaderField, 1);
     assert_eq!(h.header_field, b"F");
-    assert_eos(&mut p, &mut h, b"i", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"Fi");
-    assert_eos(&mut p, &mut h, b"e", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"Fie");
-    assert_eos(&mut p, &mut h, b"l", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"l", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"Fiel");
-    assert_eos(&mut p, &mut h, b"d", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"Field");
-    assert_eos(&mut p, &mut h, b"N", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"N", ParserState::UpperHeaderField, 1);
     assert_eq!(h.header_field, b"FieldN");
-    assert_eos(&mut p, &mut h, b"a", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"FieldNa");
-    assert_eos(&mut p, &mut h, b"m", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"m", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"FieldNam");
-    assert_eos(&mut p, &mut h, b"e", ParserState::HeaderField, 1);
+    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"FieldName");
     assert_eos(&mut p, &mut h, b":", ParserState::StripHeaderValue, 1);
 }

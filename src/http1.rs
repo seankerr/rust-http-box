@@ -502,8 +502,11 @@ pub enum ParserState {
     /// Parsing first byte of header field.
     FirstHeaderField,
 
-    /// Parsing header field.
-    HeaderField,
+    /// Parsing upper-cased header field.
+    UpperHeaderField,
+
+    /// Parsing lower-cased header field.
+    LowerHeaderField,
 
     /// Stripping linear white space before header value.
     StripHeaderValue,
@@ -736,6 +739,10 @@ pub trait Http1Handler {
 
     /// Callback that is executed when header parsing has completed successfully.
     ///
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
     /// **Called From:**
     ///
     /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
@@ -746,7 +753,8 @@ pub trait Http1Handler {
     ///
     /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
     /// before each multipart section.
-    fn on_headers_finished(&mut self) {
+    fn on_headers_finished(&mut self) -> bool {
+        true
     }
 
     /// Callback that is executed when a request method has been located.
@@ -1476,84 +1484,120 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             // individual tokens
             if context.byte == b'C' {
                 if bs_starts_with11!(context, b"Connection:") {
-                    field!(b"Connection", 11);
+                    field!(b"connection", 11);
                 } else if bs_starts_with13!(context, b"Content-Type:") {
-                    field!(b"Content-Type", 13);
+                    field!(b"content-type", 13);
                 } else if bs_starts_with15!(context, b"Content-Length:") {
-                    field!(b"Content-Length", 15);
+                    field!(b"content-length", 15);
                 } else if bs_starts_with7!(context, b"Cookie:") {
-                    field!(b"Cookie", 7);
+                    field!(b"cookie", 7);
                 } else if bs_starts_with14!(context, b"Cache-Control:") {
-                    field!(b"Cache-Control", 14);
+                    field!(b"cache-control", 14);
                 } else if bs_starts_with24!(context, b"Content-Security-Policy:") {
-                    field!(b"Content-Security-Policy", 24);
+                    field!(b"content-security-policy", 24);
                 }
             } else if context.byte == b'A' {
                 if bs_starts_with7!(context, b"Accept:") {
-                    field!(b"Accept", 7);
+                    field!(b"accept", 7);
                 } else if bs_starts_with15!(context, b"Accept-Charset:") {
-                    field!(b"Accept-Charset", 15);
+                    field!(b"accept-charset", 15);
                 } else if bs_starts_with16!(context, b"Accept-Encoding:") {
-                    field!(b"Accept-Encoding", 16);
+                    field!(b"accept-encoding", 16);
                 } else if bs_starts_with16!(context, b"Accept-Language:") {
-                    field!(b"Accept-Language", 16);
+                    field!(b"accept-language", 16);
                 } else if bs_starts_with14!(context, b"Authorization:") {
-                    field!(b"Authorization", 14);
+                    field!(b"authorization", 14);
                 }
             } else if context.byte == b'L' {
                 if bs_starts_with9!(context, b"Location:") {
-                    field!(b"Location", 9);
+                    field!(b"location", 9);
                 } else if bs_starts_with14!(context, b"Last-Modified:") {
-                    field!(b"Last-Modified", 14);
+                    field!(b"last-modified", 14);
                 }
             } else if bs_starts_with7!(context, b"Pragma:") {
-                field!(b"Pragma", 7);
+                field!(b"pragma", 7);
             } else if bs_starts_with11!(context, b"Set-Cookie:") {
-                field!(b"Set-Cookie", 11);
+                field!(b"set-cookie", 11);
             } else if bs_starts_with18!(context, b"Transfer-Encoding:") {
-                field!(b"Transfer-Encoding", 18);
+                field!(b"transfer-encoding", 18);
             } else if context.byte == b'U' {
                 if bs_starts_with11!(context, b"User-Agent:") {
-                    field!(b"User-Agent", 11);
+                    field!(b"user-agent", 11);
                 } else if bs_starts_with8!(context, b"Upgrade:") {
-                    field!(b"Upgrade", 8);
+                    field!(b"upgrade", 8);
                 }
             } else if context.byte == b'X' {
                 if bs_starts_with13!(context, b"X-Powered-By:") {
-                    field!(b"X-Powered-By", 13);
+                    field!(b"x-powered-by", 13);
                 } else if bs_starts_with16!(context, b"X-Forwarded-For:") {
-                    field!(b"X-Forwarded-For", 16);
+                    field!(b"x-forwarded-for", 16);
                 } else if bs_starts_with17!(context, b"X-Forwarded-Host:") {
-                    field!(b"X-Forwarded-Host", 17);
+                    field!(b"x-forwarded-host", 17);
                 } else if bs_starts_with17!(context, b"X-XSS-Protection:") {
-                    field!(b"X-XSS-Protection", 17);
+                    field!(b"x-xss-protection", 17);
                 } else if bs_starts_with13!(context, b"X-WebKit-CSP:") {
-                    field!(b"X-WebKit-CSP", 13);
+                    field!(b"x-webkit-csp", 13);
                 } else if b"X-Content-Security-Policy:" == bs_peek!(context, 26) {
-                    field!(b"X-Content-Security-Policy", 26);
+                    field!(b"x-content-security-policy", 26);
                 }
             } else if bs_starts_with17!(context, b"WWW-Authenticate:") {
-                field!(b"WWW-Authenticate", 17);
+                field!(b"www-authenticate", 17);
             }
         }
 
-        transition_fast!(self, context, ParserState::HeaderField, header_field);
+        transition_fast!(self, context, ParserState::UpperHeaderField, upper_header_field);
     }
 
     #[inline]
-    fn header_field(&mut self, context: &mut ParserContext<T>)
+    fn upper_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::HeaderField,
             // stop on these bytes
-            context.byte == b':',
+               context.byte == b':'
+            || (context.byte > 0x60 && context.byte < 0x7B),
 
             // on end-of-stream
             callback_eos_expr!(self, context, on_header_field)
         );
 
-        callback_ignore_transition_fast!(self, context,
-                                         on_header_field,
-                                         ParserState::StripHeaderValue, strip_header_value);
+        if context.byte == b':' {
+            callback_ignore_transition_fast!(self, context,
+                                             on_header_field,
+                                             ParserState::StripHeaderValue, strip_header_value);
+        }
+
+        // lower-cased character
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context,
+                                  on_header_field,
+                                  ParserState::LowerHeaderField, lower_header_field);
+    }
+
+    #[inline]
+    fn lower_header_field(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        collect_tokens!(context, ParserError::HeaderField,
+            // stop on these bytes
+               context.byte == b':'
+            || (context.byte > 0x40 && context.byte < 0x5B),
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_header_field)
+        );
+
+        if context.byte == b':' {
+            callback_ignore_transition_fast!(self, context,
+                                             on_header_field,
+                                             ParserState::StripHeaderValue, strip_header_value);
+        }
+
+        // upper-cased character
+        bs_replay!(context);
+
+        callback_transition_fast!(self, context,
+                                  on_header_field,
+                                  ParserState::UpperHeaderField, upper_header_field);
     }
 
     #[inline]
@@ -1670,9 +1714,11 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         if context.byte == b'\n' {
             set_flag!(self, F_HEADERS_FINISHED);
 
-            context.handler.on_headers_finished();
-
-            transition_fast!(self, context, ParserState::Finished, finished);
+            if context.handler.on_headers_finished() {
+                transition_fast!(self, context, ParserState::Finished, finished);
+            } else {
+                exit_callback!(self, context);
+            }
         }
 
         Err(ParserError::CrlfSequence(context.byte))

@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Debug handler implementation.
+//! Debug handler implementation for all callbacks
 
 use http1::Http1Handler;
 
@@ -127,9 +127,10 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 
-    fn on_headers_finished(&mut self) {
+    fn on_headers_finished(&mut self) -> bool {
         println!("on_headers_finished");
         self.headers_finished = true;
+        true
     }
 
     fn on_method(&mut self, method: &[u8]) -> bool {
