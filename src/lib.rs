@@ -33,6 +33,7 @@ pub mod fsm;
 #[macro_use]
 mod collect;
 
+pub mod examples;
 pub mod handler;
 pub mod http1;
 pub mod query;

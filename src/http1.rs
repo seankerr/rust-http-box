@@ -334,6 +334,18 @@ impl fmt::Display for ParserError {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser types.
+///
+/// The parser type will be `ParserType::Unknown` until
+/// [Parser::parse_headers()](struct.Parser.html#method.parse_headers)
+/// is executed, and either of the following has occurred:
+///
+/// Requests:
+///
+/// [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method) has been executed.
+///
+/// Responses:
+///
+/// [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version) has been executed.
 #[derive(Clone,Copy)]
 pub enum ParserType {
     /// Parser is parsing a request.
@@ -612,7 +624,7 @@ pub enum ParserState {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Type that handles HTTP parser events.
+/// Type that handles HTTP/1.1 parser events.
 #[allow(unused_variables)]
 pub trait Http1Handler {
     /// Retrieve the multipart boundary.
@@ -620,124 +632,240 @@ pub trait Http1Handler {
         None
     }
 
-    /// Callback that is executed when a chunk of data has been parsed.
+    /// Callback that is executed when chunk encoded data has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire chunk.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a chunk extension name has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire chunk extension name.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a chunk extension value has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire chunk extension value.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a chunk length has been located.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_length(&mut self, size: u32) -> bool {
         true
     }
 
     /// Callback that is executed when a header field has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire header field.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
+    /// supplied.
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
+    /// HTTP headers.
+    ///
+    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
+    /// before each multipart section.
     fn on_header_field(&mut self, field: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a header value has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire header value.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
+    /// supplied.
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
+    /// HTTP headers.
+    ///
+    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
+    /// before each multipart section.
     fn on_header_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when header parsing has completed successfully.
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
+    /// supplied.
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
+    /// HTTP headers.
+    ///
+    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
+    /// before each multipart section.
     fn on_headers_finished(&mut self) {
     }
 
     /// Callback that is executed when a request method has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire method.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
+    /// data is a request.
     fn on_method(&mut self, method: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when multipart data has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire piece of data.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
+    ///
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart)
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a response status has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire status.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
+    /// data is a response.
     fn on_status(&mut self, status: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a response status code has been located.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
+    /// data is a response.
     fn on_status_code(&mut self, code: u16) -> bool {
         true
     }
 
     /// Callback that is executed when a request URL/path has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire URL/path.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
+    /// data is a request.
     fn on_url(&mut self, url: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a URL encoded field or query string field has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire field.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_url_encoded()](../http1/struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a URL encoded value or query string value has been located.
     ///
-    /// This may be executed multiple times in order to supply the entire value.
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_url_encoded()](../http1/struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when the HTTP major version has been located.
     ///
-    /// Returns `true` when parsing should continue. Otherwise `false`.
+    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
+    ///              prematurely with
+    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_url_encoded) For the
+    /// request and response HTTP version.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
         true
     }
@@ -1039,7 +1167,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         }
     }
 
-    #[doc(hidden)]
     /// Parse multipart data.
     ///
     /// # Arguments
