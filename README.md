@@ -56,4 +56,4 @@ a Common Lisp HTTP parser, and significantly faster than the Joyant/NodeJS HTTP 
 
 ## API Documentation
 
-http://metatomic.org/docs/http_box/index.html
+http://metatomic.org/docs/api/http_box/index.html
