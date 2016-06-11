@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use handler::*;
+use handler::debug::*;
 use http1::*;
 use test::*;
 use test::http1::*;
