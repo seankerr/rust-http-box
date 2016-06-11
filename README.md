@@ -42,8 +42,8 @@ triggered the error when it occurred.
   - Extension value
   - Raw data
 - Multipart (in the works)
-  - Fields
-  - Values
+  - Header fields
+  - Header values
   - File support
 - URL encoded:
   - Field
