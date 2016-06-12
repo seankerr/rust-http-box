@@ -1011,10 +1011,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// The parser type will be [`ParserType::Unknown`](enum.ParserType.html#variant.Unknown) until
     /// `parse_headers()` is executed, and either of the following has occurred:
     ///
-    ///  - For requests: [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has
-    ///    been executed
-    ///  - For responses: [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
-    ///    has been executed
+    /// Requests:
+    ///
+    /// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
+    ///
+    /// Responses:
+    ///
+    /// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version] has been executed
     pub fn get_type(&self) -> ParserType {
         if has_flag!(self, F_REQUEST) {
             ParserType::Request
