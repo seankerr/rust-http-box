@@ -336,16 +336,16 @@ impl fmt::Display for ParserError {
 /// Parser types.
 ///
 /// The parser type will be `ParserType::Unknown` until
-/// [Parser::parse_headers()](struct.Parser.html#method.parse_headers)
+/// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
 /// is executed, and either of the following has occurred:
 ///
 /// Requests:
 ///
-/// [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method) has been executed.
+/// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
 ///
 /// Responses:
 ///
-/// [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version) has been executed.
+/// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version) has been executed.
 #[derive(Clone,Copy)]
 pub enum ParserType {
     /// Parser is parsing a request.
@@ -631,6 +631,10 @@ pub enum ParserState {
 #[allow(unused_variables)]
 pub trait Http1Handler {
     /// Retrieve the multipart boundary.
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
     fn get_boundary(&mut self) -> Option<&[u8]> {
         None
     }
@@ -639,13 +643,14 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         true
     }
@@ -654,13 +659,14 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
         true
     }
@@ -669,26 +675,28 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a chunk length has been located.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_length(&mut self, size: u32) -> bool {
         true
     }
@@ -697,20 +705,24 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
-    /// supplied.
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
-    /// HTTP headers.
+    /// If trailers are supplied.
     ///
-    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
-    /// before each multipart section.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// For standard HTTP headers.
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    ///
+    /// For headers before each multipart section.
     fn on_header_field(&mut self, field: &[u8]) -> bool {
         true
     }
@@ -719,40 +731,48 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
-    /// supplied.
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
-    /// HTTP headers.
+    /// If trailers are supplied.
     ///
-    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
-    /// before each multipart section.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// For standard HTTP headers.
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    ///
+    /// For headers before each multipart section.
     fn on_header_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when header parsing has completed successfully.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked) If trailers are
-    /// supplied.
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) For standard
-    /// HTTP headers.
+    /// If trailers are supplied.
     ///
-    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart) For headers
-    /// before each multipart section.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// For standard HTTP headers.
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    ///
+    /// For headers before each multipart section.
     fn on_headers_finished(&mut self) -> bool {
         true
     }
@@ -761,14 +781,16 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
-    /// data is a request.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// During the initial request line.
     fn on_method(&mut self, method: &[u8]) -> bool {
         true
     }
@@ -777,13 +799,14 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         true
     }
@@ -792,28 +815,32 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
-    /// data is a response.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// During the initial response line.
     fn on_status(&mut self, status: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when a response status code has been located.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
-    /// data is a response.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
         true
     }
@@ -822,14 +849,16 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers) If the HTTP
-    /// data is a request.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// During the initial request line.
     fn on_url(&mut self, url: &[u8]) -> bool {
         true
     }
@@ -838,13 +867,14 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_url_encoded()](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
         true
     }
@@ -853,27 +883,30 @@ pub trait Http1Handler {
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_url_encoded()](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
     /// Callback that is executed when the HTTP major version has been located.
     ///
-    /// **Returns:** `true` when parsing should continue, `false` to exit the parser function
-    ///              prematurely with
-    ///              [Success::Callback](../fsm/enum.Success.html#variant.Callback).
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
     /// **Called From:**
     ///
-    /// [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_url_encoded) For the
-    /// request and response HTTP version.
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    ///
+    /// During the initial request or response line.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
         true
     }
@@ -975,12 +1008,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Retrieve the parser type.
     ///
-    /// The parser type will be [ParserType::Unknown](enum.ParserType.html#variant.Unknown) until
+    /// The parser type will be [`ParserType::Unknown`](enum.ParserType.html#variant.Unknown) until
     /// `parse_headers()` is executed, and either of the following has occurred:
     ///
-    ///  - For requests: [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method) has
+    ///  - For requests: [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has
     ///    been executed
-    ///  - For responses: [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
+    ///  - For responses: [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
     ///    has been executed
     pub fn get_type(&self) -> ParserType {
         if has_flag!(self, F_REQUEST) {
@@ -1030,7 +1063,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1039,21 +1072,21 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [Http1Handler::on_chunk_data()](trait.Http1Handler.html#method.on_chunk_data)
-    /// - [Http1Handler::on_chunk_extension_name()](trait.Http1Handler.html#method.on_chunk_extension_name)
-    /// - [Http1Handler::on_chunk_extension_value()](trait.Http1Handler.html#method.on_chunk_extension_value)
-    /// - [Http1Handler::on_chunk_length()](trait.Http1Handler.html#method.on_chunk_length)
-    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
-    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
-    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`Http1Handler::on_chunk_data()`](trait.Http1Handler.html#method.on_chunk_data)
+    /// - [`Http1Handler::on_chunk_extension_name()`](trait.Http1Handler.html#method.on_chunk_extension_name)
+    /// - [`Http1Handler::on_chunk_extension_value()`](trait.Http1Handler.html#method.on_chunk_extension_value)
+    /// - [`Http1Handler::on_chunk_length()`](trait.Http1Handler.html#method.on_chunk_length)
+    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
+    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
+    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
     ///
     /// # Errors
     ///
-    /// - [ParserError::ChunkExtensionName](enum.ParserError.html#variant.ChunkExtensionName)
-    /// - [ParserError::ChunkExtensionValue](enum.ParserError.html#variant.ChunkExtensionValue)
-    /// - [ParserError::ChunkLength](enum.ParserError.html#variant.ChunkLength)
-    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
-    /// - [ParserError::MaxChunkLength](enum.ParserError.html#variant.MaxChunkLength)
+    /// - [`ParserError::ChunkExtensionName`](enum.ParserError.html#variant.ChunkExtensionName)
+    /// - [`ParserError::ChunkExtensionValue`](enum.ParserError.html#variant.ChunkExtensionValue)
+    /// - [`ParserError::ChunkLength`](enum.ParserError.html#variant.ChunkLength)
+    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
+    /// - [`ParserError::MaxChunkLength`](enum.ParserError.html#variant.MaxChunkLength)
     #[inline]
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -1073,7 +1106,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1083,7 +1116,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// **`max_length`**
     ///
     /// The maximum byte count to process before returning
-    /// [ParserError::MaxHeadersLength](enum.ParserError.html#variant.MaxHeadersLength).
+    /// [`ParserError::MaxHeadersLength`](enum.ParserError.html#variant.MaxHeadersLength).
     ///
     /// Set this to `0` to disable it.
     ///
@@ -1094,33 +1127,33 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// Request & Response:
     ///
-    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
-    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
-    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
+    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
+    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
     ///
     /// Request:
     ///
-    /// - [Http1Handler::on_method()](trait.Http1Handler.html#method.on_method)
-    /// - [Http1Handler::on_url()](trait.Http1Handler.html#method.on_url)
-    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
+    /// - [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method)
+    /// - [`Http1Handler::on_url()`](trait.Http1Handler.html#method.on_url)
+    /// - [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
     ///
     /// Response:
     ///
-    /// - [Http1Handler::on_status()](trait.Http1Handler.html#method.on_status)
-    /// - [Http1Handler::on_status_code()](trait.Http1Handler.html#method.on_status_code)
-    /// - [Http1Handler::on_version()](trait.Http1Handler.html#method.on_version)
+    /// - [`Http1Handler::on_status()`](trait.Http1Handler.html#method.on_status)
+    /// - [`Http1Handler::on_status_code()`](trait.Http1Handler.html#method.on_status_code)
+    /// - [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
     ///
     /// # Errors
     ///
-    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
-    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
-    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
-    /// - [ParserError::MaxHeadersLength](enum.ParserError.html#variant.MaxHeadersLength)
-    /// - [ParserError::Method](enum.ParserError.html#variant.Method)
-    /// - [ParserError::Status](enum.ParserError.html#variant.Status)
-    /// - [ParserError::StatusCode](enum.ParserError.html#variant.StatusCode)
-    /// - [ParserError::Url](enum.ParserError.html#variant.Url)
-    /// - [ParserError::Version](enum.ParserError.html#variant.Version)
+    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
+    /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
+    /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
+    /// - [`ParserError::MaxHeadersLength`](enum.ParserError.html#variant.MaxHeadersLength)
+    /// - [`ParserError::Method`](enum.ParserError.html#variant.Method)
+    /// - [`ParserError::Status`](enum.ParserError.html#variant.Status)
+    /// - [`ParserError::StatusCode`](enum.ParserError.html#variant.StatusCode)
+    /// - [`ParserError::Url`](enum.ParserError.html#variant.Url)
+    /// - [`ParserError::Version`](enum.ParserError.html#variant.Version)
     #[inline]
     pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: u32)
     -> Result<Success, ParserError> {
@@ -1181,7 +1214,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1190,17 +1223,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [Http1Handler::get_boundary()](trait.Http1Handler.html#method.get_boundary)
-    /// - [Http1Handler::on_header_field()](trait.Http1Handler.html#method.on_header_field)
-    /// - [Http1Handler::on_header_value()](trait.Http1Handler.html#method.on_header_value)
-    /// - [Http1Handler::on_headers_finished()](trait.Http1Handler.html#method.on_headers_finished)
-    /// - [Http1Handler::on_multipart_data()](trait.Http1Handler.html#method.on_multipart_data)
+    /// - [`Http1Handler::get_boundary()`](trait.Http1Handler.html#method.get_boundary)
+    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
+    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
+    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`Http1Handler::on_multipart_data()`](trait.Http1Handler.html#method.on_multipart_data)
     ///
     /// # Errors
     ///
-    /// - [ParserError::CrlfSequence](enum.ParserError.html#variant.CrlfSequence)
-    /// - [ParserError::HeaderField](enum.ParserError.html#variant.HeaderField)
-    /// - [ParserError::HeaderValue](enum.ParserError.html#variant.HeaderValue)
+    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
+    /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
+    /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     #[inline]
     pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
@@ -1218,7 +1251,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [Http1Handler](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1232,13 +1265,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [Http1Handler::on_url_encoded_field()](trait.Http1Handler.html#method.on_url_encoded_field)
-    /// - [Http1Handler::on_url_encoded_value()](trait.Http1Handler.html#method.on_url_encoded_value)
+    /// - [`Http1Handler::on_url_encoded_field()`](trait.Http1Handler.html#method.on_url_encoded_field)
+    /// - [`Http1Handler::on_url_encoded_value()`](trait.Http1Handler.html#method.on_url_encoded_value)
     ///
     /// # Errors
     ///
-    /// - [ParserError::UrlEncodedField](enum.ParserError.html#variant.UrlEncodedField)
-    /// - [ParserError::UrlEncodedValue](enum.ParserError.html#variant.UrlEncodedValue)
+    /// - [`ParserError::UrlEncodedField`](enum.ParserError.html#variant.UrlEncodedField)
+    /// - [`ParserError::UrlEncodedValue`](enum.ParserError.html#variant.UrlEncodedValue)
     #[inline]
     pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: u32)
     -> Result<Success, ParserError> {
@@ -1717,9 +1750,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'\n' {
             set_flag!(self, F_HEADERS_FINISHED);
+            set_state!(self, ParserState::Finished, finished);
 
             if context.handler.on_headers_finished() {
-                transition_fast!(self, context, ParserState::Finished, finished);
+                transition_fast!(self, context);
             } else {
                 exit_callback!(self, context);
             }

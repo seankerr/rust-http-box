@@ -29,6 +29,24 @@ macro_rules! setup {
 }
 
 #[test]
+fn callback_exit() {
+    struct X;
+
+    impl Http1Handler for X {
+        fn on_headers_finished(&mut self) -> bool {
+            false
+        }
+    }
+
+    let mut h = X{};
+    let mut p = Parser::new();
+
+    setup!(p, h);
+
+    assert_callback(&mut p, &mut h, b"\r\n\r\n", ParserState::Finished, 4);
+}
+
+#[test]
 fn finished() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();

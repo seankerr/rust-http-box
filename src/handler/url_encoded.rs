@@ -16,20 +16,21 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Http1Handler implementations for callbacks that deal with URL encoded data.
+//! [`Http1Handler`](../http1/trait.Http1Handler.html) implementations for callbacks that deal with
+//! URL encoded data.
 
 use http1::Http1Handler;
 
 use std::collections::HashMap;
-/*
+
 pub struct MapUrlEncodedHandler<'a> {
     field: Vec<u8>,
-    map:   &'a HashMap<Vec<u8>, Vec<u8>>,
+    map:   &'a mut HashMap<Vec<u8>, Vec<u8>>,
     value: Vec<u8>
 }
-
+/*
 impl<'a> MapUrlEncodedHandler<'a> {
-    pub fn new(map: &'a mut HashMap<Vec<u8>, Vec<u8>>) -> MapUrlEncodedHandler<'a> {
+    pub fn new(map: &mut HashMap<Vec<u8>, Vec<u8>>) -> MapUrlEncodedHandler<'a> {
         MapUrlEncodedHandler{ field: Vec::new(),
                               map:   &mut map,
                               value: Vec::new() }
