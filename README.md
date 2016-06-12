@@ -1,7 +1,7 @@
 # rust-http-box
 
-https://img.shields.io/badge/build-passing-brightgreen.svg
-https://img.shields.io/badge/dev-0.1.0-ff69b4.svg
+![Build: Passing](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![dev: 0.1.0](https://img.shields.io/badge/dev-0.1.0-ff69b4.svg)
 
 rust-http-box is a fast push/callback oriented HTTP/1.1 (HTTP/2.0 coming soon) parser that works
 only with slices of data, and never copies parsed data. Because of this, it is
