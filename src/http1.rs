@@ -339,11 +339,11 @@ impl fmt::Display for ParserError {
 /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
 /// is executed, and either of the following has occurred:
 ///
-/// Requests:
+/// *Requests:*
 ///
 /// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
 ///
-/// Responses:
+/// *Responses:*
 ///
 /// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version) has been executed.
 #[derive(Clone,Copy)]
@@ -1011,13 +1011,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// The parser type will be [`ParserType::Unknown`](enum.ParserType.html#variant.Unknown) until
     /// `parse_headers()` is executed, and either of the following has occurred:
     ///
-    /// Requests:
+    /// *Requests:*
     ///
     /// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
     ///
-    /// Responses:
+    /// *Responses:*
     ///
-    /// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version] has been executed
+    /// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version) has been executed
     pub fn get_type(&self) -> ParserType {
         if has_flag!(self, F_REQUEST) {
             ParserType::Request
@@ -1128,19 +1128,19 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// Request & Response:
+    /// *Request & Response:*
     ///
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
     /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
     ///
-    /// Request:
+    /// *Request:*
     ///
     /// - [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method)
     /// - [`Http1Handler::on_url()`](trait.Http1Handler.html#method.on_url)
     /// - [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
     ///
-    /// Response:
+    /// *Response:*
     ///
     /// - [`Http1Handler::on_status()`](trait.Http1Handler.html#method.on_status)
     /// - [`Http1Handler::on_status_code()`](trait.Http1Handler.html#method.on_status_code)
