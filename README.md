@@ -15,6 +15,11 @@ stored HTTP request logs, test data, or to write a server and/or client.
 Errors are handled intelligently letting you know what state the parser was in and which byte
 triggered the error when it occurred.
 
+## Progress
+
+The current phase is fleshing out the handling of multipart data. Do not use
+`Parser::parse_multipart()` just yet. :)
+
 ## Features
 
 - No unsafe{} code
