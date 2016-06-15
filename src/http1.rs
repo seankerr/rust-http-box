@@ -58,17 +58,14 @@ const UPPER14_SHIFT: u8 = 18;
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
+// Parsing chunk encoded data.
+const F_CHUNKED: u32 = 1;
+
 // Headers are finished parsing.
-const F_HEADERS_FINISHED: u32 = 1;
+const F_HEADERS_FINISHED: u32 = 2;
 
 // Parsing multipart data.
-const F_MULTIPART: u32 = 2;
-
-// Parsing request.
-const F_REQUEST: u32 = 4;
-
-// Parsing response.
-const F_RESPONSE: u32 = 8;
+const F_MULTIPART: u32 = 4;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -394,7 +391,8 @@ impl fmt::Display for ParserType {
 
 /// Parser states.
 ///
-/// These states are in the order that they are processed.
+/// These states are in an order that can be compared so the progress can be checked by the parser
+/// functions.
 #[derive(Clone,Copy,Debug,PartialEq)]
 #[repr(u8)]
 pub enum ParserState {
@@ -533,7 +531,7 @@ pub enum ParserState {
     Newline4,
 
     // ---------------------------------------------------------------------------------------------
-    // BODY
+    // CHUNKED TRANSFER
     // ---------------------------------------------------------------------------------------------
 
     /// Parsing chunk length byte 1.
@@ -572,6 +570,10 @@ pub enum ParserState {
     /// Parsing line feed after chunk data.
     ChunkDataNewline2,
 
+    // ---------------------------------------------------------------------------------------------
+    // MULTIPART
+    // ---------------------------------------------------------------------------------------------
+
     /// Parsing first hyphen before multipart boundary.
     MultipartHyphen1,
 
@@ -595,6 +597,10 @@ pub enum ParserState {
 
     /// Parsing multipart data.
     MultipartData,
+
+    // ---------------------------------------------------------------------------------------------
+    // URL ENCODED
+    // ---------------------------------------------------------------------------------------------
 
     /// Parsing URL encoded field.
     UrlEncodedField,
@@ -621,7 +627,10 @@ pub enum ParserState {
     // FINISHED
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing has finished successfully.
+    /// End of body parsing.
+    BodyFinished,
+
+    /// Parsing entire message has finished.
     Finished
 }
 
@@ -630,6 +639,30 @@ pub enum ParserState {
 /// Type that handles HTTP/1.1 parser events.
 #[allow(unused_variables)]
 pub trait Http1Handler {
+    /// Callback that is executed when body parsing has completed successfully.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    ///
+    /// Once all chunked data has been parsed.
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    ///
+    /// Once all multipart data has been parsed.
+    ///
+    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    ///
+    /// Once all URL encoded data has been parsed.
+    fn on_body_finished(&mut self) -> bool {
+        true
+    }
+
     /// Retrieve the multipart boundary.
     ///
     /// **Called From:**
@@ -1006,28 +1039,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         self.state
     }
 
-    /// Retrieve the parser type.
-    ///
-    /// The parser type will be [`ParserType::Unknown`](enum.ParserType.html#variant.Unknown) until
-    /// `parse_headers()` is executed, and either of the following has occurred:
-    ///
-    /// *Requests:*
-    ///
-    /// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
-    ///
-    /// *Responses:*
-    ///
-    /// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version) has been executed
-    pub fn get_type(&self) -> ParserType {
-        if has_flag!(self, F_REQUEST) {
-            ParserType::Request
-        } else if has_flag!(self, F_RESPONSE) {
-            ParserType::Response
-        } else {
-            ParserType::Unknown
-        }
-    }
-
     // Main parser loop.
     #[inline]
     fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
@@ -1095,6 +1106,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
             set_all28!(self, 0);
+            set_flag!(self, F_CHUNKED);
 
             self.state          = ParserState::ChunkLength1;
             self.state_function = Parser::chunk_length1;
@@ -1283,39 +1295,41 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             self.state_function = Parser::url_encoded_field;
 
             set_all28!(self, length);
+        } else if self.state == ParserState::Finished {
+            // already finished
+            return Ok(Success::Finished(0));
         }
 
         if (get_all28!(self) as usize) < stream.len() {
-            // amount of data to process is less than the stream length, so let's cut it
-            // off and only process what we need
+            // amount of data to process is less than the stream length, so let's trim
+            // the stream to match the proper length (we won't process the rest anyways)
             stream = &stream[0..get_all28!(self) as usize];
         }
 
         match self.parse(handler, stream) {
             Ok(Success::Eos(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
-
-                if get_all28!(self) == 0 {
+                if get_all28!(self) as usize - length == 0 {
                     self.state          = ParserState::Finished;
                     self.state_function = Parser::finished;
 
-                    Ok(Success::Finished(length))
+                    if handler.on_body_finished() {
+                        Ok(Success::Finished(stream.len()))
+                    } else {
+                        Ok(Success::Callback(stream.len()))
+                    }
                 } else {
+                    set_all28!(self, get_all28!(self) as usize - length);
+
                     Ok(Success::Eos(length))
                 }
-            },
-            Ok(Success::Finished(length)) => {
-                // this will never happen, because URL encoded data has no finished state and needs
-                // manually manipulated in this function
-                Ok(Success::Finished(length))
             },
             Ok(Success::Callback(length)) => {
                 set_all28!(self, get_all28!(self) as usize - length);
 
                 Ok(Success::Callback(length))
             },
-            error => {
-                error
+            other => {
+                other
             }
         }
     }
@@ -1345,7 +1359,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => ({
-                set_flag!(self, F_RESPONSE);
                 bs_jump!(context, $length);
                 set_state!(self, ParserState::StripResponseStatusCode, strip_response_status_code);
 
@@ -1446,7 +1459,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'/' {
-            set_flag!(self, F_RESPONSE);
             set_all28!(self, 0);
 
             transition_fast!(self, context, ParserState::ResponseVersionMajor, response_version_major);
@@ -1753,7 +1765,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'\n' {
             set_flag!(self, F_HEADERS_FINISHED);
-            set_state!(self, ParserState::Finished, finished);
+
+            if has_flag!(self, F_CHUNKED) {
+                set_state!(self, ParserState::BodyFinished, body_finished);
+            } else {
+                set_state!(self, ParserState::Finished, finished);
+            }
 
             if context.handler.on_headers_finished() {
                 transition_fast!(self, context);
@@ -1781,8 +1798,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                           ParserState::StripRequestUrl, strip_request_url);
             );
         }
-
-        set_flag!(self, F_REQUEST);
 
         if bs_has_bytes!(context, 8) {
             // have enough bytes to compare all known methods immediately, without collecting
@@ -2554,6 +2569,18 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     fn dead(&mut self, _context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         Err(ParserError::Dead)
+    }
+
+    #[inline]
+    fn body_finished(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        set_state!(self, ParserState::Finished, finished);
+
+        if context.handler.on_body_finished() {
+            transition_fast!(self, context);
+        } else {
+            exit_callback!(self, context);
+        }
     }
 
     #[inline]

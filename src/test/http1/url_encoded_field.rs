@@ -64,7 +64,7 @@ fn callback_exit() {
 }
 
 #[test]
-fn field() {
+fn basic() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
@@ -73,7 +73,7 @@ fn field() {
 }
 
 #[test]
-fn field_ending_ampersand() {
+fn ending_ampersand() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
@@ -82,7 +82,7 @@ fn field_ending_ampersand() {
 }
 
 #[test]
-fn field_ending_equal() {
+fn ending_equal() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
@@ -91,7 +91,7 @@ fn field_ending_equal() {
 }
 
 #[test]
-fn field_ending_percent() {
+fn ending_percent() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
@@ -100,7 +100,7 @@ fn field_ending_percent() {
 }
 
 #[test]
-fn field_ending_plus() {
+fn ending_plus() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
@@ -109,7 +109,7 @@ fn field_ending_plus() {
 }
 
 #[test]
-fn field_hex() {
+fn hex() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
