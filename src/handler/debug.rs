@@ -24,6 +24,7 @@ use std::str;
 
 /// Debug handler is useful for dumping callback details.
 pub struct DebugHttp1Handler {
+    pub body_finished:         bool,
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
     pub chunk_extension_value: Vec<u8>,
@@ -44,25 +45,27 @@ pub struct DebugHttp1Handler {
 
 impl DebugHttp1Handler {
     pub fn new() -> DebugHttp1Handler {
-        DebugHttp1Handler{ chunk_data:           Vec::new(),
-                          chunk_extension_name:  Vec::new(),
-                          chunk_extension_value: Vec::new(),
-                          chunk_length:          0,
-                          header_field:          Vec::new(),
-                          header_value:          Vec::new(),
-                          headers_finished:      false,
-                          method:                Vec::new(),
-                          multipart_data:        Vec::new(),
-                          status:                Vec::new(),
-                          status_code:           0,
-                          url:                   Vec::new(),
-                          url_encoded_field:     Vec::new(),
-                          url_encoded_value:     Vec::new(),
-                          version_major:         0,
-                          version_minor:         0 }
+        DebugHttp1Handler{ body_finished:         false,
+                           chunk_data:            Vec::new(),
+                           chunk_extension_name:  Vec::new(),
+                           chunk_extension_value: Vec::new(),
+                           chunk_length:          0,
+                           header_field:          Vec::new(),
+                           header_value:          Vec::new(),
+                           headers_finished:      false,
+                           method:                Vec::new(),
+                           multipart_data:        Vec::new(),
+                           status:                Vec::new(),
+                           status_code:           0,
+                           url:                   Vec::new(),
+                           url_encoded_field:     Vec::new(),
+                           url_encoded_value:     Vec::new(),
+                           version_major:         0,
+                           version_minor:         0 }
     }
 
     pub fn reset(&mut self) {
+        self.body_finished         = false;
         self.chunk_data            = Vec::new();
         self.chunk_extension_name  = Vec::new();
         self.chunk_extension_value = Vec::new();
@@ -83,6 +86,11 @@ impl DebugHttp1Handler {
 }
 
 impl Http1Handler for DebugHttp1Handler {
+    fn on_body_finished(&mut self) -> bool {
+        println!("on_body_finished");
+        true
+    }
+
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         self.chunk_data.extend_from_slice(data);
 
