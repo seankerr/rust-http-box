@@ -18,5 +18,9 @@
 
 //! Handler implementations.
 
-pub mod debug;
-pub mod url_encoded;
+pub mod http1;
+
+pub use http1::Http1DebugHandler;
+pub use http1::Http1HeadersHandler;
+pub use http1::Http1MultipartHandler;
+pub use http1::Http1UrlEncodedHandler;
