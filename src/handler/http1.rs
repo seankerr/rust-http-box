@@ -22,8 +22,19 @@ use http1::Http1Handler;
 
 use std::str;
 
+pub struct ChunkHttp1Handler {
+}
+
+impl ChunkHttp1Handler {
+}
+
+impl Http1Handler for ChunkHttp1Handler {
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Debug handler is useful for dumping callback details.
-pub struct Http1DebugHandler {
+pub struct DebugHttp1Handler {
     pub body_finished:         bool,
     pub chunk_data:            Vec<u8>,
     pub chunk_extension_name:  Vec<u8>,
@@ -43,9 +54,9 @@ pub struct Http1DebugHandler {
     pub version_minor:         u16
 }
 
-impl Http1DebugHandler {
-    pub fn new() -> Http1DebugHandler {
-        Http1DebugHandler{ body_finished:         false,
+impl DebugHttp1Handler {
+    pub fn new() -> DebugHttp1Handler {
+        DebugHttp1Handler{ body_finished:         false,
                            chunk_data:            Vec::new(),
                            chunk_extension_name:  Vec::new(),
                            chunk_extension_value: Vec::new(),
@@ -85,7 +96,7 @@ impl Http1DebugHandler {
     }
 }
 
-impl Http1Handler for Http1DebugHandler {
+impl Http1Handler for DebugHttp1Handler {
     fn on_body_finished(&mut self) -> bool {
         println!("on_body_finished");
         true
@@ -192,4 +203,13 @@ impl Http1Handler for Http1DebugHandler {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+pub struct MultipartHttp1Handler {
+}
+
+impl MultipartHttp1Handler {
+}
+
+impl Multipart1Handler for MultipartHttp1Handler {
+}
 
