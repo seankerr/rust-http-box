@@ -20,20 +20,22 @@
 //! URL encoded data.
 
 use http1::Http1Handler;
-
-use std::collections::HashMap;
-
-pub struct MapUrlEncodedHandler<'a> {
-    field: Vec<u8>,
-    map:   &'a mut HashMap<Vec<u8>, Vec<u8>>,
-    value: Vec<u8>
-}
 /*
-impl<'a> MapUrlEncodedHandler<'a> {
-    pub fn new(map: &mut HashMap<Vec<u8>, Vec<u8>>) -> MapUrlEncodedHandler<'a> {
-        MapUrlEncodedHandler{ field: Vec::new(),
-                              map:   &mut map,
-                              value: Vec::new() }
+/// Handler for URL encoded data that passes entire field/value pairs to an `FnMut`.
+pub struct FnUrlEncodedHandler<'a, F> where F : FnMut(&'a [u8], &'a [u8]) -> bool {
+    field:    Vec<u8>,
+    function: F,
+    toggle:   bool,
+    value:    Vec<u8>
+}
+
+impl<'a, F> FnUrlEncodedHandler<'a, F> {
+    /// Create a new `FnUrlEncodedHandler`.
+    pub fn new(function: F) -> FnUrlEncodedHandler<'a, F> {
+        FnUrlEncodedHandler{ field:    Vec::new(),
+                             function: function,
+                             toggle:   false,
+                             value:    Vec::new() }
     }
 }
 */

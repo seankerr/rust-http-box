@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Debug handler implementation for all callbacks
+//! Handler implementations suitable for use with [`Parser`](../http1/struct.Parser.html).
 
 use http1::Http1Handler;
 
@@ -190,3 +190,5 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 }
+
+// -------------------------------------------------------------------------------------------------
