@@ -16,35 +16,81 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! [`Http1Handler`](../../http1/trait.Http1Handler.html) implementation for debugging purposes.
-
+//! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for debugging purposes.
 use http1::Http1Handler;
 
 use std::str;
 
 // -------------------------------------------------------------------------------------------------
 
+/// `DebugHttp1Handler` is a suitable handler for the following parser functions:
+///
+/// - [`Parser::parse_chunked()`](../../../http1/struct.Parser.html#method.parse_chunked)
+/// - [`Parser::parse_headers()`](../../../http1/struct.Parser.html#method.parse_headers)
+/// - [`Parser::parse_multipart()`](../../../http1/struct.Parser.html#method.parse_multipart)
+/// - [`Parser::parse_url_encoded()`](../../../http1/struct.Parser.html#method.parse_url_encoded)
+///
+/// If you're debugging large requests or responses, it's a good idea to pass fairly small chunks
+/// of stream data at a time, about *4096* bytes or so. And in between parser function calls, if
+/// you don't need to retain the data, execute
+/// [`DebugHttp1Handler::reset()`](struct.DebugHttp1Handler.html#method.reset) so that vectors
+/// collecting the data don't consume too much memory. This is especially the case with chunk
+/// encoded and multipart data.
 pub struct DebugHttp1Handler {
-    pub body_finished:         bool,
-    pub chunk_data:            Vec<u8>,
+    /// Indicates that the body has successfully been parsed.
+    pub body_finished: bool,
+
+    /// Chunk data.
+    pub chunk_data: Vec<u8>,
+
+    /// Chunk extension name.
     pub chunk_extension_name:  Vec<u8>,
+
+    /// Chunk extension value.
     pub chunk_extension_value: Vec<u8>,
-    pub chunk_length:          u32,
-    pub header_field:          Vec<u8>,
-    pub header_value:          Vec<u8>,
-    pub headers_finished:      bool,
-    pub method:                Vec<u8>,
-    pub multipart_data:        Vec<u8>,
-    pub status:                Vec<u8>,
-    pub status_code:           u16,
-    pub url:                   Vec<u8>,
-    pub url_encoded_field:     Vec<u8>,
-    pub url_encoded_value:     Vec<u8>,
-    pub version_major:         u16,
-    pub version_minor:         u16
+
+    /// Chunk length.
+    pub chunk_length: u32,
+
+    /// Header field.
+    pub header_field: Vec<u8>,
+
+    /// Header value.
+    pub header_value: Vec<u8>,
+
+    /// Indicates that headers have successfully been parsed.
+    pub headers_finished: bool,
+
+    /// Request method.
+    pub method: Vec<u8>,
+
+    /// Multipart data.
+    pub multipart_data: Vec<u8>,
+
+    /// Response status.
+    pub status: Vec<u8>,
+
+    /// Response status code.
+    pub status_code: u16,
+
+    /// Request URL.
+    pub url: Vec<u8>,
+
+    /// URL encoded field.
+    pub url_encoded_field: Vec<u8>,
+
+    /// URL encoded value.
+    pub url_encoded_value: Vec<u8>,
+
+    /// HTTP major version.
+    pub version_major: u16,
+
+    /// HTTP minor version.
+    pub version_minor: u16
 }
 
 impl DebugHttp1Handler {
+    /// Create a new `DebugHttp1Handler`.
     pub fn new() -> DebugHttp1Handler {
         DebugHttp1Handler{ body_finished:         false,
                            chunk_data:            Vec::new(),
@@ -65,6 +111,7 @@ impl DebugHttp1Handler {
                            version_minor:         0 }
     }
 
+    /// Reset the hander back to its original state.
     pub fn reset(&mut self) {
         self.body_finished         = false;
         self.chunk_data            = Vec::new();

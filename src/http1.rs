@@ -747,7 +747,7 @@ pub trait Http1Handler {
     ///
     /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     ///
-    /// If trailers are supplied.
+    /// If trailers are present.
     ///
     /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
     ///

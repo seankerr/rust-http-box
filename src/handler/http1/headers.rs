@@ -16,8 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! [`Http1Handler`](../../http1/trait.Http1Handler.html) implementation for processing the initial
-//! request/response line, and headers.
+//! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing the
+//! initial request/response line, and headers.
 
 use http1::Http1Handler;
 

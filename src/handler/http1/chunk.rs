@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! [`Http1Handler`](../../http1/trait.Http1Handler.html) implementation for processing chunk
+//! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing chunk
 //! encoded data.
 
 use http1::Http1Handler;

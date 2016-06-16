@@ -16,8 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! [`Http1Handler`](../../http1/trait.Http1Handler.html) implementation for processing URL encoded
-//! data.
+//! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing URL
+//! encoded data.
 
 use http1::Http1Handler;
 
