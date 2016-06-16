@@ -30,48 +30,48 @@ use std::{ fmt,
 
 // -------------------------------------------------------------------------------------------------
 
-// All 28 bits mask.
+/// All 28 bits mask.
 const ALL28_MASK: u32 = 0xFFFFFFF;
 
-// All 28 bits shift.
+/// All 28 bits shift.
 const ALL28_SHIFT: u32 = 4;
 
-// State flag mask.
+/// State flag mask.
 const FLAG_MASK: u32 = 0xF;
 
-// State flag shift.
+/// State flag shift.
 const FLAG_SHIFT: u8 = 0;
 
-// Lower 14 bits mask.
+/// Lower 14 bits mask.
 const LOWER14_MASK: u32 = 0x3FFF;
 
-// Lower 14 bits shift.
+/// Lower 14 bits shift.
 const LOWER14_SHIFT: u8 = 4;
 
-// Upper 14 bits mask.
+/// Upper 14 bits mask.
 const UPPER14_MASK: u32 = 0x3FFF;
 
-// Upper 14 bits shift.
+/// Upper 14 bits shift.
 const UPPER14_SHIFT: u8 = 18;
 
 // -------------------------------------------------------------------------------------------------
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
-// Parsing chunk encoded data.
+/// Parsing chunk encoded data.
 const F_CHUNKED: u32 = 1;
 
-// Headers are finished parsing.
+/// Headers are finished parsing.
 const F_HEADERS_FINISHED: u32 = 2;
 
-// Parsing multipart data.
+/// Parsing multipart data.
 const F_MULTIPART: u32 = 4;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
 
-// Retrieve all 28 bits.
+/// Retrieve all 28 bits.
 macro_rules! get_all28 {
     ($parser:expr) => ({
         ($parser.bit_data >> ALL28_SHIFT) & ALL28_MASK
@@ -79,35 +79,35 @@ macro_rules! get_all28 {
 }
 
 
-// Retrieve the lower 14 bits.
+/// Retrieve the lower 14 bits.
 macro_rules! get_lower14 {
     ($parser:expr) => ({
         ($parser.bit_data >> LOWER14_SHIFT) & LOWER14_MASK
     });
 }
 
-// Retrieve the upper 14 bits.
+/// Retrieve the upper 14 bits.
 macro_rules! get_upper14 {
     ($parser:expr) => ({
         ($parser.bit_data >> UPPER14_SHIFT) & UPPER14_MASK
     });
 }
 
-// Indicates that a state flag is set.
+/// Indicates that a state flag is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
         (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag == $flag
     });
 }
 
-// Set a state flag.
+/// Set a state flag.
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
         $parser.bit_data |= ($flag & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
-// Set all 28 bits.
+/// Set all 28 bits.
 macro_rules! set_all28 {
     ($parser:expr, $bits:expr) => ({
         let bits = $bits as u32;
@@ -117,7 +117,7 @@ macro_rules! set_all28 {
     });
 }
 
-// Set the lower 14 bits.
+/// Set the lower 14 bits.
 macro_rules! set_lower14 {
     ($parser:expr, $bits:expr) => ({
         let bits = $bits as u32;
@@ -127,7 +127,7 @@ macro_rules! set_lower14 {
     });
 }
 
-// Set the upper 14 bits.
+/// Set the upper 14 bits.
 macro_rules! set_upper14 {
     ($parser:expr, $bits:expr) => ({
         let bits = $bits as u32;
@@ -137,7 +137,7 @@ macro_rules! set_upper14 {
     });
 }
 
-// Unset a state flag.
+/// Unset a state flag.
 macro_rules! unset_flag {
     ($parser:expr, $flag:expr) => ({
         $parser.bit_data &= !(($flag & FLAG_MASK) << FLAG_SHIFT);
@@ -146,7 +146,7 @@ macro_rules! unset_flag {
 
 // -------------------------------------------------------------------------------------------------
 
-// Parser state function type.
+/// Parser state function type.
 type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
     -> Result<ParserValue, ParserError>;
 
@@ -947,7 +947,7 @@ pub trait Http1Handler {
 
 // -------------------------------------------------------------------------------------------------
 
-// Parser context data.
+/// Parser context data.
 struct ParserContext<'a, T: Http1Handler + 'a> {
     // Current byte.
     byte: u8,
@@ -981,29 +981,29 @@ impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
 
 /// HTTP 1.1 parser.
 pub struct Parser<'a, T: Http1Handler> {
-    // Bit data that stores parser bit details.
-    //
-    // Bits 1-4: Holds the type of HTTP data: request / response / unknown, as well as state flags,
-    //           such as when multipart data is being processed.
-    // Macros:   has_flag!(), set_flag!(), unset_flag!()
-    //
-    // Bits 5-32: Used to store various numbers depending on state. Content length, chunk length,
-    //            HTTP major/minor versions are all stored in here. Depending on macro used, more
-    //            bits are accessible.
-    // Macros:    get_lower14!(), set_lower14!() -- lower 14 bits
-    //            get_upper14!(), set_upper14!() -- upper 14 bits
-    //            get_all28!(), set_all28!()     -- all 28 bits
-    //                                              (when not using lower14/upper14)
+    /// Bit data that stores parser bit details.
+    ///
+    /// Bits 1-4: Holds the type of HTTP data: request / response / unknown, as well as state flags,
+    ///           such as when multipart data is being processed.
+    /// Macros:   has_flag!(), set_flag!(), unset_flag!()
+    ///
+    /// Bits 5-32: Used to store various numbers depending on state. Content length, chunk length,
+    ///            HTTP major/minor versions are all stored in here. Depending on macro used, more
+    ///            bits are accessible.
+    /// Macros:    get_lower14!(), set_lower14!() -- lower 14 bits
+    ///            get_upper14!(), set_upper14!() -- upper 14 bits
+    ///            get_all28!(), set_all28!()     -- all 28 bits
+    ///                                              (when not using lower14/upper14)
     bit_data: u32,
 
-    // Total byte count processed for headers, and body.
-    // Once the headers are finished processing, this is reset to 0 to track the body length.
+    /// Total byte count processed for headers, and body.
+    /// Once the headers are finished processing, this is reset to 0 to track the body length.
     byte_count: usize,
 
-    // Current state.
+    /// Current state.
     state: ParserState,
 
-    // Current state function.
+    /// Current state function.
     state_function: StateFunction<'a, T>
 }
 
@@ -1039,7 +1039,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         self.state
     }
 
-    // Main parser loop.
+    /// Main parser loop.
     #[inline]
     fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
         let mut context = ParserContext::new(handler, stream);

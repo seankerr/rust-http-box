@@ -111,7 +111,7 @@ impl DebugHttp1Handler {
                            version_minor:         0 }
     }
 
-    /// Reset the hander back to its original state.
+    /// Reset the handler back to its original state.
     pub fn reset(&mut self) {
         self.body_finished         = false;
         self.chunk_data            = Vec::new();

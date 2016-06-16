@@ -26,7 +26,7 @@ use std::{ fmt,
 
 // -------------------------------------------------------------------------------------------------
 
-// Exit with Ok status.
+/// Exit with Ok status.
 macro_rules! exit_ok {
     ($context:expr) => ({
         return Ok($context.stream_index);

@@ -20,8 +20,8 @@
 
 use std::fmt;
 
-// Execute callback `$function`. If it returns `true`, execute `$exec`. Otherwise exit with
-// `Success::Callback`.
+/// Execute callback `$function`. If it returns `true`, execute `$exec`. Otherwise exit with
+/// `Success::Callback`.
 macro_rules! callback {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
         if $context.handler.$function($data) {
@@ -46,7 +46,7 @@ macro_rules! callback {
     });
 }
 
-// Reusable callback EOS expression that executes `$function`.
+/// Reusable callback EOS expression that executes `$function`.
 macro_rules! callback_eos_expr {
     ($parser:expr, $context:expr, $function:ident) => ({
         callback!($parser, $context, $function, {
@@ -55,8 +55,8 @@ macro_rules! callback_eos_expr {
     });
 }
 
-// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
-// to `$state`. Otherwise exit with `Success::Callback`.
+/// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
+/// to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
@@ -75,9 +75,9 @@ macro_rules! callback_ignore_transition {
     });
 }
 
-// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
-// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
-// `Success::Callback`.
+/// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
+/// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
+/// `Success::Callback`.
 macro_rules! callback_ignore_transition_fast {
     ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
@@ -96,11 +96,11 @@ macro_rules! callback_ignore_transition_fast {
     });
 }
 
-// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
-// with `Success::Callback`.
-//
-// This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser must exit with `Success::Callback`.
+/// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
+/// with `Success::Callback`.
+///
+/// This macro exists to enforce the design decision that after each callback, state must either
+/// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
      $state_function:ident) => ({
@@ -118,11 +118,11 @@ macro_rules! callback_transition {
     });
 }
 
-// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
-// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
-//
-// This macro exists to enforce the design decision that after each callback, state must either
-// change, or the parser must exit with `Success::Callback`.
+/// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
+/// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
+///
+/// This macro exists to enforce the design decision that after each callback, state must either
+/// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition_fast {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
      $state_function:ident) => ({
@@ -140,7 +140,7 @@ macro_rules! callback_transition_fast {
     });
 }
 
-// Collect header value.
+/// Collect header value.
 macro_rules! collect_header_value {
     ($context:expr, $error:expr, $eos:expr) => ({
         bs_collect!($context, {
@@ -158,28 +158,28 @@ macro_rules! collect_header_value {
     });
 }
 
-// Exit parser with `Success::Callback`.
+/// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });
 }
 
-// Exit parser with `Success::Eos`.
+/// Exit parser with `Success::Eos`.
 macro_rules! exit_eos {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Eos($context.stream_index)));
     });
 }
 
-// Exit parser with `Success::Finished`.
+/// Exit parser with `Success::Finished`.
 macro_rules! exit_finished {
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Finished($context.stream_index)));
     });
 }
 
-// If the stream is EOS, exit with `Success::Eos`. Otherwise do nothing.
+/// If the stream is EOS, exit with `Success::Eos`. Otherwise do nothing.
 macro_rules! exit_if_eos {
     ($parser:expr, $context:expr) => ({
         if bs_is_eos!($context) {
@@ -188,7 +188,7 @@ macro_rules! exit_if_eos {
     });
 }
 
-// Set state and state function.
+/// Set state and state function.
 macro_rules! set_state {
     ($parser:expr, $state:expr, $state_function:ident) => ({
         $parser.state          = $state;
@@ -196,7 +196,7 @@ macro_rules! set_state {
     });
 }
 
-// Transition to `$state`.
+/// Transition to `$state`.
 macro_rules! transition {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
@@ -213,7 +213,7 @@ macro_rules! transition {
     });
 }
 
-// Transition to `$state` quickly by directly calling `$state_function`.
+/// Transition to `$state` quickly by directly calling `$state_function`.
 macro_rules! transition_fast {
     ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
