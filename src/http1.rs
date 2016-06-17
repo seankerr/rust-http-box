@@ -1051,6 +1051,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
+    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_chunk_data()`](trait.Http1Handler.html#method.on_chunk_data)
     /// - [`Http1Handler::on_chunk_extension_name()`](trait.Http1Handler.html#method.on_chunk_extension_name)
     /// - [`Http1Handler::on_chunk_extension_value()`](trait.Http1Handler.html#method.on_chunk_extension_value)
@@ -1201,6 +1202,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// # Callbacks
     ///
     /// - [`Http1Handler::get_boundary()`](trait.Http1Handler.html#method.get_boundary)
+    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
     /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
@@ -1239,6 +1241,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
+    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_url_encoded_field()`](trait.Http1Handler.html#method.on_url_encoded_field)
     /// - [`Http1Handler::on_url_encoded_value()`](trait.Http1Handler.html#method.on_url_encoded_value)
     ///
