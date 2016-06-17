@@ -50,7 +50,7 @@ pub struct DebugHttp1Handler {
     pub chunk_extension_value: Vec<u8>,
 
     /// Chunk length.
-    pub chunk_length: u32,
+    pub chunk_length: usize,
 
     /// Header field.
     pub header_field: Vec<u8>,
@@ -165,7 +165,7 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 
-    fn on_chunk_length(&mut self, length: u32) -> bool {
+    fn on_chunk_length(&mut self, length: usize) -> bool {
         println!("on_chunk_length: {}", length);
         self.chunk_length = length;
         true

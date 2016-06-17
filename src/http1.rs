@@ -30,12 +30,6 @@ use std::{ fmt,
 
 // -------------------------------------------------------------------------------------------------
 
-/// All 28 bits mask.
-const ALL28_MASK: u32 = 0xFFFFFFF;
-
-/// All 28 bits shift.
-const ALL28_SHIFT: u32 = 4;
-
 /// State flag mask.
 const FLAG_MASK: u32 = 0xF;
 
@@ -71,14 +65,6 @@ const F_MULTIPART: u32 = 4;
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
 
-/// Retrieve all 28 bits.
-macro_rules! get_all28 {
-    ($parser:expr) => ({
-        ($parser.bit_data >> ALL28_SHIFT) & ALL28_MASK
-    });
-}
-
-
 /// Retrieve the lower 14 bits.
 macro_rules! get_lower14 {
     ($parser:expr) => ({
@@ -104,16 +90,6 @@ macro_rules! has_flag {
 macro_rules! set_flag {
     ($parser:expr, $flag:expr) => ({
         $parser.bit_data |= ($flag & FLAG_MASK) << FLAG_SHIFT;
-    });
-}
-
-/// Set all 28 bits.
-macro_rules! set_all28 {
-    ($parser:expr, $bits:expr) => ({
-        let bits = $bits as u32;
-
-        $parser.bit_data &= !(ALL28_MASK << ALL28_SHIFT);
-        $parser.bit_data |= bits << ALL28_SHIFT;
     });
 }
 
@@ -730,7 +706,7 @@ pub trait Http1Handler {
     /// **Called From:**
     ///
     /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
-    fn on_chunk_length(&mut self, size: u32) -> bool {
+    fn on_chunk_length(&mut self, size: usize) -> bool {
         true
     }
 
@@ -1097,9 +1073,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
-            set_all28!(self, 0);
             set_flag!(self, F_CHUNKED);
 
+            self.length         = 0;
             self.state          = ParserState::ChunkLength1;
             self.state_function = Parser::chunk_length1;
         }
@@ -1162,27 +1138,27 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::Url`](enum.ParserError.html#variant.Url)
     /// - [`ParserError::Version`](enum.ParserError.html#variant.Version)
     #[inline]
-    pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: u32)
+    pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: usize)
     -> Result<Success, ParserError> {
         if max_length == 0 {
             return self.parse(handler, stream);
         }
 
         if self.state == ParserState::StripDetect {
-            set_all28!(self, max_length);
+            self.length = max_length;
         }
 
-        if (get_all28!(self) as usize) < stream.len() {
+        if self.length < stream.len() {
             // amount of data to process is less than the stream length, so let's cut it
             // off and only process what we need
-            stream = &stream[0..get_all28!(self) as usize];
+            stream = &stream[0..self.length];
         }
 
         match self.parse(handler, stream) {
             Ok(Success::Eos(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
+                self.length -= length;
 
-                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
                     Ok(Success::Eos(length))
                 } else {
                     // maximum headers length has been met
@@ -1190,9 +1166,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                 }
             },
             Ok(Success::Finished(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
+                self.length -= length;
 
-                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
                     Ok(Success::Finished(length))
                 } else {
                     // maximum headers length has been met
@@ -1200,9 +1176,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                 }
             },
             Ok(Success::Callback(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
+                self.length -= length;
 
-                if get_all28!(self) > 0 || has_flag!(self, F_HEADERS_FINISHED) {
+                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
                     Ok(Success::Callback(length))
                 } else {
                     // maximum headers length has been met
@@ -1280,27 +1256,26 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::UrlEncodedField`](enum.ParserError.html#variant.UrlEncodedField)
     /// - [`ParserError::UrlEncodedValue`](enum.ParserError.html#variant.UrlEncodedValue)
     #[inline]
-    pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: u32)
+    pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: usize)
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
+            self.length         = length;
             self.state          = ParserState::UrlEncodedField;
             self.state_function = Parser::url_encoded_field;
-
-            set_all28!(self, length);
         } else if self.state == ParserState::Finished {
             // already finished
             return Ok(Success::Finished(0));
         }
 
-        if (get_all28!(self) as usize) < stream.len() {
+        if self.length < stream.len() {
             // amount of data to process is less than the stream length, so let's trim
             // the stream to match the proper length (we won't process the rest anyways)
-            stream = &stream[0..get_all28!(self) as usize];
+            stream = &stream[0..self.length];
         }
 
         match self.parse(handler, stream) {
             Ok(Success::Eos(length)) => {
-                if get_all28!(self) as usize - length == 0 {
+                if self.length - length == 0 {
                     self.state          = ParserState::Finished;
                     self.state_function = Parser::finished;
 
@@ -1310,13 +1285,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                         Ok(Success::Callback(stream.len()))
                     }
                 } else {
-                    set_all28!(self, get_all28!(self) as usize - length);
+                    self.length -= length;
 
                     Ok(Success::Eos(length))
                 }
             },
             Ok(Success::Callback(length)) => {
-                set_all28!(self, get_all28!(self) as usize - length);
+                self.length -= length;
 
                 Ok(Success::Callback(length))
             },
@@ -1452,7 +1427,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'/' {
-            set_all28!(self, 0);
+            set_lower14!(self, 0);
+            set_upper14!(self, 0);
 
             transition_fast!(self, context, ParserState::ResponseVersionMajor, response_version_major);
         }
@@ -1954,7 +1930,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'/' {
-            set_all28!(self, 0);
+            set_lower14!(self, 0);
+            set_upper14!(self, 0);
 
             transition_fast!(self, context, ParserState::RequestVersionMajor, request_version_major);
         }
@@ -2144,13 +2121,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         match hex_to_byte(&[context.byte]) {
             Some(byte) => {
-                if (get_all28!(self) << 4) + byte as u32 > 0xFFFFFFF {
+                if (self.length << 4) + byte as usize > 0xFFFFFFF {
                     // beyond maximum chunk length (28 bits)
                     return Err(ParserError::MaxChunkLength);
                 }
 
-                set_all28!(self, get_all28!(self) << 4);
-                set_all28!(self, get_all28!(self) + byte as u32);
+                self.length <<= 4;
+                self.length  += byte as usize;
 
                 transition!(self, context, ParserState::ChunkLength2, chunk_length2);
             },
@@ -2169,18 +2146,18 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            if get_all28!(self) == 0 {
+            if self.length == 0 {
                 callback_transition_fast!(self, context,
-                                          on_chunk_length, get_all28!(self),
+                                          on_chunk_length, self.length,
                                           ParserState::Newline2, newline2);
             }
 
             callback_transition_fast!(self, context,
-                                      on_chunk_length, get_all28!(self),
+                                      on_chunk_length, self.length,
                                       ParserState::ChunkLengthNewline, chunk_length_newline);
         } else if context.byte == b';' {
             callback_transition_fast!(self, context,
-                                      on_chunk_length, get_all28!(self),
+                                      on_chunk_length, self.length,
                                       ParserState::ChunkExtensionName, chunk_extension_name);
         }
 
@@ -2302,17 +2279,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        if bs_available!(context) >= get_all28!(self) as usize {
-            bs_collect_length!(context, get_all28!(self) as usize);
+        if bs_available!(context) >= self.length {
+            bs_collect_length!(context, self.length);
 
-            set_all28!(self, 0);
+            self.length = 0;
 
             callback_transition!(self, context,
                                  on_chunk_data,
                                  ParserState::ChunkDataNewline1, chunk_data_newline1);
         }
 
-        set_all28!(self, get_all28!(self) - bs_available!(context) as u32);
+        self.length -= bs_available!(context);
 
         bs_collect_length!(context, bs_available!(context));
 

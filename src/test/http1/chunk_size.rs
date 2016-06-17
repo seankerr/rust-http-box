@@ -56,7 +56,7 @@ fn callback_exit() {
     struct X;
 
     impl Http1Handler for X {
-        fn on_chunk_length(&mut self, _length: u32) -> bool {
+        fn on_chunk_length(&mut self, _length: usize) -> bool {
             false
         }
     }
