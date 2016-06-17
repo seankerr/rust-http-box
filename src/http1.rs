@@ -1038,9 +1038,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Parse chunked transfer encoded data.
     ///
-    /// **Note:** The maximum parsable chunk length is 28-bit or *268,435,455*. This is because its
-    /// storage is shared with 4 bits of flags.
-    ///
     /// # Arguments
     ///
     /// **`handler`**
@@ -1102,9 +1099,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// [`ParserError::MaxHeadersLength`](enum.ParserError.html#variant.MaxHeadersLength).
     ///
     /// Set this to `0` to disable it.
-    ///
-    /// Although the type is `u32`, its maximum value is *268,435,455*, because its storage is
-    /// shared with 4 bits of parser flags.
     ///
     /// # Callbacks
     ///
@@ -1242,9 +1236,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// The stream of data to be parsed.
     ///
     /// **`length`**
-    ///
-    /// The length of entire chunk of URL encoded data. Although the type is `u32`, its maximum
-    /// value is *268,435,455*, because its storage is shared with 4 bits of parser flags.
     ///
     /// # Callbacks
     ///
@@ -2122,7 +2113,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         match hex_to_byte(&[context.byte]) {
             Some(byte) => {
                 if (self.length << 4) + byte as usize > 0xFFFFFFF {
-                    // beyond maximum chunk length (28 bits)
+                    // limit chunk length to 28 bits
                     return Err(ParserError::MaxChunkLength);
                 }
 
