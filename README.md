@@ -22,7 +22,6 @@ The current phase is fleshing out the handling of multipart data. Do not use
 
 ## Features
 
-- No unsafe{} code
 - Understands persistent requests
 - Easily upgradable from HTTP/1.1 parsing to HTTP/2.0 in the same stream
 - Header field normalization to lower-case
