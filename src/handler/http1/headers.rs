@@ -36,10 +36,15 @@ use std::collections::HashMap;
 /// let mut h = HeadersHttp1Handler::new();
 /// let mut p = Parser::new();
 ///
-/// p.parse_headers(&mut h, b"GET / HTTP/1.1\r\nHeader: value\r\n\r\n", 1000);
+/// p.parse_headers(&mut h,
+///                 b"GET / HTTP/1.1\r\n\
+///                   Header1: value1\r\n\
+///                   Header2: value2\r\n\
+///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
-/// assert_eq!("value", h.get_headers().get("header").unwrap());
+/// assert_eq!("value1", h.get_headers().get("header1").unwrap());
+/// assert_eq!("value2", h.get_headers().get("header2").unwrap());
 ///
 /// // request details
 /// assert_eq!("GET", h.get_method());
@@ -57,16 +62,21 @@ use std::collections::HashMap;
 /// let mut h = HeadersHttp1Handler::new();
 /// let mut p = Parser::new();
 ///
-/// p.parse_headers(&mut h, b"HTTP/1.1 200 OK\r\nHeader: value\r\n\r\n", 1000);
+/// p.parse_headers(&mut h,
+///                 b"HTTP/1.1 200 OK\r\n\
+///                   Header1: value1\r\n\
+///                   Header2: value2\r\n\
+///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
-/// //assert_eq!("value", h.get_headers().get("header").unwrap());
+/// assert_eq!("value1", h.get_headers().get("header1").unwrap());
+/// assert_eq!("value2", h.get_headers().get("header2").unwrap());
 ///
 /// // response details
-/// //assert_eq!(1, h.get_version_major());
-/// //assert_eq!(1, h.get_version_minor());
-/// //assert_eq!(200, h.get_status_code());
-/// //assert_eq!("OK", h.get_status());
+/// assert_eq!(1, h.get_version_major());
+/// assert_eq!(1, h.get_version_minor());
+/// assert_eq!(200, h.get_status_code());
+/// assert_eq!("OK", h.get_status());
 /// ```
 pub struct HeadersHttp1Handler {
     /// Header field buffer.
