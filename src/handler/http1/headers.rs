@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 /// `HeadersHttp1Handler` is a suitable handler for the following parser functions:
 ///
-/// - [`Parser::parse_headers()`](../../../http1/struct.Parser.html#method.parse_headers)
+/// - [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
 ///
 /// # Request Example
 ///
