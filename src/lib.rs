@@ -40,6 +40,9 @@ pub mod query;
 #[cfg(test)]
 mod test;
 
+pub use fsm::Success;
+pub use handler::*;
+
 /// Crate major version.
 pub const VERSION_MAJOR: &'static str = env!("CARGO_PKG_VERSION_MAJOR");
 
