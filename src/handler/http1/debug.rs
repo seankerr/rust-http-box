@@ -231,14 +231,9 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 
-    fn on_version_major(&mut self, major: u8) -> bool {
-        println!("on_version_major: {}", major);
+    fn on_version(&mut self, major: u16, minor: u16) -> bool {
+        println!("on_version: {}.{}", major, minor);
         self.version_major = major;
-        true
-    }
-
-    fn on_version_minor(&mut self, minor: u8) -> bool {
-        println!("on_version_minor: {}", minor);
         self.version_minor = minor;
         true
     }

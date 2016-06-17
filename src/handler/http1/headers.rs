@@ -251,12 +251,8 @@ impl Http1Handler for HeadersHttp1Handler {
         true
     }
 
-    fn on_version_major(&mut self, major: u8) -> bool {
+    fn on_version(&mut self, major: u16, minor: u16) -> bool {
         self.version_major = major;
-        true
-    }
-
-    fn on_version_minor(&mut self, minor: u8) -> bool {
         self.version_minor = minor;
         true
     }

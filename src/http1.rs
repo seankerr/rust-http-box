@@ -981,24 +981,15 @@ impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
 
 /// HTTP 1.1 parser.
 pub struct Parser<'a, T: Http1Handler> {
-    /// Bit data that stores parser bit details.
-    ///
-    /// Bits 1-4: Holds the type of HTTP data: request / response / unknown, as well as state flags,
-    ///           such as when multipart data is being processed.
-    /// Macros:   has_flag!(), set_flag!(), unset_flag!()
-    ///
-    /// Bits 5-32: Used to store various numbers depending on state. Content length, chunk length,
-    ///            HTTP major/minor versions are all stored in here. Depending on macro used, more
-    ///            bits are accessible.
-    /// Macros:    get_lower14!(), set_lower14!() -- lower 14 bits
-    ///            get_upper14!(), set_upper14!() -- upper 14 bits
-    ///            get_all28!(), set_all28!()     -- all 28 bits
-    ///                                              (when not using lower14/upper14)
+    /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
     /// Total byte count processed for headers, and body.
     /// Once the headers are finished processing, this is reset to 0 to track the body length.
     byte_count: usize,
+
+    /// Length storage for max headers length and chunk length.
+    length: usize,
 
     /// Current state.
     state: ParserState,
@@ -1015,6 +1006,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn new() -> Parser<'a, T> {
         Parser{ bit_data:       0,
                 byte_count:     0,
+                length:         0,
                 state:          ParserState::StripDetect,
                 state_function: Parser::strip_detect }
     }
@@ -1338,6 +1330,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn reset(&mut self) {
         self.bit_data       = 0;
         self.byte_count     = 0;
+        self.length         = 0;
         self.state          = ParserState::Detect1;
         self.state_function = Parser::detect1;
     }
