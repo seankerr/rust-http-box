@@ -80,15 +80,12 @@ use std::collections::HashMap;
 /// ```
 pub struct HeadersHttp1Handler {
     /// Header field buffer.
-    header_field: String,
+    field_buffer: String,
 
-    /// Header field/value toggle.
-    header_toggle: bool,
+    /// Indicates that headers are finished parsing.
+    finished: bool,
 
-    /// Header value buffer.
-    header_value: String,
-
-    /// Map of all headers.
+    /// Headers.
     headers: HashMap<String,String>,
 
     /// Request method.
@@ -100,8 +97,14 @@ pub struct HeadersHttp1Handler {
     /// Response status code.
     status_code: u16,
 
+    /// Header field/value toggle.
+    toggle: bool,
+
     /// Request URL.
     url: String,
+
+    /// Header value buffer.
+    value_buffer: String,
 
     /// HTTP major version.
     version_major: u16,
@@ -114,14 +117,15 @@ impl HeadersHttp1Handler {
     /// Create a new `HeadersHttp1Handler`.
     pub fn new() -> HeadersHttp1Handler {
         HeadersHttp1Handler {
-            header_field:  String::new(),
-            header_toggle: false,
-            header_value:  String::new(),
+            field_buffer:  String::new(),
+            finished:      false,
             headers:       HashMap::new(),
             method:        String::new(),
             status:        String::new(),
             status_code:   0,
+            toggle:        false,
             url:           String::new(),
+            value_buffer:  String::new(),
             version_major: 0,
             version_minor: 0
         }
@@ -129,12 +133,12 @@ impl HeadersHttp1Handler {
 
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
-        if self.header_field.len() > 0 {
-            self.headers.insert(self.header_field.clone(), self.header_value.clone());
+        if self.field_buffer.len() > 0 {
+            self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
         }
 
-        self.header_field.clear();
-        self.header_value.clear();
+        self.field_buffer.clear();
+        self.value_buffer.clear();
     }
 
     /// Retrieve the headers.
@@ -172,6 +176,11 @@ impl HeadersHttp1Handler {
         self.version_minor
     }
 
+    /// Indicates that the headers are finished parsing.
+    pub fn is_finished(&self) -> bool {
+        self.finished
+    }
+
     /// Indicates that the parsed data is an HTTP request.
     pub fn is_request(&self) -> bool {
         self.method.len() > 0
@@ -179,30 +188,31 @@ impl HeadersHttp1Handler {
 
     /// Reset the handler back to its original state.
     pub fn reset(&mut self) {
-        self.header_toggle = false;
+        self.finished      = false;
         self.status_code   = 0;
+        self.toggle        = true;
         self.version_major = 0;
         self.version_minor = 0;
 
-        self.header_field.clear();
-        self.header_value.clear();
+        self.field_buffer.clear();
         self.headers.clear();
         self.method.clear();
         self.status.clear();
         self.url.clear();
+        self.value_buffer.clear();
     }
 }
 
 impl Http1Handler for HeadersHttp1Handler {
     fn on_header_field(&mut self, field: &[u8]) -> bool {
-        if self.header_toggle {
+        if self.toggle {
             self.flush();
 
-            self.header_toggle = false;
+            self.toggle = false;
         }
 
         unsafe {
-            self.header_field
+            self.field_buffer
                 .as_mut_vec()
                 .extend_from_slice(field);
         }
@@ -212,17 +222,19 @@ impl Http1Handler for HeadersHttp1Handler {
 
     fn on_header_value(&mut self, value: &[u8]) -> bool {
         unsafe {
-            self.header_value
+            self.value_buffer
                 .as_mut_vec()
                 .extend_from_slice(value);
         }
 
-        self.header_toggle = true;
+        self.toggle = true;
         true
     }
 
     fn on_headers_finished(&mut self) -> bool {
         self.flush();
+
+        self.finished = true;
         true
     }
 
