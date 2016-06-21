@@ -32,33 +32,41 @@ use std::collections::HashMap;
 /// ```
 /// use http_box::ChunkHttp1Handler;
 /// use http_box::http1::Parser;
+/// use std::str;
 ///
-/// let mut h = ChunkHttp1Handler::new(|h,d| {
-///     assert_eq!(false, h.is_finished());
-///     assert_eq!(0, h.get_index());
-///     assert_eq!(4, h.get_length());
-///     assert_eq!(b"data", d);
-///     assert_eq!("value", h.get_extensions().get("extension").unwrap());
-///     true
-/// });
+/// let mut chunk_data = vec![];
 ///
-/// let mut p = Parser::new();
+/// {
+///     let mut h = ChunkHttp1Handler::new(|h,d| {
+///         assert_eq!(false, h.is_finished());
+///         assert_eq!(0, h.get_index());
+///         assert_eq!(4, h.get_length());
+///         assert_eq!(b"data", d);
+///         assert_eq!("value", h.get_extensions().get("extension").unwrap());
+///         chunk_data.extend_from_slice(d);
+///         true
+///     });
 ///
-/// p.parse_chunked(&mut h,
-///                 b"4;extension=value\r\n\
-///                   data\r\n\
-///                   0\r\n\
-///                   Trailer: value\r\n\
-///                   \r\n");
+///     let mut p = Parser::new();
 ///
-/// assert!(h.is_finished());
-/// assert_eq!(1, h.get_index());
-/// assert_eq!(0, h.get_length());
-/// assert_eq!("value", h.get_trailers().get("trailer").unwrap());
+///     p.parse_chunked(&mut h,
+///                     b"4;extension=value\r\n\
+///                       data\r\n\
+///                       0\r\n\
+///                       Trailer: value\r\n\
+///                       \r\n");
+///
+///     assert!(h.is_finished());
+///     assert_eq!(1, h.get_index());
+///     assert_eq!(0, h.get_length());
+///     assert_eq!("value", h.get_trailers().get("trailer").unwrap());
+/// }
+///
+/// assert_eq!(vec![b'd', b'a', b't', b'a'], chunk_data);
 /// ```
-pub struct ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bool {
+pub struct ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
     /// Data callback.
-    data_callback: F,
+    data_callback: Option<F>,
 
     /// Map of extensions for the current chunk.
     extensions: HashMap<String,String>,
@@ -85,7 +93,7 @@ pub struct ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bo
     value_buffer: String
 }
 
-impl<F> ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bool {
+impl<F> ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
     /// Create a new `ChunkHttp1Handler`.
     ///
     /// # Arguments
@@ -95,7 +103,7 @@ impl<F> ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bool 
     /// The callback to execute for each chunk of data.
     pub fn new(callback: F) -> ChunkHttp1Handler<F> {
         ChunkHttp1Handler{
-            data_callback: callback,
+            data_callback: Some(callback),
             extensions:    HashMap::new(),
             field_buffer:  String::new(),
             finished:      false,
@@ -166,18 +174,28 @@ impl<F> ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bool 
     }
 }
 
-impl<F> Http1Handler for ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>, &[u8]) -> bool {
+impl<F> Http1Handler for ChunkHttp1Handler<F>
+where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
     fn on_body_finished(&mut self) -> bool {
         self.finished = true;
         true
     }
 
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        if self.field_buffer.len() > 0 {
-            self.flush_extension();
+        match self.data_callback.take() {
+            Some(mut callback) => {
+                match callback(self, data) {
+                    value => {
+                        self.data_callback = Some(callback);
+                        value
+                    }
+                }
+            },
+            None => {
+                // this should not happen
+                panic!();
+            }
         }
-
-        (self.data_callback)(self, data)
     }
 
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
@@ -204,6 +222,14 @@ impl<F> Http1Handler for ChunkHttp1Handler<F> where F : Fn(&ChunkHttp1Handler<F>
         }
 
         self.toggle = true;
+        true
+    }
+
+    fn on_chunk_extensions_finished(&mut self) -> bool {
+        if self.field_buffer.len() > 0 {
+            self.flush_extension();
+        }
+
         true
     }
 

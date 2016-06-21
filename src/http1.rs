@@ -55,11 +55,14 @@ const UPPER14_SHIFT: u8 = 18;
 /// Parsing chunk encoded data.
 const F_CHUNKED: u32 = 1;
 
+/// Parsing chunk encoded extensions.
+const F_CHUNK_EXTENSIONS: u32 = 2;
+
 /// Headers are finished parsing.
-const F_HEADERS_FINISHED: u32 = 2;
+const F_HEADERS_FINISHED: u32 = 4;
 
 /// Parsing multipart data.
-const F_MULTIPART: u32 = 4;
+const F_MULTIPART: u32 = 8;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -693,6 +696,20 @@ pub trait Http1Handler {
     ///
     /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when chunk extension parsing has completed successfully.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    fn on_chunk_extensions_finished(&mut self) -> bool {
         true
     }
 
@@ -2150,6 +2167,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                       on_chunk_length, self.length,
                                       ParserState::ChunkLengthNewline, chunk_length_newline);
         } else if context.byte == b';' {
+            set_flag!(self, F_CHUNK_EXTENSIONS);
+
             callback_transition_fast!(self, context,
                                       on_chunk_length, self.length,
                                       ParserState::ChunkExtensionName, chunk_extension_name);
@@ -2262,7 +2281,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            transition!(self, context, ParserState::ChunkData, chunk_data);
+            set_state!(self, ParserState::ChunkData, chunk_data);
+
+            if has_flag!(self, F_CHUNK_EXTENSIONS) {
+                if context.handler.on_chunk_extensions_finished() {
+                    transition!(self, context);
+                } else {
+                    exit_callback!(self, context);
+                }
+            } else {
+                transition!(self, context);
+            }
         }
 
         Err(ParserError::CrlfSequence(context.byte))
