@@ -63,7 +63,7 @@ fn basic() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-value;", ParserState::ChunkExtensionName, 12);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value;", ParserState::ChunkExtensionName1, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 

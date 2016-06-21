@@ -23,7 +23,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        chunked_setup(&mut $parser, &mut $handler, b"F;", ParserState::ChunkExtensionName);
+        chunked_setup(&mut $parser, &mut $handler, b"F;", ParserState::ChunkExtensionName1);
     });
 }
 
@@ -51,7 +51,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionName, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionName2, 1);
     });
 }
 
@@ -70,7 +70,22 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=", ParserState::ChunkExtensionValue, 15);
+    // because chunk extension name is processed by 2 states, the callback exit will first
+    // happen on the first byte
+    chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=",
+                            ParserState::ChunkExtensionName2, 1);
+}
+
+#[test]
+fn no_value() {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    setup!(p, h);
+
+    chunked_assert_eos(&mut p, &mut h, b"valid-extension;", ParserState::ChunkExtensionName1, 16);
+    assert_eq!(h.chunk_extension_name, b"valid-extension");
+    assert_eq!(h.chunk_extension_value, b"");
 }
 
 #[test]
