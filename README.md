@@ -7,7 +7,7 @@
 rust-http-box is a fast push/callback oriented HTTP/1.1 (HTTP/2.0 coming soon) parser that works
 only with slices of data, and never copies parsed data. Because of this, it is
 possible to parse HTTP data one byte at a time. Parsing can be interrupted during any callback,
-and at the end of each parsed chunk.
+and at the end of each parsed slice.
 
 This is purely an HTTP parsing library and is not tied to any networking framework. Use it to parse
 stored HTTP request logs, test data, or to write a server and/or client.
@@ -18,7 +18,7 @@ triggered the error when it occurred.
 ## Progress
 
 The current phase is fleshing out the handling of multipart data. Do not use
-`Parser::parse_multipart()` just yet. :)
+`Parser::parse_multipart()` just yet.
 
 ## Features
 
@@ -44,20 +44,22 @@ The current phase is fleshing out the handling of multipart data. Do not use
   - Status code
   - Version
 - Headers (quoted and multi-line values are supported):
-  - Field
-  - Value
+  - Fields
+  - Values
 - Chunk encoded:
   - Size
-  - Extension name
-  - Extension value
+  - Extension names
+  - Extension values
+  - Trailer fields
+  - Trailer values
   - Raw data
 - Multipart (in the works)
   - Header fields
   - Header values
   - File support
 - URL encoded:
-  - Field
-  - Value
+  - Fields
+  - Values
 
 ## Performance
 
