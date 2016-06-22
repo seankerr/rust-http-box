@@ -17,7 +17,8 @@ triggered the error when it occurred.
 
 ## Progress
 
-There are two portions of the codebase being adjusted as of 2016-06-21:
+I'm in the stage of refactoring filenames, types, and overall locations of everything in the API.
+Aside from this, the current changes are also in progress:
 
 - HeadersHttp1Handler cookie support
 - MultipartHttp1Handler (the entire thing)
