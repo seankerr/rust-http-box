@@ -46,6 +46,7 @@ There are two portions of the codebase being adjusted as of 2016-06-21:
   - Status code
   - Version
 - Headers (quoted and multi-line values are supported):
+  - Cookies (in the works)
   - Fields
   - Values
 - Chunk encoded:
