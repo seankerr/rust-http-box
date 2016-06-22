@@ -17,8 +17,10 @@ triggered the error when it occurred.
 
 ## Progress
 
-The current phase is fleshing out the handling of multipart data. Do not use
-`Parser::parse_multipart()` just yet.
+There are two portions of the codebase being adjusted as of 2016-06-21:
+
+- HeadersHttp1Handler cookie support
+- MultipartHttp1Handler (the entire thing)
 
 ## Features
 
