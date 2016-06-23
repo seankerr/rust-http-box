@@ -33,19 +33,37 @@ macro_rules! collect_digits32 {
     });
 }
 
-/// Collect all bytes that are allowed within a quoted value.
+/// Collect an unquoted field value.
+macro_rules! collect_field {
+    ($context:expr, $error:expr, $delimiter:expr, $eos:expr) => ({
+        bs_collect!($context, {
+                if $context.byte == $delimiter {
+                    break;
+                } else if $context.byte > 0x1F && $context.byte < 0x7F {
+                    // space + visible
+                    continue;
+                }
+
+                return Err($error($context.byte));
+            },
+            $eos
+        );
+    });
+}
+
+/// Collect a quoted field value.
 ///
 /// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
 /// non-visible 7-bit byte that also isn't a space.
-macro_rules! collect_quoted_value {
-    ($parser:expr, $context:expr, $error:expr, $function:ident) => ({
+macro_rules! collect_quoted_field {
+    ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if b'"' == $context.byte || b'\\' == $context.byte {
                 break;
             } else if is_not_visible_7bit!($context.byte) && $context.byte != b' ' {
                 return Err($error($context.byte));
             },
-            callback_eos_expr!($parser, $context, $function)
+            $on_eos
         );
     });
 }
@@ -104,20 +122,48 @@ macro_rules! collect_visible {
 ///
 /// Exit the collection loop when a non-linear white space byte is found.
 macro_rules! consume_linear_space {
-    ($parser:expr, $context:expr) => ({
+    ($context:expr, $on_eos:expr) => ({
         if bs_is_eos!($context) {
-            exit_eos!($parser, $context);
+            $on_eos
         }
 
         if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
             loop {
                 if bs_is_eos!($context) {
-                    exit_eos!($parser, $context);
+                    $on_eos
                 }
 
                 bs_next!($context);
 
                 if $context.byte == b' ' || $context.byte == b'\t' {
+                } else {
+                    bs_replay!($context);
+
+                    break;
+                }
+            }
+        }
+    });
+}
+
+/// Consume all space bytes.
+///
+/// Exit the collection loop when a non-space byte is found.
+macro_rules! consume_spaces {
+    ($context:expr, $on_eos:expr) => ({
+        if bs_is_eos!($context) {
+            $on_eos
+        }
+
+        if bs_starts_with1!($context, b" ") {
+            loop {
+                if bs_is_eos!($context) {
+                    $on_eos
+                }
+
+                bs_next!($context);
+
+                if $context.byte == b' ' {
                 } else {
                     bs_replay!($context);
 

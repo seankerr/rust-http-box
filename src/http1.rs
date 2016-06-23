@@ -1334,7 +1334,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_detect(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
 
         transition_fast!(self, context, ParserState::Detect1, detect1);
     }
@@ -1494,7 +1497,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_header_field(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
 
         transition_fast!(self, context, ParserState::FirstHeaderField, first_header_field);
     }
@@ -1641,7 +1647,11 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
+
         bs_next!(context);
 
         if context.byte == b'"' {
@@ -1656,7 +1666,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_header_value!(context, ParserError::HeaderValue,
+        collect_field!(context, ParserError::HeaderValue, b'\r',
             callback_eos_expr!(self, context, on_header_value)
         );
 
@@ -1668,7 +1678,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_quoted_value!(self, context, ParserError::HeaderValue, on_header_value);
+        collect_quoted_field!(context, ParserError::HeaderValue,
+            // on end-of-stream
+            {
+                callback_eos_expr!(self, context, on_header_value);
+            }
+        );
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
@@ -1832,7 +1847,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_request_url(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
 
         transition_fast!(self, context, ParserState::RequestUrl, request_url);
     }
@@ -1858,7 +1876,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_request_http(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
 
         transition_fast!(self, context, ParserState::RequestHttp1, request_http1);
     }
@@ -2043,7 +2064,11 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
+
         bs_next!(context);
 
         if !is_digit!(context.byte) {
@@ -2080,7 +2105,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_response_status(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(self, context);
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
 
         transition_fast!(self, context, ParserState::ResponseStatus, response_status);
     }
@@ -2284,8 +2312,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_quoted_value!(self, context, ParserError::ChunkExtensionValue,
-                              on_chunk_extension_value);
+        collect_quoted_field!(context, ParserError::ChunkExtensionValue,
+            // on end-of-stream
+            {
+                callback_eos_expr!(self, context, on_chunk_extension_value);
+            }
+        );
 
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,

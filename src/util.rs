@@ -18,13 +18,23 @@
 
 //! Query handling functions.
 
-use byte::hex_to_byte;
+use byte::{ hex_to_byte,
+            is_token };
 use byte_slice::ByteStream;
 
 use std::{ fmt,
            str };
 
 // -------------------------------------------------------------------------------------------------
+
+/// If the stream is EOS, exit with Ok status. Otherwise do nothing.
+macro_rules! exit_if_eos {
+    ($context:expr) => ({
+        if bs_is_eos!($context) {
+            exit_ok!($context);
+        }
+    });
+}
 
 /// Exit with Ok status.
 macro_rules! exit_ok {
@@ -65,6 +75,84 @@ impl fmt::Display for DecodeError {
             },
             DecodeError::HexSequence(x) => {
                 write!(formatter, "Invalid hex sequence at {}", x)
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Field errors.
+pub enum FieldError {
+    /// Invalid field name.
+    Name(u8),
+
+    /// Invalid field value.
+    Value(u8)
+}
+
+impl fmt::Debug for FieldError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FieldError::Name(x) => {
+                write!(formatter, "FieldError::Name(Invalid field name at {})", x)
+            },
+            FieldError::Value(x) => {
+                write!(formatter, "FieldError::Value(Invalid field value at {})", x)
+            }
+        }
+    }
+}
+
+impl fmt::Display for FieldError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FieldError::Name(x) => {
+                write!(formatter, "Invalid field name at {}", x)
+            },
+            FieldError::Value(x) => {
+                write!(formatter, "Invalid field value at {}", x)
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Field segments.
+pub enum FieldSegment<'a> {
+    /// Name without a value.
+    Name(&'a [u8]),
+
+    /// Name and value pair.
+    NameValue(&'a [u8], &'a [u8])
+}
+
+impl<'a> fmt::Debug for FieldSegment<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FieldSegment::Name(x) => {
+                write!(formatter, "FieldSegment::Name({})", str::from_utf8(x).unwrap())
+            },
+            FieldSegment::NameValue(x,y) => {
+                write!(formatter, "FieldSegment::NameValue({}, \"{}\")",
+                       str::from_utf8(x).unwrap(),
+                       str::from_utf8(y).unwrap())
+            }
+        }
+    }
+}
+
+impl<'a> fmt::Display for FieldSegment<'a> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FieldSegment::Name(x) => {
+                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            },
+            FieldSegment::NameValue(x,y) => {
+                write!(formatter, "{}=\"{}\"",
+                       str::from_utf8(x).unwrap(),
+                       str::from_utf8(y).unwrap())
             }
         }
     }
@@ -155,8 +243,8 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Decode a URL encoded stream of bytes.
-pub fn decode<F>(bytes: &[u8], mut append_fn: F) -> Result<usize, DecodeError>
+/// Decode a URL encoded slice of bytes.
+pub fn decode<F>(bytes: &[u8], mut slice_fn: F) -> Result<usize, DecodeError>
 where F : FnMut(&[u8]) {
     let mut context = ByteStream::new(bytes);
 
@@ -171,7 +259,7 @@ where F : FnMut(&[u8]) {
             // on end-of-stream
             {
                 if context.mark_index < context.stream_index {
-                    append_fn(bs_slice!(context));
+                    slice_fn(bs_slice!(context));
                 }
 
                 exit_ok!(context);
@@ -179,16 +267,16 @@ where F : FnMut(&[u8]) {
         );
 
         if bs_slice_length!(context) > 1 {
-            append_fn(bs_slice_ignore!(context));
+            slice_fn(bs_slice_ignore!(context));
         }
 
         if context.byte == b'+' {
-            append_fn(b" ");
+            slice_fn(b" ");
         } else if bs_has_bytes!(context, 2) {
             if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
                 bs_jump!(context, 2);
 
-                append_fn(&[byte]);
+                slice_fn(&[byte]);
             } else {
                 return Err(DecodeError::HexSequence(context.byte));
             }
@@ -196,6 +284,153 @@ where F : FnMut(&[u8]) {
             return Err(DecodeError::HexSequence(context.byte));
         }
     }
+}
+
+/// Parse a field.
+///
+/// # Example
+///
+/// ```
+/// use http_box::util::{ FieldSegment,
+///                       parse_field };
+///
+/// parse_field(b"name-no-value; name1=value1; name2=\"value2\"; name3=value3",
+///     |s| {
+///         match s {
+///             FieldSegment::Name(name) => {
+///                 // name without a value
+///             },
+///             FieldSegment::NameValue(name,value) => {
+///                 // name/value pair
+///             }
+///         }
+///     }
+/// );
+/// ```
+pub fn parse_field<F>(field: &[u8], mut segment_fn: F) -> Result<usize, FieldError>
+where F : FnMut(FieldSegment) {
+    let mut context = ByteStream::new(field);
+    let mut name    = field;
+    let mut value   = Vec::new();
+
+    loop {
+        // parsing name
+        consume_spaces!(context,
+            // on end-of-stream
+            {
+                exit_ok!(context);
+            }
+        );
+
+        bs_mark!(context);
+
+        collect_tokens!(context, FieldError::Name,
+            // stop on these bytes
+               context.byte == b'='
+            || context.byte == b';',
+
+            // on end-of-stream
+            {
+                // name without a value
+                if bs_slice_length!(context) > 0 {
+                    segment_fn(FieldSegment::Name(bs_slice!(context)));
+                }
+
+                exit_ok!(context);
+            }
+        );
+
+        name = bs_slice_ignore!(context);
+
+        if context.byte == b'=' {
+            // parsing value
+            exit_if_eos!(context);
+            bs_next!(context);
+
+            if context.byte == b'"' {
+                // quoted value
+                loop {
+                    bs_mark!(context);
+
+                    collect_quoted_field!(context, FieldError::Value,
+                        // on end-of-stream
+                        {
+                            // didn't find an ending quote
+                            return Err(FieldError::Value(context.byte));
+                        }
+                    );
+
+                    if context.byte == b'"' {
+                        // found end quote
+                        value.extend_from_slice(bs_slice_ignore!(context));
+
+                        segment_fn(FieldSegment::NameValue(name, &value[..]));
+
+                        value.clear();
+
+                        consume_spaces!(context,
+                            // on end-of-stream
+                            {
+                                exit_ok!(context);
+                            }
+                        );
+
+                        exit_if_eos!(context);
+                        bs_next!(context);
+
+                        if context.byte == b';' {
+                            break;
+                        }
+
+                        // expected a semicolon to end the value
+                        return Err(FieldError::Value(context.byte));
+                    } else {
+                        // found backslash
+                        if bs_is_eos!(context) {
+                            // didn't find end quote
+                            return Err(FieldError::Value(context.byte));
+                        }
+
+                        bs_next!(context);
+
+                        value.push(context.byte);
+                    }
+                }
+            } else {
+                // unquoted value
+                bs_replay!(context);
+
+                consume_spaces!(context,
+                    // on end-of-stream
+                    {
+                        exit_ok!(context);
+                    }
+                );
+
+                bs_mark!(context);
+
+                collect_field!(context, FieldError::Value, b';',
+                    // on end-of-stream
+                    {
+                        if bs_slice_length!(context) > 0 {
+                            segment_fn(FieldSegment::NameValue(name, bs_slice!(context)));
+                        }
+
+                        exit_ok!(context);
+                    }
+                );
+
+                if bs_slice_length!(context) > 1 {
+                    segment_fn(FieldSegment::NameValue(name, bs_slice_ignore!(context)));
+                }
+            }
+        } else {
+            // name without a value
+            segment_fn(FieldSegment::Name(name));
+        }
+    }
+
+    exit_ok!(context);
 }
 
 /// Parse a query.

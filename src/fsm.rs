@@ -140,24 +140,6 @@ macro_rules! callback_transition_fast {
     });
 }
 
-/// Collect header value.
-macro_rules! collect_header_value {
-    ($context:expr, $error:expr, $eos:expr) => ({
-        bs_collect!($context, {
-                if $context.byte == b'\r' {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F {
-                    // space + visible
-                    continue;
-                }
-
-                return Err($error($context.byte));
-            },
-            $eos
-        );
-    });
-}
-
 /// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
     ($parser:expr, $context:expr) => ({

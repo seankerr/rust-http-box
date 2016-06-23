@@ -56,5 +56,6 @@ macro_rules! query {
 }
 
 mod decode;
+mod parse_field;
 mod parse_query_field;
 mod parse_query_value;

@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use query::*;
+use util::*;
 
 macro_rules! query_error {
     ($stream:expr, $byte:expr) => ({

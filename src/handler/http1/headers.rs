@@ -79,6 +79,9 @@ use std::collections::HashMap;
 /// assert_eq!("OK", h.get_status());
 /// ```
 pub struct HeadersHttp1Handler {
+    /// Cookies.
+    cookies: HashMap<String,String>,
+
     /// Header field buffer.
     field_buffer: String,
 
@@ -117,6 +120,7 @@ impl HeadersHttp1Handler {
     /// Create a new `HeadersHttp1Handler`.
     pub fn new() -> HeadersHttp1Handler {
         HeadersHttp1Handler {
+            cookies:       HashMap::new(),
             field_buffer:  String::new(),
             finished:      false,
             headers:       HashMap::new(),
@@ -133,12 +137,15 @@ impl HeadersHttp1Handler {
 
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
-        if self.field_buffer.len() > 0 {
-            self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
-        }
+        self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
 
         self.field_buffer.clear();
         self.value_buffer.clear();
+    }
+
+    /// Retrieve the cookies.
+    pub fn get_cookies(&self) -> &HashMap<String,String> {
+        &self.cookies
     }
 
     /// Retrieve the headers.
@@ -194,6 +201,7 @@ impl HeadersHttp1Handler {
         self.version_major = 0;
         self.version_minor = 0;
 
+        self.cookies.clear();
         self.field_buffer.clear();
         self.headers.clear();
         self.method.clear();

@@ -35,7 +35,7 @@ mod collect;
 
 pub mod handler;
 pub mod http1;
-pub mod query;
+pub mod util;
 
 #[cfg(test)]
 mod test;
