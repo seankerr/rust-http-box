@@ -387,9 +387,10 @@ where F : FnMut(FieldSegment) {
                     } else {
                         // found backslash
                         if bs_is_eos!(context) {
-                            // didn't find end quote
                             return Err(FieldError::Value(context.byte));
                         }
+
+                        value.extend_from_slice(bs_slice_ignore!(context));
 
                         bs_next!(context);
 

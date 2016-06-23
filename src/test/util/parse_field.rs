@@ -90,6 +90,15 @@ fn no_value_with_semi() {
 }
 
 #[test]
+fn quoted_escaped() {
+    let mut map = HashMap::new();
+
+    field!(map, b"name=\"value \\\"2\\\" here\"", 23);
+
+    assert_eq!("value \"2\" here", map.get("name").unwrap());
+}
+
+#[test]
 fn quoted_no_semi() {
     let mut map = HashMap::new();
 
