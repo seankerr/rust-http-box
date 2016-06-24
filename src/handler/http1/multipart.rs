@@ -21,11 +21,11 @@
 
 use http1::Http1Handler;
 
-pub struct MultipartHttp1Handler {
+pub struct MultipartHandler {
 }
 
-impl MultipartHttp1Handler {
+impl MultipartHandler {
 }
 
-impl Http1Handler for MultipartHttp1Handler {
+impl Http1Handler for MultipartHandler {
 }
