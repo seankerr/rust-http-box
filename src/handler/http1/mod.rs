@@ -18,7 +18,7 @@
 
 //! Handler implementations.
 
-pub mod chunk;
+pub mod chunked;
 pub mod debug;
 pub mod headers;
 pub mod multipart;

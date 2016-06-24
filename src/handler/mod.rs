@@ -20,7 +20,7 @@
 
 mod http1;
 
-pub use handler::http1::chunk::ChunkHandler;
+pub use handler::http1::chunked::ChunkedHandler;
 pub use handler::http1::debug::DebugHttp1Handler;
 pub use handler::http1::headers::HeadersHandler;
 pub use handler::http1::multipart::MultipartHandler;
