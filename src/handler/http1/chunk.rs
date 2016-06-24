@@ -23,21 +23,21 @@ use http1::Http1Handler;
 
 use std::collections::HashMap;
 
-/// `ChunkHttp1Handler` is a suitable handler for the following parser functions:
+/// `ChunkHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
 ///
 /// # Example
 ///
 /// ```
-/// use http_box::ChunkHttp1Handler;
+/// use http_box::ChunkHandler;
 /// use http_box::http1::Parser;
 /// use std::str;
 ///
 /// let mut chunk_data = vec![];
 ///
 /// {
-///     let mut h = ChunkHttp1Handler::new(|h,d| {
+///     let mut h = ChunkHandler::new(|h,d| {
 ///         assert_eq!(false, h.is_finished());
 ///         assert_eq!(0, h.get_index());
 ///         assert_eq!(4, h.get_length());
@@ -62,9 +62,9 @@ use std::collections::HashMap;
 ///     assert_eq!("value", h.get_trailers().get("trailer").unwrap());
 /// }
 ///
-/// assert_eq!(vec![b'd', b'a', b't', b'a'], chunk_data);
+/// assert_eq!(b"data", &chunk_data[..]);
 /// ```
-pub struct ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
+pub struct ChunkHandler<F> where F : FnMut(&mut ChunkHandler<F>, &[u8]) -> bool {
     /// Data callback.
     data_callback: Option<F>,
 
@@ -93,16 +93,16 @@ pub struct ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]
     value_buffer: String
 }
 
-impl<F> ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
-    /// Create a new `ChunkHttp1Handler`.
+impl<F> ChunkHandler<F> where F : FnMut(&mut ChunkHandler<F>, &[u8]) -> bool {
+    /// Create a new `ChunkHandler`.
     ///
     /// # Arguments
     ///
     /// **`callback`**
     ///
     /// The callback to execute for each chunk of data.
-    pub fn new(callback: F) -> ChunkHttp1Handler<F> {
-        ChunkHttp1Handler{
+    pub fn new(callback: F) -> ChunkHandler<F> {
+        ChunkHandler{
             data_callback: Some(callback),
             extensions:    HashMap::new(),
             field_buffer:  String::new(),
@@ -174,8 +174,7 @@ impl<F> ChunkHttp1Handler<F> where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -
     }
 }
 
-impl<F> Http1Handler for ChunkHttp1Handler<F>
-where F : FnMut(&mut ChunkHttp1Handler<F>, &[u8]) -> bool {
+impl<F> Http1Handler for ChunkHandler<F> where F : FnMut(&mut ChunkHandler<F>, &[u8]) -> bool {
     fn on_body_finished(&mut self) -> bool {
         self.finished = true;
         true
