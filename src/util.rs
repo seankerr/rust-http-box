@@ -294,7 +294,7 @@ where F : FnMut(&[u8]) {
 /// use http_box::util::{ FieldSegment,
 ///                       parse_field };
 ///
-/// parse_field(b"name-no-value; name1=value1; name2=\"value2\"; name3=value3",
+/// parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
 ///     |s| {
 ///         match s {
 ///             FieldSegment::Name(name) => {

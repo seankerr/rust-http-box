@@ -58,17 +58,30 @@ macro_rules! field {
 }
 
 macro_rules! field_error {
-    ($stream:expr, $byte:expr, $error:expr) => ({
-        assert!(match parse_field($stream, b'&',
-                                  |s| {
-                                  }) {
-            Err(FieldError::$error(x)) => {
+    ($stream:expr, $byte:expr, $error:path) => ({
+        assert!(match parse_field($stream, |s|{}) {
+            Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
             },
             _ => false
         });
     });
+}
+
+#[test]
+fn missing_escape_byte_error() {
+    field_error!(b"name=\"value\\", b'\\', FieldError::Value);
+}
+
+#[test]
+fn missing_quote_error() {
+    field_error!(b"name=\"value", b'e', FieldError::Value);
+}
+
+#[test]
+fn missing_semicolon_error() {
+    field_error!(b"name=\"value\" abc", b'a', FieldError::Value);
 }
 
 #[test]
