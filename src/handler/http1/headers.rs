@@ -23,17 +23,17 @@ use http1::Http1Handler;
 
 use std::collections::HashMap;
 
-/// `HeadersHttp1Handler` is a suitable handler for the following parser functions:
+/// `HeadersHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
 ///
 /// # Request Example
 ///
 /// ```
-/// use http_box::HeadersHttp1Handler;
+/// use http_box::HeadersHandler;
 /// use http_box::http1::Parser;
 ///
-/// let mut h = HeadersHttp1Handler::new();
+/// let mut h = HeadersHandler::new();
 /// let mut p = Parser::new();
 ///
 /// p.parse_headers(&mut h,
@@ -56,10 +56,10 @@ use std::collections::HashMap;
 /// # Response Example
 ///
 /// ```
-/// use http_box::HeadersHttp1Handler;
+/// use http_box::HeadersHandler;
 /// use http_box::http1::Parser;
 ///
-/// let mut h = HeadersHttp1Handler::new();
+/// let mut h = HeadersHandler::new();
 /// let mut p = Parser::new();
 ///
 /// p.parse_headers(&mut h,
@@ -78,7 +78,7 @@ use std::collections::HashMap;
 /// assert_eq!(200, h.get_status_code());
 /// assert_eq!("OK", h.get_status());
 /// ```
-pub struct HeadersHttp1Handler {
+pub struct HeadersHandler {
     /// Cookies.
     cookies: HashMap<String,String>,
 
@@ -116,10 +116,10 @@ pub struct HeadersHttp1Handler {
     version_minor: u16
 }
 
-impl HeadersHttp1Handler {
-    /// Create a new `HeadersHttp1Handler`.
-    pub fn new() -> HeadersHttp1Handler {
-        HeadersHttp1Handler {
+impl HeadersHandler {
+    /// Create a new `HeadersHandler`.
+    pub fn new() -> HeadersHandler {
+        HeadersHandler {
             cookies:       HashMap::new(),
             field_buffer:  String::new(),
             finished:      false,
@@ -211,7 +211,7 @@ impl HeadersHttp1Handler {
     }
 }
 
-impl Http1Handler for HeadersHttp1Handler {
+impl Http1Handler for HeadersHandler {
     fn on_header_field(&mut self, field: &[u8]) -> bool {
         if self.toggle {
             self.flush();
