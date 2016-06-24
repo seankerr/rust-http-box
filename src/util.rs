@@ -349,6 +349,7 @@ where F : FnMut(&[u8]) {
 /// ```
 /// use http_box::util::{ FieldSegment,
 ///                       parse_field };
+/// use std::collections::HashMap;
 ///
 /// parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
 ///     |s| {
@@ -598,7 +599,7 @@ where F : FnMut(QuerySegment) {
             }
         }
 
-        // param loop
+        // value loop
         loop {
             bs_mark!(context);
 
