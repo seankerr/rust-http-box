@@ -132,10 +132,10 @@ impl<'a> fmt::Debug for FieldSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldSegment::Name(x) => {
-                write!(formatter, "FieldSegment::Name({})", str::from_utf8(x).unwrap())
+                write!(formatter, "FieldSegment::Name({:?})", str::from_utf8(x).unwrap())
             },
             FieldSegment::NameValue(x,y) => {
-                write!(formatter, "FieldSegment::NameValue({}, \"{}\")",
+                write!(formatter, "FieldSegment::NameValue({:?}, {:?})",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
             }
@@ -147,10 +147,10 @@ impl<'a> fmt::Display for FieldSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldSegment::Name(x) => {
-                write!(formatter, "{}", str::from_utf8(x).unwrap())
+                write!(formatter, "{:?}", str::from_utf8(x).unwrap())
             },
             FieldSegment::NameValue(x,y) => {
-                write!(formatter, "{}=\"{}\"",
+                write!(formatter, "{:?} = {:?}",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
             }
@@ -199,27 +199,23 @@ impl fmt::Display for QueryError {
 
 /// Query segments.
 pub enum QuerySegment<'a> {
-    /// Field segment.
+    /// Field without a value.
     Field(&'a [u8]),
 
-    /// Flush segment.
-    Flush,
-
-    /// Value segment.
-    Value(&'a [u8])
+    /// Field and value pair.
+    FieldValue(&'a [u8], &'a [u8])
 }
 
 impl<'a> fmt::Debug for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Field(x) => {
-                write!(formatter, "QuerySegment::Field({})", str::from_utf8(x).unwrap())
+                write!(formatter, "QuerySegment::Field({:?})", str::from_utf8(x).unwrap())
             },
-            QuerySegment::Flush => {
-                write!(formatter, "QuerySegment::Flush")
-            },
-            QuerySegment::Value(x) => {
-                write!(formatter, "QuerySegment::Value({})", str::from_utf8(x).unwrap())
+            QuerySegment::FieldValue(x,y) => {
+                write!(formatter, "QuerySegment::FieldValue({:?}, {:?})",
+                       str::from_utf8(x).unwrap(),
+                       str::from_utf8(y).unwrap())
             }
         }
     }
@@ -229,13 +225,12 @@ impl<'a> fmt::Display for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Field(x) => {
-                write!(formatter, "{}", str::from_utf8(x).unwrap())
+                write!(formatter, "{:?}", str::from_utf8(x).unwrap())
             },
-            QuerySegment::Flush => {
-                write!(formatter, "Flush")
-            },
-            QuerySegment::Value(x) => {
-                write!(formatter, "{}", str::from_utf8(x).unwrap())
+            QuerySegment::FieldValue(x,y) => {
+                write!(formatter, "{:?} = {:?}",
+                       str::from_utf8(x).unwrap(),
+                       str::from_utf8(y).unwrap())
             }
         }
     }
@@ -435,9 +430,31 @@ where F : FnMut(FieldSegment) {
 }
 
 /// Parse a query.
+///
+/// # Example
+///
+/// ```
+/// use http_box::util::{ QuerySegment,
+///                       parse_query };
+///
+/// parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
+///     |s| {
+///         match s {
+///             QuerySegment::Field(field) => {
+///                 // field without a value
+///             },
+///             QuerySegment::FieldValue(field,value) => {
+///                 // field/value pair
+///             }
+///         }
+///     }
+/// );
+/// ```
 pub fn parse_query<F>(query: &[u8], separator: u8, mut segment_fn: F) -> Result<usize, QueryError>
 where F : FnMut(QuerySegment) {
     let mut context = ByteStream::new(query);
+    let mut name    = Vec::new();
+    let mut value   = Vec::new();
 
     loop {
         // field loop
@@ -454,17 +471,17 @@ where F : FnMut(QuerySegment) {
                 // on end-of-stream
                 {
                     if bs_slice_length!(context) > 0 {
-                        segment_fn(QuerySegment::Field(bs_slice!(context)));
+                        name.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::Flush);
+                    segment_fn(QuerySegment::Field(&name[..]));
 
                     exit_ok!(context);
                 }
             );
 
             if bs_slice_length!(context) > 1 {
-                segment_fn(QuerySegment::Field(bs_slice_ignore!(context)));
+                name.extend_from_slice(bs_slice_ignore!(context));
             }
 
             if context.byte == b'%' {
@@ -472,7 +489,7 @@ where F : FnMut(QuerySegment) {
                     if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
                         bs_jump!(context, 2);
 
-                        segment_fn(QuerySegment::Field(&[byte]));
+                        name.push(byte);
                     } else {
                         return Err(QueryError::Field(context.byte));
                     }
@@ -480,7 +497,7 @@ where F : FnMut(QuerySegment) {
                     return Err(QueryError::Field(context.byte));
                 }
             } else if context.byte == b'+' {
-                segment_fn(QuerySegment::Field(b" "));
+                name.push(b' ');
             } else if context.byte == b'=' {
                 if context.stream_index == 1 {
                     // first byte cannot be an equal sign
@@ -492,8 +509,10 @@ where F : FnMut(QuerySegment) {
                 // first byte cannot be an ampersand
                 return Err(QueryError::Field(context.byte));
             } else {
-                // field without a value, flush
-                segment_fn(QuerySegment::Flush);
+                // field without a value
+                segment_fn(QuerySegment::Field(&name[..]));
+
+                name.clear();
             }
         }
 
@@ -511,17 +530,17 @@ where F : FnMut(QuerySegment) {
                 // on end-of-stream
                 {
                     if bs_slice_length!(context) > 0 {
-                        segment_fn(QuerySegment::Value(bs_slice!(context)));
+                        value.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::Flush);
+                    segment_fn(QuerySegment::FieldValue(&name[..], &value[..]));
 
                     exit_ok!(context);
                 }
             );
 
             if bs_slice_length!(context) > 1 {
-                segment_fn(QuerySegment::Value(bs_slice_ignore!(context)));
+                value.extend_from_slice(bs_slice_ignore!(context));
             }
 
             if context.byte == b'%' {
@@ -529,7 +548,7 @@ where F : FnMut(QuerySegment) {
                     if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
                         bs_jump!(context, 2);
 
-                        segment_fn(QuerySegment::Value(&[byte]));
+                        value.push(byte);
                     } else {
                         return Err(QueryError::Value(context.byte));
                     }
@@ -537,12 +556,15 @@ where F : FnMut(QuerySegment) {
                     return Err(QueryError::Value(context.byte));
                 }
             } else if context.byte == b'+' {
-                segment_fn(QuerySegment::Value(b" "));
+                value.push(b' ');
             } else if context.byte == b'=' {
                 // value cannot have an equal sign
                 return Err(QueryError::Value(context.byte));
             } else {
-                segment_fn(QuerySegment::Flush);
+                segment_fn(QuerySegment::FieldValue(&name[..], &value[..]));
+
+                name.clear();
+                value.clear();
 
                 break;
             }

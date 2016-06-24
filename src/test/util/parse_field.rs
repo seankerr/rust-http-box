@@ -21,54 +21,6 @@ use util::*;
 use std::collections::HashMap;
 use std::str;
 
-macro_rules! field {
-    ($map:expr, $stream:expr, $length:expr) => ({
-        assert!(match parse_field($stream,
-                                  |s| {
-                                      match s {
-                                          FieldSegment::Name(x) => {
-                                              let mut n = String::new();
-                                              let mut v = String::new();
-
-                                              unsafe {
-                                                  n.as_mut_vec().extend_from_slice(x);
-                                              }
-
-                                              $map.insert(n, v);
-                                          },
-                                          FieldSegment::NameValue(x,y) => {
-                                              let mut n = String::new();
-                                              let mut v = String::new();
-
-                                              unsafe {
-                                                  n.as_mut_vec().extend_from_slice(x);
-                                                  v.as_mut_vec().extend_from_slice(y);
-                                              }
-
-                                              $map.insert(n, v);
-                                          }
-                                      }
-                                  }) {
-            Ok($length) => {
-                true
-            },
-            _ => false
-        });
-    });
-}
-
-macro_rules! field_error {
-    ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_field($stream, |s|{}) {
-            Err($error(x)) => {
-                assert_eq!(x, $byte);
-                true
-            },
-            _ => false
-        });
-    });
-}
-
 #[test]
 fn missing_escape_byte_error() {
     field_error!(b"name=\"value\\", b'\\', FieldError::Value);

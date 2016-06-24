@@ -17,37 +17,106 @@
 // +-----------------------------------------------------------------------------------------------+
 
 #[macro_export]
-macro_rules! query {
-    ($stream:expr, $field:expr, $value:expr, $has_field:expr, $has_value:expr,
-     $has_flushed:expr, $length:expr) => ({
-        let mut field       = vec![];
-        let mut has_field   = false;
-        let mut has_flushed = false;
-        let mut has_value   = false;
-        let mut value       = vec![];
+macro_rules! field {
+    ($map:expr, $stream:expr, $length:expr) => ({
+        assert!(match parse_field($stream,
+                                  |s| {
+                                      match s {
+                                          FieldSegment::Name(x) => {
+                                              let mut n = String::new();
+                                              let mut v = String::new();
 
-        assert!(match parse_query($stream, b'&',
-                                  |segment| {
-                                      match segment {
-                                          QuerySegment::Field(x) => {
-                                              has_field = true;
-                                              field.extend_from_slice(x)
+                                              unsafe {
+                                                  n.as_mut_vec().extend_from_slice(x);
+                                              }
+
+                                              $map.insert(n, v);
+
+                                              println!("{:?}", FieldSegment::Name(x));
                                           },
-                                          QuerySegment::Flush => {
-                                              has_flushed = true
-                                          },
-                                          QuerySegment::Value(x) => {
-                                              has_value = true;
-                                              value.extend_from_slice(x)
+                                          FieldSegment::NameValue(x,y) => {
+                                              let mut n = String::new();
+                                              let mut v = String::new();
+
+                                              unsafe {
+                                                  n.as_mut_vec().extend_from_slice(x);
+                                                  v.as_mut_vec().extend_from_slice(y);
+                                              }
+
+                                              $map.insert(n, v);
+
+                                              println!("{:?}", FieldSegment::NameValue(x,y));
                                           }
                                       }
                                   }) {
             Ok($length) => {
-                assert_eq!(field, $field);
-                assert_eq!(value, $value);
-                assert_eq!(has_field, $has_field);
-                assert_eq!(has_value, $has_value);
-                assert_eq!(has_flushed, $has_flushed);
+                true
+            },
+            _ => false
+        });
+    });
+}
+
+#[macro_export]
+macro_rules! field_error {
+    ($stream:expr, $byte:expr, $error:path) => ({
+        assert!(match parse_field($stream, |s|{}) {
+            Err($error(x)) => {
+                assert_eq!(x, $byte);
+                true
+            },
+            _ => false
+        });
+    });
+}
+
+#[macro_export]
+macro_rules! query {
+    ($map:expr, $stream:expr, $length:expr) => ({
+        assert!(match parse_query($stream, b'&',
+                                  |s| {
+                                      match s {
+                                          QuerySegment::Field(x) => {
+                                              let mut f = String::new();
+                                              let mut v = String::new();
+
+                                              unsafe {
+                                                  f.as_mut_vec().extend_from_slice(x);
+                                              }
+
+                                              $map.insert(f, v);
+
+                                              println!("{:?}", QuerySegment::Field(x));
+                                          },
+                                          QuerySegment::FieldValue(x,y) => {
+                                              let mut f = String::new();
+                                              let mut v = String::new();
+
+                                              unsafe {
+                                                  f.as_mut_vec().extend_from_slice(x);
+                                                  v.as_mut_vec().extend_from_slice(y);
+                                              }
+
+                                              $map.insert(f, v);
+
+                                              println!("{:?}", QuerySegment::FieldValue(x,y));
+                                          }
+                                      }
+                                  }) {
+            Ok($length) => {
+                true
+            },
+            _ => false
+        });
+    });
+}
+
+#[macro_export]
+macro_rules! query_error {
+    ($stream:expr, $byte:expr, $error:path) => ({
+        assert!(match parse_query($stream, b'&', |s|{}) {
+            Err($error(x)) => {
+                assert_eq!(x, $byte);
                 true
             },
             _ => false

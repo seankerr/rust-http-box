@@ -18,99 +18,116 @@
 
 use util::*;
 
-macro_rules! query_error {
-    ($stream:expr, $byte:expr) => ({
-        assert!(match parse_query($stream, b'&',
-                                  |segment| {
-                                      match segment {
-                                          _ => {}
-                                      }
-                                  }) {
-            Err(QueryError::Value(x)) => {
-                assert_eq!(x, $byte);
-                true
-            },
-            _ => false
-        });
-    });
-}
+use std::collections::HashMap;
 
 #[test]
 fn basic() {
-    query!(b"Field=Value", b"Field", b"Value", true, true, true, 11);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=Value", 11);
+
+    assert_eq!("Value", map.get("Field").unwrap());
 }
 
 #[test]
 fn complex() {
-    query!(b"Field=Value+%20+%21", b"Field", b"Value   !", true, true, true, 19);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=Value+%20+%21", 19);
+
+    assert_eq!("Value   !", map.get("Field").unwrap());
 }
 
 #[test]
 fn ending_ampersand() {
-    query!(b"Field=Value&", b"Field", b"Value", true, true, true, 12);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=Value&", 12);
+
+    assert_eq!("Value", map.get("Field").unwrap());
 }
 
 #[test]
 fn ending_equal() {
-    query_error!(b"Field=Value=", b'=');
+    query_error!(b"Field=Value=", b'=', QueryError::Value);
 }
 
 #[test]
 fn ending_hex() {
-    query!(b"Field=Value%21", b"Field", b"Value!", true, true, true, 14);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=Value%21", 14);
+
+    assert_eq!("Value!", map.get("Field").unwrap());
 }
 
 #[test]
 fn ending_hex_error1() {
-    query_error!(b"Field=Value%", b'%');
+    query_error!(b"Field=Value%", b'%', QueryError::Value);
 }
 
 #[test]
 fn ending_hex_error2() {
-    query_error!(b"Field=Value%2", b'%');
+    query_error!(b"Field=Value%2", b'%', QueryError::Value);
 }
 
 #[test]
 fn ending_hex_error3() {
-    query_error!(b"Field=Value%2G", b'%');
+    query_error!(b"Field=Value%2G", b'%', QueryError::Value);
 }
 
 #[test]
 fn ending_plus() {
-    query!(b"Field=Value+", b"Field", b"Value ", true, true, true, 12);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=Value+", 12);
+
+    assert_eq!("Value ", map.get("Field").unwrap());
 }
 
 #[test]
 fn starting_ampersand() {
-    query!(b"Field=&", b"Field", b"", true, false, true, 7);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=&", 7);
+
+    assert_eq!(0, map.get("Field").unwrap().len());
 }
 
 #[test]
 fn starting_equal_error() {
-    query_error!(b"Field==", b'=');
+    query_error!(b"Field==", b'=', QueryError::Value);
 }
 
 #[test]
 fn starting_hex() {
-    query!(b"Field=%21Value", b"Field", b"!Value", true, true, true, 14);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=%21Value", 14);
+
+    assert_eq!("!Value", map.get("Field").unwrap());
 }
 
 #[test]
 fn starting_hex_error1() {
-    query_error!(b"Field=%", b'%');
+    query_error!(b"Field=%", b'%', QueryError::Value);
 }
 
 #[test]
 fn starting_hex_error2() {
-    query_error!(b"Field=%2", b'%');
+    query_error!(b"Field=%2", b'%', QueryError::Value);
 }
 
 #[test]
 fn starting_hex_error3() {
-    query_error!(b"Field=%2G", b'%');
+    query_error!(b"Field=%2G", b'%', QueryError::Value);
 }
 
 #[test]
 fn starting_plus() {
-    query!(b"Field=+", b"Field", b" ", true, true, true, 7);
+    let mut map = HashMap::new();
+
+    query!(map, b"Field=+", 7);
+
+    assert_eq!(" ", map.get("Field").unwrap());
 }
