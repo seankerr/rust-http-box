@@ -104,6 +104,16 @@ fn multiple_with_semi() {
 }
 
 #[test]
+fn normalize() {
+    let mut map = HashMap::new();
+
+    field!(map, b"NAME1=value1; NAME2=value2", 26);
+
+    assert_eq!("value1", map.get("name1").unwrap());
+    assert_eq!("value2", map.get("name2").unwrap());
+}
+
+#[test]
 fn unquoted_no_semi() {
     let mut map = HashMap::new();
 

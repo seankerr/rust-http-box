@@ -323,6 +323,8 @@ where F : FnMut(&[u8]) {
 
 /// Parse the content of a header field.
 ///
+/// *Note:* This will normalize all upper-cased names to lower-cased.
+///
 /// # Arguments
 ///
 /// **`field`**
@@ -367,7 +369,7 @@ where F : FnMut(&[u8]) {
 pub fn parse_field<F>(field: &[u8], mut segment_fn: F) -> Result<usize, FieldError>
 where F : FnMut(FieldSegment) {
     let mut context = ByteStream::new(field);
-    let mut name    = field;
+    let mut name    = Vec::new();
     let mut value   = Vec::new();
 
     loop {
@@ -384,20 +386,23 @@ where F : FnMut(FieldSegment) {
         collect_tokens!(context, FieldError::Name,
             // stop on these bytes
                context.byte == b'='
-            || context.byte == b';',
+            || context.byte == b';'
+            || (context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
             {
                 // name without a value
                 if bs_slice_length!(context) > 0 {
-                    segment_fn(FieldSegment::Name(bs_slice!(context)));
+                    name.extend_from_slice(bs_slice!(context));
                 }
+
+                segment_fn(FieldSegment::Name(&name[..]));
 
                 exit_ok!(context);
             }
         );
 
-        name = bs_slice_ignore!(context);
+        name.extend_from_slice(bs_slice_ignore!(context));
 
         if context.byte == b'=' {
             // parsing value
@@ -421,8 +426,9 @@ where F : FnMut(FieldSegment) {
                         // found end quote
                         value.extend_from_slice(bs_slice_ignore!(context));
 
-                        segment_fn(FieldSegment::NameValue(name, &value[..]));
+                        segment_fn(FieldSegment::NameValue(&name[..], &value[..]));
 
+                        name.clear();
                         value.clear();
 
                         consume_spaces!(context,
@@ -471,20 +477,34 @@ where F : FnMut(FieldSegment) {
                     // on end-of-stream
                     {
                         if bs_slice_length!(context) > 0 {
-                            segment_fn(FieldSegment::NameValue(name, bs_slice!(context)));
+                            value.extend_from_slice(bs_slice!(context));
                         }
+
+                        segment_fn(FieldSegment::NameValue(&name[..], &value[..]));
 
                         exit_ok!(context);
                     }
                 );
 
-                if bs_slice_length!(context) > 1 {
-                    segment_fn(FieldSegment::NameValue(name, bs_slice_ignore!(context)));
+                if bs_slice_length!(context) == 0 {
+                    // name without a value
+                    segment_fn(FieldSegment::Name(&name[..]));
+                } else {
+                    // name/value pair
+                    segment_fn(FieldSegment::NameValue(&name[..], bs_slice_ignore!(context)));
                 }
+
+                name.clear();
+                value.clear();
             }
-        } else {
+        } else if context.byte == b';' {
             // name without a value
-            segment_fn(FieldSegment::Name(name));
+            segment_fn(FieldSegment::Name(&name[..]));
+
+            name.clear();
+        } else {
+            // upper-cased byte, let's lower-case it
+            name.push(context.byte + 0x20);
         }
     }
 
