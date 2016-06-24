@@ -239,6 +239,46 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 // -------------------------------------------------------------------------------------------------
 
 /// Decode a URL encoded slice of bytes.
+///
+/// *Note:* `slice_fn` may be called multiple times in order to supply the entire piece of decoded
+///         data.
+///
+/// # Arguments
+///
+/// **`bytes`**
+///
+/// The byte data to decode.
+///
+/// **`slice_fn`**
+///
+/// A closure that receives slices of decoded data.
+///
+/// # Returns
+///
+/// **`usize`**
+///
+/// The amount of byte data that was parsed.
+///
+/// # Errors
+///
+/// - [`DecodeError::Byte`](enum.DecodeError.html#variant.Byte)
+/// - [`DecodeError::HexSequence`](enum.DecodeError.html#variant.HexSequence)
+///
+/// # Example
+///
+/// ```
+/// use http_box::util::{ DecodeError,
+///                       decode };
+///
+/// let mut v = vec![];
+///
+/// decode(b"fancy%20url%20encoded%20data%2E",
+///     |s| {
+///         // `s` is the most current slice of decoded data
+///         v.extend_from_slice(s);
+///     }
+/// );
+/// ```
 pub fn decode<F>(bytes: &[u8], mut slice_fn: F) -> Result<usize, DecodeError>
 where F : FnMut(&[u8]) {
     let mut context = ByteStream::new(bytes);
@@ -281,7 +321,28 @@ where F : FnMut(&[u8]) {
     }
 }
 
-/// Parse a field.
+/// Parse the content of a header field.
+///
+/// # Arguments
+///
+/// **`field`**
+///
+/// The field data to be parsed.
+///
+/// **`segment_fn`**
+///
+/// A closure that receives instances of [`FieldSegment`](enum.FieldSegment.html).
+///
+/// # Returns
+///
+/// **`usize`**
+///
+/// The amount of field data that was parsed.
+///
+/// # Errors
+///
+/// - [`FieldError::Name`](enum.FieldError.html#variant.Name)
+/// - [`FieldError::Value`](enum.FieldError.html#variant.Value)
 ///
 /// # Example
 ///
@@ -430,6 +491,27 @@ where F : FnMut(FieldSegment) {
 }
 
 /// Parse a query.
+///
+/// # Arguments
+///
+/// **`query`**
+///
+/// The query data to be parsed.
+///
+/// **`segment_fn`**
+///
+/// A closure that receives instances of [`QuerySegment`](enum.QuerySegment.html).
+///
+/// # Returns
+///
+/// **`usize`**
+///
+/// The amount of query data that was parsed.
+///
+/// # Errors
+///
+/// - [`QueryError::Field`](enum.QueryError.html#variant.Field)
+/// - [`QueryError::Value`](enum.QueryError.html#variant.Value)
 ///
 /// # Example
 ///
