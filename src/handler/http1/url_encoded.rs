@@ -23,17 +23,17 @@ use http1::Http1Handler;
 
 use std::collections::HashMap;
 
-/// `UrlEncodedHttp1Handler` is a suitable handler for the following parser functions:
+/// `UrlEncodedHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
 ///
 /// # Example
 ///
 /// ```
-/// use http_box::UrlEncodedHttp1Handler;
+/// use http_box::UrlEncodedHandler;
 /// use http_box::http1::Parser;
 ///
-/// let mut h = UrlEncodedHttp1Handler::new();
+/// let mut h = UrlEncodedHandler::new();
 /// let mut p = Parser::new();
 ///
 /// p.parse_url_encoded(&mut h,
@@ -43,7 +43,7 @@ use std::collections::HashMap;
 /// assert_eq!("Value 1", h.get_fields().get("Field1").unwrap());
 /// assert_eq!("Value 2", h.get_fields().get("Field2").unwrap());
 /// ```
-pub struct UrlEncodedHttp1Handler {
+pub struct UrlEncodedHandler {
     /// Field buffer.
     field: String,
 
@@ -60,10 +60,10 @@ pub struct UrlEncodedHttp1Handler {
     value: String,
 }
 
-impl UrlEncodedHttp1Handler {
-    /// Create a new `UrlEncodedHttp1Handler`.
-    pub fn new() -> UrlEncodedHttp1Handler {
-        UrlEncodedHttp1Handler {
+impl UrlEncodedHandler {
+    /// Create a new `UrlEncodedHandler`.
+    pub fn new() -> UrlEncodedHandler {
+        UrlEncodedHandler {
             field:    String::new(),
             fields:   HashMap::new(),
             finished: false,
@@ -103,7 +103,7 @@ impl UrlEncodedHttp1Handler {
     }
 }
 
-impl Http1Handler for UrlEncodedHttp1Handler {
+impl Http1Handler for UrlEncodedHandler {
     fn on_body_finished(&mut self) -> bool {
         self.flush();
 
