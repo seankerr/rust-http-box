@@ -100,7 +100,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     ///
     /// **`callback`**
     ///
-    /// The callback to execute for each chunk of data.
+    /// A closure that receives a `&mut ChunkedHandler`, and the current chunk of data.
     pub fn new(callback: F) -> ChunkedHandler<F> {
         ChunkedHandler{
             data_callback: Some(callback),
