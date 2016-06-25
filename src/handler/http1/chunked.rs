@@ -32,7 +32,6 @@ use std::collections::HashMap;
 /// ```
 /// use http_box::ChunkedHandler;
 /// use http_box::http1::Parser;
-/// use std::str;
 ///
 /// let mut chunk_data = vec![];
 ///
@@ -66,7 +65,7 @@ use std::collections::HashMap;
 /// ```
 pub struct ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool {
     /// Data callback.
-    data_callback: Option<F>,
+    data_fn: Option<F>,
 
     /// Map of extensions for the current chunk.
     extensions: HashMap<String,String>,
@@ -98,20 +97,20 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     ///
     /// # Arguments
     ///
-    /// **`callback`**
+    /// **`data_fn`**
     ///
-    /// A closure that receives a `&mut ChunkedHandler`, and the current chunk of data.
-    pub fn new(callback: F) -> ChunkedHandler<F> {
+    /// A closure that receives the `&mut ChunkedHandler`, and the current chunk of data.
+    pub fn new(data_fn: F) -> ChunkedHandler<F> {
         ChunkedHandler{
-            data_callback: Some(callback),
-            extensions:    HashMap::new(),
-            field_buffer:  String::new(),
-            finished:      false,
-            index:         0,
-            length:        0,
-            toggle:        false,
-            value_buffer:  String::new(),
-            trailers:      HashMap::new(),
+            data_fn:      Some(data_fn),
+            extensions:   HashMap::new(),
+            field_buffer: String::new(),
+            finished:     false,
+            index:        0,
+            length:       0,
+            toggle:       false,
+            value_buffer: String::new(),
+            trailers:     HashMap::new(),
         }
     }
 
@@ -181,11 +180,11 @@ impl<F> Http1Handler for ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F
     }
 
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        match self.data_callback.take() {
-            Some(mut callback) => {
-                match callback(self, data) {
+        match self.data_fn.take() {
+            Some(mut data_fn) => {
+                match data_fn(self, data) {
                     value => {
-                        self.data_callback = Some(callback);
+                        self.data_fn = Some(data_fn);
                         value
                     }
                 }

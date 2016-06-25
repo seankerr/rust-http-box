@@ -45,7 +45,7 @@ use std::collections::HashMap;
 /// ```
 pub struct UrlEncodedHandler {
     /// Field buffer.
-    field: String,
+    field_buffer: String,
 
     /// Map of all fields.
     fields: HashMap<String,String>,
@@ -57,29 +57,29 @@ pub struct UrlEncodedHandler {
     toggle: bool,
 
     /// Value buffer.
-    value: String,
+    value_buffer: String,
 }
 
 impl UrlEncodedHandler {
     /// Create a new `UrlEncodedHandler`.
     pub fn new() -> UrlEncodedHandler {
         UrlEncodedHandler {
-            field:    String::new(),
-            fields:   HashMap::new(),
-            finished: false,
-            toggle:   false,
-            value:    String::new()
+            field_buffer: String::new(),
+            fields:       HashMap::new(),
+            finished:     false,
+            toggle:       false,
+            value_buffer: String::new()
         }
     }
 
     /// Flush the most recent field/value.
     fn flush(&mut self) {
-        if self.field.len() > 0 {
-            self.fields.insert(self.field.clone(), self.value.clone());
+        if self.field_buffer.len() > 0 {
+            self.fields.insert(self.field_buffer.clone(), self.value_buffer.clone());
         }
 
-        self.field.clear();
-        self.value.clear();
+        self.field_buffer.clear();
+        self.value_buffer.clear();
     }
 
     /// Retrieve the fields.
@@ -97,9 +97,9 @@ impl UrlEncodedHandler {
         self.finished = false;
         self.toggle   = false;
 
-        self.field.clear();
+        self.field_buffer.clear();
         self.fields.clear();
-        self.value.clear();
+        self.value_buffer.clear();
     }
 }
 
@@ -119,7 +119,7 @@ impl Http1Handler for UrlEncodedHandler {
         }
 
         unsafe {
-            self.field
+            self.field_buffer
                 .as_mut_vec()
                 .extend_from_slice(field);
         }
@@ -129,7 +129,7 @@ impl Http1Handler for UrlEncodedHandler {
 
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         unsafe {
-            self.value
+            self.value_buffer
                 .as_mut_vec()
                 .extend_from_slice(value);
         }
