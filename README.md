@@ -20,7 +20,6 @@ triggered the error when it occurred.
 I'm in the stage of refactoring filenames, types, and overall locations of everything in the API.
 Aside from this, the current changes are also in progress:
 
-- HeadersHttp1Handler cookie support
 - MultipartHttp1Handler (the entire thing)
 
 ## Features
@@ -47,7 +46,7 @@ Aside from this, the current changes are also in progress:
   - Status code
   - Version
 - Headers (quoted and multi-line values are supported):
-  - Cookies (in the works)
+  - Cookies
   - Fields
   - Values
 - Chunk encoded:
