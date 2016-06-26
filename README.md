@@ -31,6 +31,7 @@ Aside from this, the current changes are also in progress:
   - Requests
   - Responses
   - Headers
+  - Cookies
   - Field values; e.g. 'multipart/form-data; boundary="--ABCDEFG"'
   - Chunk encoded data
   - Query strings / URL encoded data
@@ -47,23 +48,18 @@ Aside from this, the current changes are also in progress:
   - Status code
   - Version
 - Headers (quoted and multi-line values are supported):
-  - Cookies
-  - Fields
-  - Values
+  - Cookie name/value
+  - Header field/value
 - Chunk encoded:
   - Size
-  - Extension names
-  - Extension values
-  - Trailer fields
-  - Trailer values
+  - Extension name/value
+  - Trailer field/value
   - Raw data
 - Multipart (in the works)
-  - Header fields
-  - Header values
+  - Header field/value
   - File support
 - URL encoded:
-  - Fields
-  - Values
+  - Field/value
 
 ## Performance
 
