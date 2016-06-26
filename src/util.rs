@@ -270,12 +270,9 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 /// use http_box::util::{ DecodeError,
 ///                       decode };
 ///
-/// let mut v = vec![];
-///
 /// decode(b"fancy%20url%20encoded%20data%2E",
 ///     |s| {
 ///         // `s` is the most current slice of decoded data
-///         v.extend_from_slice(s);
 ///     }
 /// );
 /// ```
@@ -627,7 +624,6 @@ where F : FnMut(QuerySegment) {
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
-                || context.byte == b'='
                 || context.byte == separator,
 
                 // on end-of-stream
@@ -660,9 +656,6 @@ where F : FnMut(QuerySegment) {
                 }
             } else if context.byte == b'+' {
                 value.push(b' ');
-            } else if context.byte == b'=' {
-                // value cannot have an equal sign
-                return Err(QueryError::Value(context.byte));
             } else {
                 segment_fn(QuerySegment::FieldValue(&name[..], &value[..]));
 

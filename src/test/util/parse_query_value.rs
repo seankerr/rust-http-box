@@ -48,11 +48,6 @@ fn ending_ampersand() {
 }
 
 #[test]
-fn ending_equal() {
-    query_error!(b"Field=Value=", b'=', QueryError::Value);
-}
-
-#[test]
 fn ending_hex() {
     let mut map = HashMap::new();
 
@@ -92,11 +87,6 @@ fn starting_ampersand() {
     query!(map, b"Field=&", 7);
 
     assert_eq!(0, map.get("Field").unwrap().len());
-}
-
-#[test]
-fn starting_equal_error() {
-    query_error!(b"Field==", b'=', QueryError::Value);
 }
 
 #[test]
