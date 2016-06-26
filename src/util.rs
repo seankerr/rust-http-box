@@ -323,7 +323,7 @@ where F : FnMut(&[u8]) {
 
 /// Parse the content of a header field.
 ///
-/// *Note:* This will normalize all upper-cased names to lower-cased.
+/// *Note:* This will normalize all upper-cased bytes to lower-cased.
 ///
 /// # Arguments
 ///
