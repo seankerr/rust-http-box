@@ -66,6 +66,6 @@ Aside from this, the current changes are also in progress:
 Currently rust-http-box is on par with the speeds seen from [fast-http](https://github.com/fukamachi/fast-http),
 a Common Lisp HTTP parser, and significantly faster than the Joyant/NodeJS HTTP parser.
 
-## API Documentation
+## API Documentation and Examples
 
 http://metatomic.org/docs/api/http_box/index.html
