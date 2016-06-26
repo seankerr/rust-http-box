@@ -60,7 +60,7 @@ macro_rules! field {
 #[macro_export]
 macro_rules! field_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_field($stream, |s|{}) {
+        assert!(match parse_field($stream, |_|{}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
@@ -78,7 +78,7 @@ macro_rules! query {
                                       match s {
                                           QuerySegment::Field(x) => {
                                               let mut f = String::new();
-                                              let mut v = String::new();
+                                              let v = String::new();
 
                                               unsafe {
                                                   f.as_mut_vec().extend_from_slice(x);
@@ -114,7 +114,7 @@ macro_rules! query {
 #[macro_export]
 macro_rules! query_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_query($stream, b'&', |s|{}) {
+        assert!(match parse_query($stream, b'&', |_|{}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true

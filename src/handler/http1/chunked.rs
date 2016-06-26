@@ -180,19 +180,17 @@ impl<F> Http1Handler for ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F
     }
 
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        match self.data_fn.take() {
-            Some(mut data_fn) => {
-                match data_fn(self, data) {
-                    value => {
-                        self.data_fn = Some(data_fn);
-                        value
-                    }
-                }
-            },
-            None => {
-                // this should not happen
-                panic!();
+        if let Some(mut data_fn) = self.data_fn.take() {
+            if data_fn(self, data) {
+                self.data_fn = Some(data_fn);
+                true
+            } else {
+                self.data_fn = Some(data_fn);
+                false
             }
+        } else {
+            // this should never happen
+            panic!();
         }
     }
 

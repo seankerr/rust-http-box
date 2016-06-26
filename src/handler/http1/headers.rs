@@ -28,6 +28,7 @@ use std::collections::{ HashMap,
                         HashSet };
 use std::slice;
 
+#[derive(Default)]
 /// `HeadersHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
@@ -168,10 +169,7 @@ impl HeadersHandler {
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
         if self.is_request() {
-            println!("Is request!!");
-            println!("Buffer: {}", self.field_buffer);
             if self.field_buffer == "cookie" {
-                println!("Found cookie");
                 unsafe {
                     let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
                                                       self.value_buffer.as_mut_vec().len());
@@ -179,26 +177,15 @@ impl HeadersHandler {
                     util::parse_field(slice,
                         |s| {
                             match s {
-                                FieldSegment::Name(x) => {
-                                    let mut name = String::new();
-
-                                    name.as_mut_vec().extend_from_slice(x);
-
-                                    self.cookies.insert(Cookie::new(&name));
-
-                                    name.clear();
+                                FieldSegment::Name(key) => {
+                                    self.cookies.insert(Cookie::new_from_slice(key));
                                 },
-                                FieldSegment::NameValue(x,y) => {
-                                    let mut name  = String::new();
-                                    let mut value = String::new();
+                                FieldSegment::NameValue(key,value) => {
+                                    let mut cookie = Cookie::new_from_slice(key);
 
-                                    name.as_mut_vec().extend_from_slice(x);
-                                    value.as_mut_vec().extend_from_slice(y);
+                                    cookie.set_value_from_slice(value);
 
-                                    self.cookies.insert(Cookie::new_request(&name, &value));
-
-                                    name.clear();
-                                    value.clear();
+                                    self.cookies.insert(cookie);
                                 }
                             }
                         }
@@ -206,65 +193,48 @@ impl HeadersHandler {
                 }
             } else {
                 self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            }
+        } else if self.field_buffer == "set-cookie" {
+            unsafe {
+                let mut cookie = Cookie::new("");
+
+                let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
+                                                  self.value_buffer.as_mut_vec().len());
+
+                util::parse_field(slice,
+                    |s| {
+                        match s {
+                            FieldSegment::Name(key) => {
+                                if key == b"httponly" {
+                                    cookie.set_http_only(true);
+                                } else if key == b"secure" {
+                                    cookie.set_secure(true);
+                                }
+                            },
+                            FieldSegment::NameValue(key,value) => {
+                                if key == b"domain" {
+                                    cookie.set_domain_from_slice(value);
+                                } else if key == b"expires" {
+                                    cookie.set_expires_from_slice(value);
+                                } else if key == b"max-age" {
+                                    cookie.set_max_age_from_slice(value);
+                                } else if key == b"path" {
+                                    cookie.set_path_from_slice(value);
+                                } else {
+                                    cookie.set_name_from_slice(key)
+                                          .set_value_from_slice(value);
+                                }
+                            }
+                        }
+                    }
+                );
+
+                if cookie.get_name() != "" {
+                    self.cookies.insert(cookie);
+                }
             }
         } else {
-            println!("Is response!!");
-            println!("Buffer: {}", self.field_buffer);
-            if self.field_buffer == "set-cookie" {
-                println!("Found set-cookie");
-                unsafe {
-                    let mut cookie = Cookie::new("");
-                    let mut key    = String::new();
-                    let mut value  = String::new();
-
-                    let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
-                                                      self.value_buffer.as_mut_vec().len());
-
-                    util::parse_field(slice,
-                        |s| {
-                            match s {
-                                FieldSegment::Name(x) => {
-                                    key.as_mut_vec().extend_from_slice(x);
-
-                                    if key == "httponly" {
-                                        cookie.set_http_only(true);
-                                    } else if key == "secure" {
-                                        cookie.set_secure(true);
-                                    }
-
-                                    key.clear();
-                                },
-                                FieldSegment::NameValue(x,y) => {
-                                    key.as_mut_vec().extend_from_slice(x);
-                                    value.as_mut_vec().extend_from_slice(y);
-
-                                    if key == "domain" {
-                                        cookie.set_domain(&value);
-                                    } else if key == "expires" {
-                                        cookie.set_expires(&value);
-                                    } else if key == "max-age" {
-                                        cookie.set_max_age(&value);
-                                    } else if key == "path" {
-                                        cookie.set_path(&value);
-                                    } else {
-                                        cookie.set_name(&key);
-                                        cookie.set_value(&value);
-                                    }
-
-                                    key.clear();
-                                    value.clear();
-                                }
-                            }
-                        }
-                    );
-
-                    if cookie.get_name() != "" {
-                        self.cookies.insert(cookie);
-                    }
-                }
-            } else {
-                self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
-            }
+            self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
         }
 
         self.field_buffer.clear();

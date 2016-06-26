@@ -138,18 +138,6 @@ pub fn chunked_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
     }
 }
 
-pub fn chunked_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
-                                               stream: &[u8], state: ParserState, length: usize) {
-    assert!(match parser.parse_chunked(handler, stream) {
-        Ok(Success::Finished(byte_count)) => {
-            assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
-            true
-        },
-        _ => false
-    });
-}
-
 pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                     state: ParserState) {
     assert!(match parser.parse_chunked(handler, stream) {

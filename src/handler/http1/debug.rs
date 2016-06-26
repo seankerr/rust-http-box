@@ -23,6 +23,7 @@ use std::str;
 
 // -------------------------------------------------------------------------------------------------
 
+#[derive(Default)]
 /// `DebugHttp1Handler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_chunked()`](../../../http1/struct.Parser.html#method.parse_chunked)

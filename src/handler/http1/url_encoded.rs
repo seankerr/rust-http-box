@@ -23,6 +23,7 @@ use http1::Http1Handler;
 
 use std::collections::HashMap;
 
+#[derive(Default)]
 /// `UrlEncodedHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
