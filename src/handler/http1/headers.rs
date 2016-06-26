@@ -19,9 +19,14 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing the
 //! initial request/response line, and headers.
 
-use http1::Http1Handler;
+use http1::{ Cookie,
+             Http1Handler };
+use util::FieldSegment;
+use util;
 
-use std::collections::HashMap;
+use std::collections::{ HashMap,
+                        HashSet };
+use std::slice;
 
 /// `HeadersHandler` is a suitable handler for the following parser functions:
 ///
@@ -40,6 +45,7 @@ use std::collections::HashMap;
 ///                 b"GET / HTTP/1.1\r\n\
 ///                   Header1: value1\r\n\
 ///                   Header2: value2\r\n\
+///                   Cookie: Cookie1=value1; Cookie2=value2\r\n\
 ///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
@@ -51,6 +57,15 @@ use std::collections::HashMap;
 /// assert_eq!("/", h.get_url());
 /// assert_eq!(1, h.get_version_major());
 /// assert_eq!(1, h.get_version_minor());
+///
+/// // cookie names are normalized to lower-case
+/// let mut cookie = h.get_cookies().get("cookie1").unwrap();
+///
+/// assert_eq!("value1", cookie.get_value().unwrap());
+///
+/// cookie = h.get_cookies().get("cookie2").unwrap();
+///
+/// assert_eq!("value2", cookie.get_value().unwrap());
 /// ```
 ///
 /// # Response Example
@@ -66,6 +81,8 @@ use std::collections::HashMap;
 ///                 b"HTTP/1.1 200 OK\r\n\
 ///                   Header1: value1\r\n\
 ///                   Header2: value2\r\n\
+///                   Set-Cookie: cookie1=value1; domain=.domain1; path=/path1\r\n\
+///                   Set-Cookie: cookie2=value2; domain=.domain2; path=/path2\r\n\
 ///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
@@ -77,10 +94,23 @@ use std::collections::HashMap;
 /// assert_eq!(1, h.get_version_minor());
 /// assert_eq!(200, h.get_status_code());
 /// assert_eq!("OK", h.get_status());
+///
+/// // cookie names are normalized to lower-case
+/// let mut cookie = h.get_cookies().get("cookie1").unwrap();
+///
+/// assert_eq!("value1", cookie.get_value().unwrap());
+/// assert_eq!(".domain1", cookie.get_domain().unwrap());
+/// assert_eq!("/path1", cookie.get_path().unwrap());
+///
+/// cookie = h.get_cookies().get("cookie2").unwrap();
+///
+/// assert_eq!("value2", cookie.get_value().unwrap());
+/// assert_eq!(".domain2", cookie.get_domain().unwrap());
+/// assert_eq!("/path2", cookie.get_path().unwrap());
 /// ```
 pub struct HeadersHandler {
     /// Cookies.
-    cookies: HashMap<String,String>,
+    cookies: HashSet<Cookie>,
 
     /// Header field buffer.
     field_buffer: String,
@@ -120,7 +150,7 @@ impl HeadersHandler {
     /// Create a new `HeadersHandler`.
     pub fn new() -> HeadersHandler {
         HeadersHandler {
-            cookies:       HashMap::new(),
+            cookies:       HashSet::new(),
             field_buffer:  String::new(),
             finished:      false,
             headers:       HashMap::new(),
@@ -137,14 +167,112 @@ impl HeadersHandler {
 
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
-        self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+        if self.is_request() {
+            println!("Is request!!");
+            println!("Buffer: {}", self.field_buffer);
+            if self.field_buffer == "cookie" {
+                println!("Found cookie");
+                unsafe {
+                    let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
+                                                      self.value_buffer.as_mut_vec().len());
+
+                    util::parse_field(slice,
+                        |s| {
+                            match s {
+                                FieldSegment::Name(x) => {
+                                    let mut name = String::new();
+
+                                    name.as_mut_vec().extend_from_slice(x);
+
+                                    self.cookies.insert(Cookie::new(&name));
+
+                                    name.clear();
+                                },
+                                FieldSegment::NameValue(x,y) => {
+                                    let mut name  = String::new();
+                                    let mut value = String::new();
+
+                                    name.as_mut_vec().extend_from_slice(x);
+                                    value.as_mut_vec().extend_from_slice(y);
+
+                                    self.cookies.insert(Cookie::new_request(&name, &value));
+
+                                    name.clear();
+                                    value.clear();
+                                }
+                            }
+                        }
+                    );
+                }
+            } else {
+                self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            }
+        } else {
+            println!("Is response!!");
+            println!("Buffer: {}", self.field_buffer);
+            if self.field_buffer == "set-cookie" {
+                println!("Found set-cookie");
+                unsafe {
+                    let mut cookie = Cookie::new("");
+                    let mut key    = String::new();
+                    let mut value  = String::new();
+
+                    let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
+                                                      self.value_buffer.as_mut_vec().len());
+
+                    util::parse_field(slice,
+                        |s| {
+                            match s {
+                                FieldSegment::Name(x) => {
+                                    key.as_mut_vec().extend_from_slice(x);
+
+                                    if key == "httponly" {
+                                        cookie.set_http_only(true);
+                                    } else if key == "secure" {
+                                        cookie.set_secure(true);
+                                    }
+
+                                    key.clear();
+                                },
+                                FieldSegment::NameValue(x,y) => {
+                                    key.as_mut_vec().extend_from_slice(x);
+                                    value.as_mut_vec().extend_from_slice(y);
+
+                                    if key == "domain" {
+                                        cookie.set_domain(&value);
+                                    } else if key == "expires" {
+                                        cookie.set_expires(&value);
+                                    } else if key == "max-age" {
+                                        cookie.set_max_age(&value);
+                                    } else if key == "path" {
+                                        cookie.set_path(&value);
+                                    } else {
+                                        cookie.set_name(&key);
+                                        cookie.set_value(&value);
+                                    }
+
+                                    key.clear();
+                                    value.clear();
+                                }
+                            }
+                        }
+                    );
+
+                    if cookie.get_name() != "" {
+                        self.cookies.insert(cookie);
+                    }
+                }
+            } else {
+                self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            }
+        }
 
         self.field_buffer.clear();
         self.value_buffer.clear();
     }
 
     /// Retrieve the cookies.
-    pub fn get_cookies(&self) -> &HashMap<String,String> {
+    pub fn get_cookies(&self) -> &HashSet<Cookie> {
         &self.cookies
     }
 

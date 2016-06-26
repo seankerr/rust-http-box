@@ -51,7 +51,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::UpperHeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
         }
     });
 
@@ -75,7 +75,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::UpperHeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
         }
     });
 }
@@ -337,7 +337,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", ParserState::UpperHeaderField, 1);
+    assert_callback(&mut p, &mut h, b"F", ParserState::LowerHeaderField, 1);
 }
 
 #[test]
@@ -347,7 +347,7 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"F", ParserState::UpperHeaderField, 1);
+    assert_eos(&mut p, &mut h, b"F", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"f");
     assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"fi");
@@ -357,7 +357,7 @@ fn multiple() {
     assert_eq!(h.header_field, b"fiel");
     assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"field");
-    assert_eos(&mut p, &mut h, b"N", ParserState::UpperHeaderField, 1);
+    assert_eos(&mut p, &mut h, b"N", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"fieldn");
     assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderField, 1);
     assert_eq!(h.header_field, b"fieldna");

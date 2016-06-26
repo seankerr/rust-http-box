@@ -27,6 +27,8 @@ use fsm::{ ParserValue,
 
 use std::{ fmt,
            str };
+use std::borrow;
+use std::hash;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -128,6 +130,232 @@ macro_rules! unset_flag {
 /// Parser state function type.
 type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
     -> Result<ParserValue, ParserError>;
+
+// -------------------------------------------------------------------------------------------------
+
+/// HTTP cookie.
+#[derive(Clone,Eq,PartialEq)]
+pub struct Cookie {
+    /// Domain.
+    domain: Option<String>,
+
+    /// Expiration date and time.
+    expires: Option<String>,
+
+    /// Indicates the cookie is for HTTP only.
+    http_only: bool,
+
+    /// Maximum age.
+    max_age: Option<String>,
+
+    /// Name.
+    name: String,
+
+    /// Path.
+    path: Option<String>,
+
+    /// Indicates that the cookie is secure.
+    secure: bool,
+
+    /// Value.
+    value: Option<String>
+}
+
+impl Cookie {
+    /// Create a new `Cookie`.
+    pub fn new(name: &str) -> Cookie {
+        Cookie{
+            domain:    None,
+            expires:   None,
+            http_only: false,
+            max_age:   None,
+            name:      name.to_string(),
+            path:      None,
+            secure:    false,
+            value:     None
+        }
+    }
+
+    /// Create a new request `Cookie`.
+    pub fn new_request(name: &str, value: &str) -> Cookie {
+        Cookie{
+            domain:    None,
+            expires:   None,
+            http_only: false,
+            max_age:   None,
+            name:      name.to_string(),
+            path:      None,
+            secure:    false,
+            value:     Some(value.to_string())
+        }
+    }
+
+    /// Create a new response `Cookie`.
+    pub fn new_response(name: &str, value: &str, domain: Option<&str>, path: Option<&str>,
+                        expires: Option<&str>, max_age: Option<&str>, http_only: bool,
+                        secure: bool) -> Cookie {
+        Cookie{
+            domain:    if domain.is_some() { Some(domain.unwrap().to_string()) } else { None },
+            expires:   if expires.is_some() { Some(expires.unwrap().to_string()) } else { None },
+            http_only: http_only,
+            max_age:   if max_age.is_some() { Some(max_age.unwrap().to_string()) } else { None },
+            name:      name.to_string(),
+            path:      if path.is_some() { Some(path.unwrap().to_string()) } else { None },
+            secure:    secure,
+            value:     Some(value.to_string())
+        }
+    }
+
+    /// Retrieve the domain.
+    pub fn get_domain(&self) -> Option<&str> {
+        if let Some(ref x) = self.domain {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve the expiration date and time.
+    pub fn get_expires(&self) -> Option<&str> {
+        if let Some(ref x) = self.expires {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve the maximum age.
+    pub fn get_max_age(&self) -> Option<&str> {
+        if let Some(ref x) = self.max_age {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve the name.
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Retrieve the path.
+    pub fn get_path(&self) -> Option<&str> {
+        if let Some(ref x) = self.path {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve the value.
+    pub fn get_value(&self) -> Option<&str> {
+        if let Some(ref x) = self.value {
+            Some(x)
+        } else {
+            None
+        }
+    }
+
+    /// Indicates that the cookie is for HTTP only.
+    pub fn is_http_only(&self) -> bool {
+        self.http_only
+    }
+
+    /// Indicates that the cookie is secure.
+    pub fn is_secure(&self) -> bool {
+        self.secure
+    }
+
+    /// Set the domain.
+    pub fn set_domain(&mut self, domain: &str) -> &mut Self {
+        self.domain = Some(domain.to_string());
+        self
+    }
+
+    /// Set the expiration date and time.
+    pub fn set_expires(&mut self, expires: &str) -> &mut Self {
+        self.expires = Some(expires.to_string());
+        self
+    }
+
+    /// Set the HTTP only status.
+    pub fn set_http_only(&mut self, http_only: bool) -> &mut Self {
+        self.http_only = http_only;
+        self
+    }
+
+    /// Set the maximum age.
+    pub fn set_max_age(&mut self, max_age: &str) -> &mut Self {
+        self.max_age = Some(max_age.to_string());
+        self
+    }
+
+    /// Set the name.
+    pub fn set_name(&mut self, name: &str) -> &mut Self {
+        self.name = name.to_string();
+        self
+    }
+
+    /// Set the path.
+    pub fn set_path(&mut self, path: &str) -> &mut Self {
+        self.path = Some(path.to_string());
+        self
+    }
+
+    /// Set the secure status.
+    pub fn set_secure(&mut self, secure: bool) -> &mut Self {
+        self.secure = secure;
+        self
+    }
+
+    /// Set the value.
+    pub fn set_value(&mut self, value: &str) -> &mut Self {
+        self.value = Some(value.to_string());
+        self
+    }
+}
+
+impl borrow::Borrow<str> for Cookie {
+    fn borrow(&self) -> &str {
+        &self.name
+    }
+}
+
+impl PartialEq<str> for Cookie {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.name == other
+    }
+}
+
+impl fmt::Debug for Cookie {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter,
+               "Cookie(name=\"{}\", value=\"{}\", domain=\"{}\", path=\"{}\", \
+                       expires=\"{}\", max-age=\"{}\", http-only={}, secure={})",
+               self.name,
+               self.value.clone().unwrap_or("".to_string()),
+               self.domain.clone().unwrap_or("".to_string()),
+               self.path.clone().unwrap_or("".to_string()),
+               self.expires.clone().unwrap_or("".to_string()),
+               self.max_age.clone().unwrap_or("".to_string()),
+               self.http_only,
+               self.secure)
+    }
+}
+
+impl fmt::Display for Cookie {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{}", self.value.clone().unwrap_or("".to_string()))
+    }
+}
+
+impl hash::Hash for Cookie {
+    #[inline]
+    fn hash<H>(&self, state: &mut H) where H : hash::Hasher {
+        self.name.hash(state)
+    }
+}
 
 // -------------------------------------------------------------------------------------------------
 
@@ -1594,28 +1822,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if is_token(context.byte) {
-            if context.byte > 0x60 && context.byte < 0x7B {
-                // lower-cased byte
-                bs_replay!(context);
-
-                transition_fast!(self, context, ParserState::LowerHeaderField, lower_header_field);
-            } else if context.byte > 0x40 && context.byte < 0x5B {
-                // upper-cased byte, let's lower-case it
-                callback_transition!(self, context,
-                                     on_header_field, &[context.byte + 0x20],
-                                     ParserState::UpperHeaderField, upper_header_field);
-            } else {
-                // non-alphabetical
-                callback_transition!(self, context,
-                                     on_header_field, &[context.byte],
-                                     ParserState::UpperHeaderField, upper_header_field);
-            }
-        } else if context.byte == b':' {
-            transition_fast!(self, context, ParserState::StripHeaderValue, strip_header_value);
-        } else {
-            Err(ParserError::HeaderField(context.byte))
+        if context.byte > 0x40 && context.byte < 0x5B {
+            // upper-cased byte, let's lower-case it
+            callback_transition!(self, context,
+                                 on_header_field, &[context.byte + 0x20],
+                                 ParserState::LowerHeaderField, lower_header_field);
         }
+
+        bs_replay!(context);
+
+        transition!(self, context,
+                    ParserState::LowerHeaderField, lower_header_field);
     }
 
     #[inline]
