@@ -20,7 +20,7 @@ triggered the error when it occurred.
 I'm in the stage of refactoring filenames, types, and overall locations of everything in the API.
 Aside from this, the current changes are also in progress:
 
-- MultipartHttp1Handler (the entire thing)
+- MultipartHandler (the entire thing)
 
 ## Features
 
@@ -39,27 +39,27 @@ Aside from this, the current changes are also in progress:
 
 ## Access To:
 
-- Request:
-  - Method
-  - URL
-  - Version
-- Response:
-  - Status
-  - Status code
-  - Version
-- Headers (quoted and multi-line values are supported):
-  - Cookie name/value
-  - Header field/value
-- Chunk encoded:
-  - Size
-  - Extension name/value
-  - Trailer field/value
-  - Raw data
+- [Request](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html):
+  - [Method](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_method)
+  - [URL](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_url)
+  - [Version](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
+- [Response](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html):
+  - [Status](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status)
+  - [Status code](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status_code)
+  - [Version](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
+- [Headers](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html) (quoted and multi-line values are supported):
+  - [Cookie name/value](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_cookies)
+  - [Header field/value](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_headers)
+- [Chunk encoded](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html):
+  - [Length](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_length)
+  - [Extension name/value](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_extensions)
+  - [Trailer field/value](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_trailers)
+  - [Raw data](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#example)
 - Multipart (in the works)
   - Header field/value
   - File support
-- URL encoded:
-  - Field/value
+- [URL encoded](http://www.metatomic.org/docs/api/http_box/handler/struct.UrlEncodedHandler.html):
+  - [Field/value](http://www.metatomic.org/docs/api/http_box/handler/struct.UrlEncodedHandler.html#method.get_fields)
 
 ## Performance
 
