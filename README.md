@@ -31,6 +31,7 @@ Aside from this, the current changes are also in progress:
   - Requests
   - Responses
   - Headers
+  - Field values are turned into a HashSet: e.g. 'multipart/form-data; boundary="--ABCDEFG"'
   - Chunk encoded data
   - Query strings / URL encoded data
   - Multipart (in the works)
