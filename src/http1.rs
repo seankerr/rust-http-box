@@ -2085,11 +2085,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         if bs_has_bytes!(context, 8) {
             // have enough bytes to compare all known methods immediately, without collecting
             // individual tokens
-
-            // get the first byte, then replay it (for use with bs_starts_with!())
-            bs_next!(context);
-            bs_replay!(context);
-
             if bs_starts_with4!(context, b"GET ") {
                 method!(b"GET", 4);
             } else if context.byte == b'P' {
