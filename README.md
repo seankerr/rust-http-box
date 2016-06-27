@@ -34,7 +34,8 @@ Aside from this, the current changes are also in progress:
   - Cookies
   - Field values; e.g. 'multipart/form-data; boundary="--ABCDEFG"'
   - Chunk encoded data
-  - Query strings / URL encoded data
+  - URL encoded data
+  - Query strings
   - Multipart (in the works)
 
 ## Access To:
