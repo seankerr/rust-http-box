@@ -369,6 +369,17 @@ fn multiple() {
 }
 
 #[test]
+fn normalize() {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    setup!(p, h);
+
+    assert_eos(&mut p, &mut h, b"HEADER-FIELD", ParserState::LowerHeaderField, 12);
+    assert_eq!(h.header_field, b"header-field");
+}
+
+#[test]
 fn single() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();

@@ -110,7 +110,7 @@ fn repeat() {
     setup!(p, h);
 
     chunked_assert_eos(&mut p, &mut h, b"valid-value1;extension2=valid-value2;",
-                       ParserState::ChunkExtensionName1, 37);
+                       ParserState::UpperChunkExtensionName, 37);
 
     assert_eq!(h.chunk_extension_name, b"extension1extension2");
     assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");

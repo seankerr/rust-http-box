@@ -811,14 +811,20 @@ pub enum ParserState {
     /// Parsing chunk length end (when chunk length is 0).
     ChunkLengthEnd,
 
-    /// Parsing chunk extension name byte 1.
-    ChunkExtensionName1,
+    /// Stripping linear white space before chunk extension name.
+    StripChunkExtensionName,
 
-    /// Parsing chunk extension name bytes 2 - end.
-    ChunkExtensionName2,
+    /// Parsing upper-cased chunk extension.
+    UpperChunkExtensionName,
+
+    /// Parsing lower-cased chunk extension.
+    LowerChunkExtensionName,
 
     /// Parsing chunk extension with no value.
     ChunkExtensionNameNoValue,
+
+    /// Stripping linear white space before chunk extension value.
+    StripChunkExtensionValue,
 
     /// Parsing chunk extension value.
     ChunkExtensionValue,
@@ -1914,7 +1920,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                              ParserState::StripHeaderValue, strip_header_value);
         }
 
-        // upper-cased character
+        // upper-cased byte
         bs_replay!(context);
 
         callback_transition_fast!(self, context,
@@ -2483,39 +2489,52 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
             callback_transition_fast!(self, context,
                                       on_chunk_length, self.length,
-                                      ParserState::ChunkExtensionName1, chunk_extension_name1);
+                                      ParserState::StripChunkExtensionName,
+                                      strip_chunk_extension_name);
         }
 
         Err(ParserError::ChunkLength(context.byte))
     }
 
     #[inline]
-    fn chunk_extension_name1(&mut self, context: &mut ParserContext<T>)
+    fn strip_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
+
+        transition_fast!(self, context,
+                         ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
+    }
+
+    #[inline]
+    fn upper_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if is_token(context.byte) {
-            set_state!(self, ParserState::ChunkExtensionName2, chunk_extension_name2);
-
-            if context.handler.on_chunk_extension_name(&[context.byte]) {
-                transition_fast!(self, context);
-            } else {
-                exit_callback!(self, context);
-            }
-        } else {
-            Err(ParserError::ChunkExtensionName(context.byte))
+        if context.byte > 0x40 && context.byte < 0x5B {
+            callback_transition!(self, context,
+                                 on_chunk_extension_name, &[context.byte + 0x20],
+                                 ParserState::LowerChunkExtensionName, lower_chunk_extension_name);
         }
+
+        bs_replay!(context);
+
+        transition!(self, context,
+                    ParserState::LowerChunkExtensionName, lower_chunk_extension_name);
     }
 
     #[inline]
-    fn chunk_extension_name2(&mut self, context: &mut ParserContext<T>)
+    fn lower_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::ChunkExtensionName,
             // stop on these bytes
                context.byte == b'='
             || context.byte == b'\r'
-            || context.byte == b';',
+            || context.byte == b';'
+            || (context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
             callback_eos_expr!(self, context, on_chunk_extension_name)
@@ -2525,7 +2544,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             callback_ignore_transition_fast!(self, context,
                                              on_chunk_extension_name,
                                              ParserState::ChunkExtensionValue, chunk_extension_value);
-        } else {
+        } else if context.byte == b'\r' || context.byte == b';' {
             // extension name without a value
             bs_replay!(context);
 
@@ -2533,6 +2552,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                       on_chunk_extension_name,
                                       ParserState::ChunkExtensionNameNoValue,
                                       chunk_extension_name_no_value);
+        } else {
+            // upper-cased byte
+            bs_replay!(context);
+
+            callback_transition_fast!(self, context,
+                                      on_chunk_extension_name,
+                                      ParserState::UpperChunkExtensionName,
+                                      upper_chunk_extension_name);
         }
     }
 
@@ -2545,7 +2572,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         if context.byte == b'\r' {
             set_state!(self, ParserState::ChunkLengthNewline, chunk_length_newline);
         } else {
-            set_state!(self, ParserState::ChunkExtensionName1, chunk_extension_name1);
+            set_state!(self, ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
         }
 
         // since the chunk extension has no value, let's send an empty one
@@ -2554,6 +2581,18 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         } else {
             exit_callback!(self, context);
         }
+    }
+
+    #[inline]
+    fn strip_chunk_extension_value(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        consume_linear_space!(context,
+            // on end-of-stream
+            exit_eos!(self, context)
+        );
+
+        transition_fast!(self, context,
+                         ParserState::ChunkExtensionValue, chunk_extension_value);
     }
 
     #[inline]
@@ -2578,7 +2617,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             b';' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_chunk_extension_value,
-                                                 ParserState::ChunkExtensionName1, chunk_extension_name1);
+                                                 ParserState::UpperChunkExtensionName,
+                                                 upper_chunk_extension_name);
             },
             _ => {
                 transition_fast!(self, context, ParserState::ChunkExtensionQuotedValue,
@@ -2633,7 +2673,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b';' {
-            transition!(self, context, ParserState::ChunkExtensionName1, chunk_extension_name1);
+            transition!(self, context,
+                        ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
         } else if context.byte == b'\r' {
             transition!(self, context, ParserState::ChunkLengthNewline, chunk_length_newline);
         }

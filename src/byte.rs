@@ -20,16 +20,11 @@
 
 /// Encode a byte into a hex sequence *XX*.
 ///
-/// # Example
+/// If `None` is returned, the byte could not be encoded.
 ///
-/// ```
-/// # use http_box::byte::byte_to_hex;
-/// use std::str;
+/// **Returns**
 ///
-/// let hex = byte_to_hex(b'\r');
-///
-/// println!("Hex: {:?}", str::from_utf8(&hex).unwrap());
-/// ```
+/// The hex sequence without the preceeding *%*.
 #[inline]
 pub fn byte_to_hex(byte: u8) -> [u8; 2] {
     if byte > 15 {
@@ -43,18 +38,9 @@ pub fn byte_to_hex(byte: u8) -> [u8; 2] {
 
 /// Decode a hex sequence *X* or *XX* into a single byte.
 ///
-/// Returns `None` if the hex sequence is invalid.
+/// **Returns**
 ///
-/// # Example
-///
-/// ```
-/// # use http_box::byte::hex_to_byte;
-///
-/// match hex_to_byte(b"20") {
-///     Some(_) => { println!("Decoded a space"); }
-///     None    => { println!("Decoding error"); }
-/// }
-/// ```
+/// `None` if the hex sequence is invalid.
 #[inline]
 pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
     if hex.len() == 1 {

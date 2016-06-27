@@ -23,21 +23,21 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        chunked_setup(&mut $parser, &mut $handler, b"F;", ParserState::ChunkExtensionName1);
+        chunked_setup(&mut $parser, &mut $handler, b"F;", ParserState::StripChunkExtensionName);
     });
 }
 
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b"\r=\"", |byte| {
+    loop_non_tokens(b"\r\t=; ", |byte| {
         let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
 
         if let ParserError::ChunkExtensionName(x) = chunked_assert_error(&mut p, &mut h,
-                                                                         &[byte]).unwrap() {
+                                                                         &[b'a', byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -51,7 +51,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionName2, 1);
+        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::LowerChunkExtensionName, 1);
     });
 }
 
@@ -73,7 +73,20 @@ fn callback_exit() {
     // because chunk extension name is processed by 2 states, the callback exit will first
     // happen on the first byte
     chunked_assert_callback(&mut p, &mut h, b"ChunkExtension=",
-                            ParserState::ChunkExtensionName2, 1);
+                            ParserState::LowerChunkExtensionName, 1);
+}
+
+#[test]
+fn normalize() {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    setup!(p, h);
+
+    chunked_assert_eos(&mut p, &mut h, b"CHANGE----LOWER",
+                       ParserState::LowerChunkExtensionName, 15);
+
+    assert_eq!(h.chunk_extension_name, b"change----lower");
 }
 
 #[test]
@@ -83,7 +96,7 @@ fn no_value() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-extension;", ParserState::ChunkExtensionName1, 16);
+    chunked_assert_eos(&mut p, &mut h, b"valid-extension;", ParserState::UpperChunkExtensionName, 16);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
     assert_eq!(h.chunk_extension_value, b"");
 }
