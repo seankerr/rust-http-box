@@ -36,13 +36,15 @@ use std::collections::HashMap;
 /// let mut chunk_data = vec![];
 ///
 /// {
-///     let mut h = ChunkedHandler::new(|h,d| {
+///     let mut h = ChunkedHandler::new(|h,s| {
+///         // h = chunk handler
+///         // s = slice of raw data
 ///         assert_eq!(false, h.is_finished());
 ///         assert_eq!(0, h.get_index());
 ///         assert_eq!(4, h.get_length());
-///         assert_eq!(b"data", d);
+///         assert_eq!(b"data", s);
 ///         assert_eq!("value", h.get_extensions().get("extension").unwrap());
-///         chunk_data.extend_from_slice(d);
+///         chunk_data.extend_from_slice(s);
 ///         true
 ///     });
 ///
