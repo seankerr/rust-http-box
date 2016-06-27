@@ -40,25 +40,25 @@ pub struct FieldValue {
 
 impl FieldValue {
     /// Create a new `FieldValue`.
-    pub fn new(value: &str) -> FieldValue {
-        FieldValue{ value: FieldStorage::Single(value.to_string()) }
-    }
-
-    /// Create a new `FieldValue` from slice.
-    pub fn new_from_slice(value: &[u8]) -> FieldValue {
-        let mut string = String::with_capacity(value.len());
-
-        unsafe {
-            string.as_mut_vec().extend_from_slice(value);
-        }
-
-        FieldValue{ value: FieldStorage::Single(string) }
+    pub fn new() -> FieldValue {
+        FieldValue{ value: FieldStorage::Empty }
     }
 
     /// If this value is using multiple value storage, retrieve a mutable vector of values.
-    pub fn get_mut_vec(&mut self) -> Option<&mut Vec<String>> {
+    ///
+    /// *Note:* If this vector is cleared, the storage mechanism used internally will still reflect
+    ///         multiple value storage.
+    pub fn as_mut_vec(&mut self) -> Option<&mut Vec<String>> {
         match self.value {
             FieldStorage::Multiple(ref mut vec) => Some(vec),
+            _ => None
+        }
+    }
+
+    /// If this value is using multiple value storage, retrieve an immutable vector of values.
+    pub fn as_vec(&self) -> Option<&Vec<String>> {
+        match self.value {
+            FieldStorage::Multiple(ref vec) => Some(vec),
             _ => None
         }
     }
@@ -67,14 +67,6 @@ impl FieldValue {
     pub fn get_value(&self) -> Option<&str> {
         match self.value {
             FieldStorage::Single(ref string) => Some(string),
-            _ => None
-        }
-    }
-
-    /// If this value is using multiple value storage, retrieve an immutable vector of values.
-    pub fn get_vec(&self) -> Option<&Vec<String>> {
-        match self.value {
-            FieldStorage::Multiple(ref vec) => Some(vec),
             _ => None
         }
     }
@@ -103,16 +95,32 @@ impl FieldValue {
         }
     }
 
+    /// Retrieve the length of this value.
+    ///
+    /// If single value storage is being used, this will return `1`, not the length of the value.
+    pub fn len(&self) -> usize {
+        match self.value {
+            FieldStorage::Single(_) => 1,
+            FieldStorage::Multiple(ref vec) => vec.len(),
+            _ => 0
+        }
+    }
+
     /// Push an additional value.
     ///
-    /// If the initial value was single value storage, it will be updated to multiple value
-    /// storage.
+    /// This will silently update the internal storage mechanism to hold one or multiple
+    /// values.
     pub fn push(&mut self, value: &str) {
-        if self.is_single() {
-        } else if self.is_multiple() {
-            self.get_mut_vec().unwrap().push(value.to_string());
-        } else {
+        if self.is_empty() {
             self.value = FieldStorage::Single(value.to_string());
+        } else if self.is_single() {
+        } else {
+            self.as_mut_vec().unwrap().push(value.to_string());
         }
+    }
+
+    /// Reset the field value back to its initial stage with empty storage.
+    pub fn reset(&mut self) {
+        self.value = FieldStorage::Empty
     }
 }
