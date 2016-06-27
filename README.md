@@ -40,11 +40,11 @@ Aside from this, the current changes are also in progress:
 
 ## Access To:
 
-- [Request](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html):
+- [Request](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#request-example):
   - [Method](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_method)
   - [URL](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_url)
   - [Version](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
-- [Response](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html):
+- [Response](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#response-example):
   - [Status](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status)
   - [Status code](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status_code)
   - [Version](http://www.metatomic.org/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
