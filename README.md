@@ -26,7 +26,7 @@ Aside from this, the current changes are also in progress:
 
 - Understands persistent requests
 - Easily upgradable from HTTP/1.1 parsing to HTTP/2.0 in the same stream
-- Header field and cookie name normalization to lower-case
+- Header field, cookie name, chunk extension name normalization to lower-case
 - Parses:
   - Requests
   - Responses
