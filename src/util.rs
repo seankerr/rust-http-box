@@ -270,9 +270,9 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 /// # Example
 ///
 /// ```
-/// use http_box::util::decode;
+/// use http_box::util;
 ///
-/// decode(b"fancy%20url%20encoded%20data%2E",
+/// util::decode(b"fancy%20url%20encoded%20data%2E",
 ///     |s| {
 ///         // `s` is the most current slice of decoded data
 ///     }
@@ -348,10 +348,10 @@ where F : FnMut(&[u8]) {
 /// # Example
 ///
 /// ```
-/// use http_box::util::{ FieldSegment,
-///                       parse_field };
+/// use http_box::util::FieldSegment;
+/// use http_box::util;
 ///
-/// parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
+/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
 ///     |s| {
 ///         match s {
 ///             FieldSegment::Name(name) => {
@@ -535,10 +535,10 @@ where F : FnMut(FieldSegment) {
 /// # Example
 ///
 /// ```
-/// use http_box::util::{ QuerySegment,
-///                       parse_query };
+/// use http_box::util::QuerySegment;
+/// use http_box::util;
 ///
-/// parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
+/// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
 ///     |s| {
 ///         match s {
 ///             QuerySegment::Field(field) => {
