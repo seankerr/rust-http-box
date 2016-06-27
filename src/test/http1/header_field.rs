@@ -303,16 +303,6 @@ fn by_name_x_webkit_csp() {
 }
 
 #[test]
-fn by_name_x_content_security_policy() {
-    let mut h = DebugHttp1Handler::new();
-    let mut p = Parser::new();
-
-    setup!(p, h);
-
-    assert_eos(&mut p, &mut h, b"X-Content-Security-Policy:", ParserState::StripHeaderValue, 26);
-}
-
-#[test]
 fn by_name_www_authenticate() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();

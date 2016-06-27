@@ -1814,7 +1814,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             });
         }
 
-        if bs_has_bytes!(context, 26) {
+        if bs_has_bytes!(context, 24) {
             // have enough bytes to compare common header fields immediately, without collecting
             // individual tokens
             if context.byte == b'C' {
@@ -1872,8 +1872,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                     field!(b"x-xss-protection", 17);
                 } else if bs_starts_with13!(context, b"X-WebKit-CSP:") {
                     field!(b"x-webkit-csp", 13);
-                } else if b"X-Content-Security-Policy:" == bs_peek!(context, 26) {
-                    field!(b"x-content-security-policy", 26);
                 }
             } else if bs_starts_with17!(context, b"WWW-Authenticate:") {
                 field!(b"www-authenticate", 17);
