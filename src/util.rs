@@ -250,7 +250,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 ///
 /// **`bytes`**
 ///
-/// The byte data to decode.
+/// The data to decode.
 ///
 /// **`slice_fn`**
 ///
@@ -260,7 +260,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 ///
 /// **`usize`**
 ///
-/// The amount of byte data that was parsed.
+/// The amount of data that was parsed.
 ///
 /// # Errors
 ///
