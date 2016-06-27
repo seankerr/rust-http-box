@@ -21,7 +21,14 @@
 
 use http1::Http1Handler;
 
+use std::collections::HashMap;
+
 pub struct MultipartHandler {
+    /// Fields.
+    fields: HashMap<String,String>,
+
+    /// Current multipart section headers.
+    headers: HashMap<String,String>
 }
 
 impl MultipartHandler {

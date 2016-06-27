@@ -19,8 +19,8 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing the
 //! initial request/response line, and headers.
 
-use http1::{ Cookie,
-             Http1Handler };
+use cookie::Cookie;
+use http1::Http1Handler;
 use util::FieldSegment;
 use util;
 
@@ -288,7 +288,7 @@ impl HeadersHandler {
 
     /// Indicates that the parsed data is an HTTP request.
     pub fn is_request(&self) -> bool {
-        self.method.len() > 0
+        !self.method.is_empty()
     }
 
     /// Reset the handler back to its original state.

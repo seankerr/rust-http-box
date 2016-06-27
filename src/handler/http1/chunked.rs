@@ -118,7 +118,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
 
     /// Flush the most recent extension name/value.
     fn flush_extension(&mut self) {
-        if self.field_buffer.len() > 0 {
+        if !self.field_buffer.is_empty() {
             self.extensions.insert(self.field_buffer.clone(), self.value_buffer.clone());
         }
 
@@ -128,7 +128,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
 
     /// Flush the most recent trailer field/value.
     fn flush_trailer(&mut self) {
-        if self.field_buffer.len() > 0 {
+        if !self.field_buffer.is_empty() {
             self.trailers.insert(self.field_buffer.clone(), self.value_buffer.clone());
         }
 
@@ -224,7 +224,7 @@ impl<F> Http1Handler for ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F
     }
 
     fn on_chunk_extensions_finished(&mut self) -> bool {
-        if self.field_buffer.len() > 0 {
+        if !self.field_buffer.is_empty() {
             self.flush_extension();
         }
 
