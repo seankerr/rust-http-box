@@ -16,7 +16,10 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Query handling functions.
+//! Utility functions.
+//!
+//! This module provides support for decoding URL encoded data, parsing header fields, and parsing
+//! query strings.
 
 use byte::{ hex_to_byte,
             is_token };
