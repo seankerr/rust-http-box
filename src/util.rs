@@ -270,8 +270,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 /// # Example
 ///
 /// ```
-/// use http_box::util::{ DecodeError,
-///                       decode };
+/// use http_box::util::decode;
 ///
 /// decode(b"fancy%20url%20encoded%20data%2E",
 ///     |s| {
@@ -351,7 +350,6 @@ where F : FnMut(&[u8]) {
 /// ```
 /// use http_box::util::{ FieldSegment,
 ///                       parse_field };
-/// use std::collections::HashMap;
 ///
 /// parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
 ///     |s| {
