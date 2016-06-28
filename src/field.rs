@@ -41,6 +41,7 @@ use std::{ fmt,
 /// assert_eq!(false, field.has_multiple());
 /// assert_eq!("Value1", field.value().unwrap());
 /// assert_eq!("Value1", field.get(0).unwrap());
+/// assert_eq!(1, field.len());
 ///
 /// field.push("Value2");
 ///
@@ -49,7 +50,21 @@ use std::{ fmt,
 /// assert_eq!("Value1", field.value().unwrap());
 /// assert_eq!("Value1", field.get(0).unwrap());
 /// assert_eq!("Value2", field.get(1).unwrap());
+/// assert_eq!(2, field.len());
 /// assert_eq!(None, field.get(2));
+///
+/// field.remove(0);
+///
+/// assert_eq!(false, field.is_empty());
+/// assert_eq!(false, field.has_multiple());
+/// assert_eq!("Value2", field.value().unwrap());
+/// assert_eq!("Value2", field.get(0).unwrap());
+/// assert_eq!(1, field.len());
+///
+/// field.remove(0);
+///
+/// assert!(field.is_empty());
+/// assert_eq!(0, field.len());
 /// ```
 pub struct FieldValue {
     value: FieldValueStorage
