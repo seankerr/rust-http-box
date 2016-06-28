@@ -193,6 +193,8 @@ impl FieldValue {
                 if let FieldValueStorage::Multiple(ref mut vec) = self.value {
                     vec.retain(predicate);
                 }
+
+                self.check_storage();
             } else if !(if let FieldValueStorage::Single(ref string) = self.value {
                             predicate(string)
                         } else {
