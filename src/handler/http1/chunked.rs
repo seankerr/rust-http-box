@@ -150,6 +150,16 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
         &self.extensions
     }
 
+    /// Indicates that `extension` exists within the collection of extensions.
+    pub fn has_extension(&self, extension: &str) -> bool {
+        self.extensions.contains_key(extension)
+    }
+
+    /// Indicates that `trailer` exists within the collection of trailers.
+    pub fn has_trailer(&self, trailer: &str) -> bool {
+        self.trailers.contains_key(trailer)
+    }
+
     /// Retrieve the current chunk index.
     pub fn index(&self) -> u32 {
         self.index - 1
