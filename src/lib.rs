@@ -42,7 +42,8 @@ pub mod util;
 #[cfg(test)]
 mod test;
 
-pub use field::FieldValue;
+pub use field::{ FieldMap,
+                 FieldValue };
 pub use fsm::Success;
 pub use handler::*;
 

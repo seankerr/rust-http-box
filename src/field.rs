@@ -16,276 +16,153 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Field value support.
+//! Support for accessing field values in an easier fashion.
 
-use std::{ fmt,
-           mem };
+use std::collections::HashMap;
 
-/// Field value representation. This can be used to store values parsed via query string, URL
-/// encoded values, and multipart values.
-///
-/// This can store zero or more values.
-///
-/// # Example
-///
-/// ```
-/// use http_box::FieldValue;
-///
-/// let mut field = FieldValue::new();
-///
-/// assert!(field.is_empty());
-///
-/// field.push("Value1");
-///
-/// assert_eq!(false, field.is_empty());
-/// assert_eq!(false, field.has_multiple());
-/// assert_eq!("Value1", field.value().unwrap());
-/// assert_eq!("Value1", field.get(0).unwrap());
-/// assert_eq!(1, field.len());
-///
-/// field.push("Value2");
-///
-/// assert_eq!(false, field.is_empty());
-/// assert_eq!(true, field.has_multiple());
-/// assert_eq!("Value1", field.value().unwrap());
-/// assert_eq!("Value1", field.get(0).unwrap());
-/// assert_eq!("Value2", field.get(1).unwrap());
-/// assert_eq!(2, field.len());
-/// assert_eq!(None, field.get(2));
-///
-/// field.remove(0);
-///
-/// assert_eq!(false, field.is_empty());
-/// assert_eq!(false, field.has_multiple());
-/// assert_eq!("Value2", field.value().unwrap());
-/// assert_eq!("Value2", field.get(0).unwrap());
-/// assert_eq!(1, field.len());
-///
-/// field.remove(0);
-///
-/// assert!(field.is_empty());
-/// assert_eq!(0, field.len());
-/// ```
-pub struct FieldValue {
-    value: FieldValueStorage
+/// `FieldMap` is a wrapper around `HashMap<String, FieldValue>` that provides utility
+/// functions for accessing fields.
+#[derive(Default)]
+pub struct FieldMap(HashMap<String, FieldValue>);
+
+impl FieldMap {
+    /// Create a new `FieldMap`.
+    pub fn new() -> FieldMap {
+        FieldMap(HashMap::new())
+    }
+
+    /// Create a new `FieldMap` with an initial capacity.
+    pub fn new_capacity(capacity: usize) -> FieldMap {
+        FieldMap(HashMap::with_capacity(capacity))
+    }
+
+    /// Retrieve the internal immutable collection.
+    pub fn as_map(&self) -> &HashMap<String, FieldValue> {
+        &self.0
+    }
+
+    /// Retrieve the internal mutable collection.
+    pub fn as_mut_map(&mut self) -> &mut HashMap<String, FieldValue> {
+        &mut self.0
+    }
+
+    /// Clear all values from the collection.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Retrieve `field` from the collection.
+    ///
+    /// # Panic
+    ///
+    /// This function will panic if `field` does not exist within the collection.
+    pub fn field(&self, field: &str) -> &FieldValue {
+        self.0.get(field).unwrap()
+    }
+
+    /// Indicates that `field` exists within the collection.
+    pub fn has_field(&self, field: &str) -> bool {
+        self.0.contains_key(field)
+    }
+
+    /// Append `field` with `value` onto the collection.
+    ///
+    /// If `field` does not yet exist, add it.
+    pub fn push(&mut self, field: &str, value: &str) {
+        let mut entry = self.0.entry(field.to_string()).or_insert(FieldValue::new());
+
+        (*entry).push(value.to_string());
+    }
+
+    /// Append `field` with `value` onto the collection.
+    pub fn push_from_slice(&mut self, field: &[u8], value: &[u8]) {
+        let mut n = String::with_capacity(field.len());
+        let mut v = String::with_capacity(value.len());
+
+        unsafe {
+            n.as_mut_vec().extend_from_slice(field);
+            v.as_mut_vec().extend_from_slice(value);
+        }
+
+        let mut entry = self.0.entry(n).or_insert(FieldValue::new());
+
+        (*entry).push(v);
+    }
+
+    /// Remove `field` from the collection.
+    pub fn remove(&mut self, field: &str) -> Option<FieldValue> {
+        self.0.remove(field)
+    }
 }
+
+// -------------------------------------------------------------------------------------------------
+
+/// `FieldValue` is a wrapper around `Vec<String>` that provides utility functions for
+/// accessing values.
+pub struct FieldValue(Vec<String>);
 
 impl FieldValue {
     /// Create a new `FieldValue`.
     pub fn new() -> FieldValue {
-        FieldValue{ value: FieldValueStorage::Empty }
+        FieldValue(Vec::new())
     }
 
-    /// Check to see if the storage needs downgraded to `FieldValueStorage::Empty` or
-    /// `FieldValueStorage::Single`.
-    fn check_storage(&mut self) {
-        if self.is_empty() || !self.has_multiple() {
-            return;
-        }
-
-        if self.len() == 0 {
-            self.value = FieldValueStorage::Empty;
-        } else if self.len() == 1 {
-            self.value = FieldValueStorage::Single(self.value().unwrap().to_string());
-        }
+    /// Retrieve all values from the collection.
+    ///
+    /// This is akin to [`as_vec()`](#method.as_vec), but it's returned as a slice.
+    pub fn all(&self) -> &[String] {
+        &self.0[..]
     }
 
-    /// Clear all the values.
-    pub fn clear(&mut self) {
-        self.value = FieldValueStorage::Empty
+    /// Retrieve the internal mutable vector.
+    pub fn as_mut_vec(&mut self) -> &mut Vec<String> {
+        &mut self.0
     }
 
-    /// Retrieve an iterator over the values.
-    pub fn iter(&self) -> FieldValueIterator {
-        FieldValueIterator{ index: 0,
-                            value: &self.value }
+    /// Retrieve the internal immutable vector.
+    pub fn as_vec(&self) -> &Vec<String> {
+        &self.0
     }
 
-    /// Retrieve the value at `index`.
-    pub fn get(&self, index: usize) -> Option<&str> {
-        match self.value {
-            FieldValueStorage::Single(ref string) if index == 0 => {
-                Some(string)
-            },
-            FieldValueStorage::Multiple(ref vec) if index < vec.len() => {
-                Some(&vec[index])
-            },
-            _ => None
-        }
-    }
-
-    /// Indicates that multiple values are being stored.
-    pub fn has_multiple(&self) -> bool {
-        match self.value {
-            FieldValueStorage::Multiple(_) => true,
-            _ => false
-        }
-    }
-
-    /// Indicates that this value is empty.
-    pub fn is_empty(&self) -> bool {
-        match self.value {
-            FieldValueStorage::Empty => true,
-            _ => false
-        }
-    }
-
-    /// Retrieve the number of values.
-    pub fn len(&self) -> usize {
-        match self.value {
-            FieldValueStorage::Single(_) => 1,
-            FieldValueStorage::Multiple(ref vec) => vec.len(),
-            _ => 0
-        }
-    }
-
-    /// Append a value onto the end of the collection.
-    pub fn push(&mut self, value: &str) {
-        if self.is_empty() {
-            self.value = FieldValueStorage::Single(value.to_string());
-        } else if self.has_multiple() {
-            if let FieldValueStorage::Multiple(ref mut vec) = self.value {
-                vec.push(value.to_string());
-            }
-        } else {
-            let mut old_string = String::new();
-
-            if let FieldValueStorage::Single(ref mut string) = self.value {
-                old_string = mem::replace(string, old_string);
-            }
-
-            self.value = FieldValueStorage::Multiple(vec![old_string, value.to_string()]);
-        }
-    }
-
-    /// Remove the value at `index`.
+    /// Retrieve the first value from the collection.
     ///
     /// # Panic
     ///
-    /// If `index` overflows the stored length of values.
-    pub fn remove(&mut self, index: usize) {
-        if self.is_empty() {
-            panic!();
-        }
-
-        if self.has_multiple() {
-            match self.value {
-                FieldValueStorage::Multiple(ref mut vec) if index < vec.len() => {
-                    vec.remove(index);
-                },
-                _ => {
-                    panic!();
-                }
-            }
-
-            self.check_storage();
-        } else if index == 0 {
-            self.value = FieldValueStorage::Empty;
-        } else {
-            panic!();
-        }
+    /// This function will panic if the collection is empty.
+    pub fn first(&self) -> &String {
+        &self.0[0]
     }
 
-    /// Retain only elements allowed by `predicate`.
-    pub fn retain<F>(&mut self, mut predicate: F) where F : FnMut(&String) -> bool {
-        if !self.is_empty() {
-            if self.has_multiple() {
-                if let FieldValueStorage::Multiple(ref mut vec) = self.value {
-                    vec.retain(predicate);
-                }
-
-                self.check_storage();
-            } else if !(if let FieldValueStorage::Single(ref string) = self.value {
-                            predicate(string)
-                        } else {
-                            true
-                        }) {
-                self.value = FieldValueStorage::Empty;
-            }
-        }
+    /// Retrieve `index` from the collection.
+    ///
+    /// # Panic
+    ///
+    /// This function will panic if `index` overflows the collection length.
+    pub fn get(&self, index: usize) -> &String {
+        &self.0[index]
     }
 
-    /// Retrieve the first value.
-    pub fn value(&self) -> Option<&str> {
-        match self.value {
-            FieldValueStorage::Single(ref string) => {
-                Some(string)
-            },
-            FieldValueStorage::Multiple(ref vec) => {
-                Some(&vec[0])
-            },
-            _ => None
-        }
+    /// Indicates that the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
-}
 
-impl fmt::Debug for FieldValue {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match self.value {
-            FieldValueStorage::Single(ref string) => {
-                write!(formatter, "FieldValueStorage::Single(\"{}\")", string)
-            },
-            FieldValueStorage::Multiple(ref vec) => {
-                write!(formatter, "FieldValueStorage::Multiple({} values)", vec.len())
-            },
-            _ => write!(formatter, "FieldValueStorage::Empty")
-        }
+    /// Retrieve the number of values within the collection.
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
-}
 
-impl fmt::Display for FieldValue {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match self.value {
-            FieldValueStorage::Single(ref string) => {
-                write!(formatter, "\"{}\"", string)
-            },
-            FieldValueStorage::Multiple(ref vec) => {
-                write!(formatter, "{} values", vec.len())
-            },
-            _ => write!(formatter, "")
-        }
+    /// Append `value` onto the collection.
+    pub fn push(&mut self, value: String) {
+        self.0.push(value);
     }
-}
 
-// -------------------------------------------------------------------------------------------------
-
-/// Field value iterator.
-pub struct FieldValueIterator<'a> {
-    /// Current index.
-    index: usize,
-
-    /// Field value.
-    value: &'a FieldValueStorage
-}
-
-impl<'a> Iterator for FieldValueIterator<'a> {
-    type Item = &'a str;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.index += 1;
-
-        match self.value {
-            &FieldValueStorage::Single(ref string) if self.index == 1 => {
-                Some(string)
-            },
-            &FieldValueStorage::Multiple(ref vec) if self.index <= vec.len() => {
-                Some(&vec[self.index - 1])
-            },
-            _ => None
-        }
+    /// Remove `index` from the collection.
+    ///
+    /// # Panic
+    ///
+    /// This function will panic if `index` overflows the collection length.
+    pub fn remove(&mut self, index: usize) -> String {
+        self.0.remove(index)
     }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Field value storage options.
-enum FieldValueStorage {
-    /// Empty value.
-    Empty,
-
-    /// Multiple values.
-    Multiple(Vec<String>),
-
-    /// Single value.
-    Single(String)
 }
