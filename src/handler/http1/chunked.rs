@@ -40,10 +40,10 @@ use std::collections::HashMap;
 ///         // h = chunk handler
 ///         // s = slice of raw data
 ///         assert_eq!(false, h.is_finished());
-///         assert_eq!(0, h.get_index());
-///         assert_eq!(4, h.get_length());
+///         assert_eq!(0, h.index());
+///         assert_eq!(4, h.len());
 ///         assert_eq!(b"data", s);
-///         assert_eq!("value", h.get_extensions().get("extension").unwrap());
+///         assert_eq!("value", h.extension("extension").unwrap());
 ///         chunk_data.extend_from_slice(s);
 ///         true
 ///     });
@@ -58,9 +58,9 @@ use std::collections::HashMap;
 ///                       \r\n");
 ///
 ///     assert!(h.is_finished());
-///     assert_eq!(1, h.get_index());
-///     assert_eq!(0, h.get_length());
-///     assert_eq!("value", h.get_trailers().get("trailer").unwrap());
+///     assert_eq!(1, h.index());
+///     assert_eq!(0, h.len());
+///     assert_eq!("value", h.trailer("trailer").unwrap());
 /// }
 ///
 /// assert_eq!(b"data", &chunk_data[..]);
@@ -69,13 +69,13 @@ pub struct ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> b
     /// Data callback.
     data_fn: Option<F>,
 
-    /// Map of extensions for the current chunk.
-    extensions: HashMap<String,String>,
+    /// Extensions for the current chunk.
+    extensions: HashMap<String, String>,
 
     /// Extension name buffer and trailer field buffer.
     field_buffer: String,
 
-    /// Indicates that the chunked data is finished parsing.
+    /// Indicates that chunk parsing has finished.
     finished: bool,
 
     /// The current chunk index.
@@ -87,8 +87,8 @@ pub struct ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> b
     /// Extension name/value, and trailer field/value toggle.
     toggle: bool,
 
-    /// Map of trailers.
-    trailers: HashMap<String,String>,
+    /// Trailers.
+    trailers: HashMap<String, String>,
 
     /// Extension value buffer and trailer value buffer.
     value_buffer: String
@@ -136,29 +136,47 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
         self.value_buffer.clear();
     }
 
+    /// Retrieve `extension` from the collection of extensions.
+    pub fn extension(&self, extension: &str) -> Option<&str> {
+        if let Some(ref extension) = self.extensions.get(extension) {
+            Some(&extension[..])
+        } else {
+            None
+        }
+    }
+
     /// Retrieve the extensions for the current chunk.
-    pub fn get_extensions(&self) -> &HashMap<String,String> {
+    pub fn extensions(&self) -> &HashMap<String,String> {
         &self.extensions
     }
 
     /// Retrieve the current chunk index.
-    pub fn get_index(&self) -> u32 {
+    pub fn index(&self) -> u32 {
         self.index - 1
     }
 
-    /// Retrieve the length for the current chunk.
-    pub fn get_length(&self) -> usize {
+    /// Indicates that chunk parsing has finished.
+    pub fn is_finished(&self) -> bool {
+        self.finished
+    }
+
+    /// Retrieve the current chunk length.
+    pub fn len(&self) -> usize {
         self.length
     }
 
-    /// Retrieve the trailers.
-    pub fn get_trailers(&self) -> &HashMap<String,String> {
-        &self.trailers
+    /// Retrieve `trailer` from the collection of trailers.
+    pub fn trailer(&self, trailer: &str) -> Option<&str> {
+        if let Some(ref trailer) = self.trailers.get(trailer) {
+            Some(&trailer[..])
+        } else {
+            None
+        }
     }
 
-    /// Indicates that the body is finished parsing.
-    pub fn is_finished(&self) -> bool {
-        self.finished
+    /// Retrieve the trailers.
+    pub fn trailers(&self) -> &HashMap<String,String> {
+        &self.trailers
     }
 
     /// Reset the handler back to its original state.

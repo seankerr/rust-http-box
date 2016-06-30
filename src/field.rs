@@ -27,12 +27,12 @@ pub struct FieldMap(HashMap<String, FieldValue>);
 
 impl FieldMap {
     /// Create a new `FieldMap`.
-    pub fn new() -> FieldMap {
+    pub fn new() -> Self {
         FieldMap(HashMap::new())
     }
 
-    /// Create a new `FieldMap` with an initial capacity.
-    pub fn new_capacity(capacity: usize) -> FieldMap {
+    /// Create a new `FieldMap`.
+    pub fn new_capacity(capacity: usize) -> Self {
         FieldMap(HashMap::with_capacity(capacity))
     }
 
@@ -46,18 +46,14 @@ impl FieldMap {
         &mut self.0
     }
 
-    /// Clear all values from the collection.
+    /// Clear the collection.
     pub fn clear(&mut self) {
         self.0.clear();
     }
 
     /// Retrieve `field` from the collection.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if `field` does not exist within the collection.
-    pub fn field(&self, field: &str) -> &FieldValue {
-        self.0.get(field).unwrap()
+    pub fn field(&self, field: &str) -> Option<&FieldValue> {
+        self.0.get(field)
     }
 
     /// Indicates that `field` exists within the collection.
@@ -103,13 +99,13 @@ pub struct FieldValue(Vec<String>);
 
 impl FieldValue {
     /// Create a new `FieldValue`.
-    pub fn new() -> FieldValue {
+    pub fn new() -> Self {
         FieldValue(Vec::new())
     }
 
     /// Retrieve all values from the collection.
     ///
-    /// This is akin to [`as_vec()`](#method.as_vec), but it's returned as a slice.
+    /// This is akin to [`&as_vec()[..]`](#method.as_vec).
     pub fn all(&self) -> &[String] {
         &self.0[..]
     }
@@ -125,21 +121,21 @@ impl FieldValue {
     }
 
     /// Retrieve the first value from the collection.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if the collection is empty.
-    pub fn first(&self) -> &String {
-        &self.0[0]
+    pub fn first(&self) -> Option<&str> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(&self.0[0])
+        }
     }
 
     /// Retrieve `index` from the collection.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if `index` overflows the collection length.
-    pub fn get(&self, index: usize) -> &String {
-        &self.0[index]
+    pub fn get(&self, index: usize) -> Option<&str> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(&self.0[index])
+        }
     }
 
     /// Indicates that the collection is empty.
@@ -157,12 +153,12 @@ impl FieldValue {
         self.0.push(value);
     }
 
-    /// Remove `index` from the collection.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if `index` overflows the collection length.
-    pub fn remove(&mut self, index: usize) -> String {
-        self.0.remove(index)
+    /// Remove `index` from the collection and return it.
+    pub fn remove(&mut self, index: usize) -> Option<String> {
+        if index < self.0.len() {
+            Some(self.0.remove(index))
+        } else {
+            None
+        }
     }
 }

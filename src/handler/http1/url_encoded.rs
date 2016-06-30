@@ -23,7 +23,6 @@ use field::{ FieldMap,
              FieldValue };
 use http1::Http1Handler;
 
-#[derive(Default)]
 /// `UrlEncodedHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
@@ -41,10 +40,11 @@ use http1::Http1Handler;
 ///                     b"Field1=Value%201&Field2=Value%202&Field1=Value%203",
 ///                     50);
 ///
-/// assert_eq!("Value 1", h.field("Field1").first());
-/// assert_eq!("Value 2", h.field("Field2").first());
-/// assert_eq!("Value 3", h.field("Field1").get(1));
+/// assert_eq!("Value 1", h.field("Field1").unwrap().first().unwrap());
+/// assert_eq!("Value 2", h.field("Field2").unwrap().first().unwrap());
+/// assert_eq!("Value 3", h.field("Field1").unwrap().get(1).unwrap());
 /// ```
+#[derive(Default)]
 pub struct UrlEncodedHandler {
     /// Field buffer.
     field_buffer: Vec<u8>,
@@ -52,7 +52,7 @@ pub struct UrlEncodedHandler {
     /// Fields.
     fields: FieldMap,
 
-    /// Indicates that the body is finished parsing.
+    /// Indicates that parsing has finished.
     finished: bool,
 
     /// Field/value toggle.
@@ -75,11 +75,7 @@ impl UrlEncodedHandler {
     }
 
     /// Retrieve `field` from the collection of fields.
-    ///
-    /// # Panic
-    ///
-    /// This function will panic if `field` does not exist.
-    pub fn field(&self, field: &str) -> &FieldValue {
+    pub fn field(&self, field: &str) -> Option<&FieldValue> {
         self.fields.field(field)
     }
 
@@ -103,7 +99,7 @@ impl UrlEncodedHandler {
         self.fields.has_field(field)
     }
 
-    /// Indicates that the body is finished parsing.
+    /// Indicates that parsing has finished.
     pub fn is_finished(&self) -> bool {
         self.finished
     }

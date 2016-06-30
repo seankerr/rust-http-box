@@ -50,23 +50,23 @@ use std::slice;
 ///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
-/// assert_eq!("value1", h.get_headers().get("header1").unwrap());
-/// assert_eq!("value2", h.get_headers().get("header2").unwrap());
+/// assert_eq!("value1", h.headers().get("header1").unwrap());
+/// assert_eq!("value2", h.headers().get("header2").unwrap());
 ///
 /// // request details
-/// assert_eq!("GET", h.get_method());
-/// assert_eq!("/", h.get_url());
-/// assert_eq!(1, h.get_version_major());
-/// assert_eq!(1, h.get_version_minor());
+/// assert_eq!("GET", h.method());
+/// assert_eq!("/", h.url());
+/// assert_eq!(1, h.version_major());
+/// assert_eq!(1, h.version_minor());
 ///
 /// // cookie names are normalized to lower-case
-/// let mut cookie = h.get_cookies().get("cookie1").unwrap();
+/// let mut cookie = h.cookies().get("cookie1").unwrap();
 ///
-/// assert_eq!("value1", cookie.get_value().unwrap());
+/// assert_eq!("value1", cookie.value().unwrap());
 ///
-/// cookie = h.get_cookies().get("cookie2").unwrap();
+/// cookie = h.cookies().get("cookie2").unwrap();
 ///
-/// assert_eq!("value2", cookie.get_value().unwrap());
+/// assert_eq!("value2", cookie.value().unwrap());
 /// ```
 ///
 /// # Response Example
@@ -87,27 +87,27 @@ use std::slice;
 ///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
-/// assert_eq!("value1", h.get_headers().get("header1").unwrap());
-/// assert_eq!("value2", h.get_headers().get("header2").unwrap());
+/// assert_eq!("value1", h.headers().get("header1").unwrap());
+/// assert_eq!("value2", h.headers().get("header2").unwrap());
 ///
 /// // response details
-/// assert_eq!(1, h.get_version_major());
-/// assert_eq!(1, h.get_version_minor());
-/// assert_eq!(200, h.get_status_code());
-/// assert_eq!("OK", h.get_status());
+/// assert_eq!(1, h.version_major());
+/// assert_eq!(1, h.version_minor());
+/// assert_eq!(200, h.status_code());
+/// assert_eq!("OK", h.status());
 ///
 /// // cookie names are normalized to lower-case
-/// let mut cookie = h.get_cookies().get("cookie1").unwrap();
+/// let mut cookie = h.cookie("cookie1").unwrap();
 ///
-/// assert_eq!("value1", cookie.get_value().unwrap());
-/// assert_eq!(".domain1", cookie.get_domain().unwrap());
-/// assert_eq!("/path1", cookie.get_path().unwrap());
+/// assert_eq!("value1", cookie.value().unwrap());
+/// assert_eq!(".domain1", cookie.domain().unwrap());
+/// assert_eq!("/path1", cookie.path().unwrap());
 ///
-/// cookie = h.get_cookies().get("cookie2").unwrap();
+/// cookie = h.cookie("cookie2").unwrap();
 ///
-/// assert_eq!("value2", cookie.get_value().unwrap());
-/// assert_eq!(".domain2", cookie.get_domain().unwrap());
-/// assert_eq!("/path2", cookie.get_path().unwrap());
+/// assert_eq!("value2", cookie.value().unwrap());
+/// assert_eq!(".domain2", cookie.domain().unwrap());
+/// assert_eq!("/path2", cookie.path().unwrap());
 /// ```
 pub struct HeadersHandler {
     /// Cookies.
@@ -116,11 +116,11 @@ pub struct HeadersHandler {
     /// Header field buffer.
     field_buffer: String,
 
-    /// Indicates that headers are finished parsing.
+    /// Indicates that header parsing has finished.
     finished: bool,
 
     /// Headers.
-    headers: HashMap<String,String>,
+    headers: HashMap<String, String>,
 
     /// Request method.
     method: String,
@@ -164,6 +164,16 @@ impl HeadersHandler {
             version_major: 0,
             version_minor: 0
         }
+    }
+
+    /// Retrieve `cookie` from the collection of cookies.
+    pub fn cookie(&self, cookie: &str) -> Option<&Cookie> {
+        self.cookies.get(cookie)
+    }
+
+    /// Retrieve the collection of cookies.
+    pub fn cookies(&self) -> &HashSet<Cookie> {
+        &self.cookies
     }
 
     /// Flush the most recent header field/value.
@@ -229,7 +239,7 @@ impl HeadersHandler {
                     }
                 );
 
-                if cookie.get_name() != "" {
+                if cookie.name() != "" {
                     self.cookies.insert(cookie);
                 }
             }
@@ -241,54 +251,33 @@ impl HeadersHandler {
         self.value_buffer.clear();
     }
 
-    /// Retrieve the cookies.
-    pub fn get_cookies(&self) -> &HashSet<Cookie> {
-        &self.cookies
+    /// Retrieve `header` from the collection of headers.
+    pub fn header(&self, header: &str) -> Option<&str> {
+        if let Some(ref header) = self.headers.get(header) {
+            Some(&header[..])
+        } else {
+            None
+        }
     }
 
-    /// Retrieve the headers.
-    pub fn get_headers(&self) -> &HashMap<String,String> {
+    /// Retrieve the collection of headers.
+    pub fn headers(&self) -> &HashMap<String,String> {
         &self.headers
     }
 
-    /// Retrieve the request method.
-    pub fn get_method(&self) -> &str {
-        &self.method
-    }
-
-    /// Retrieve the response status.
-    pub fn get_status(&self) -> &str {
-        &self.status
-    }
-
-    /// Retrieve the response status code.
-    pub fn get_status_code(&self) -> u16 {
-        self.status_code
-    }
-
-    /// Retrieve the request URL.
-    pub fn get_url(&self) -> &str {
-        &self.url
-    }
-
-    /// Retrieve the HTTP major version.
-    pub fn get_version_major(&self) -> u16 {
-        self.version_major
-    }
-
-    /// Retrieve the HTTP minor version.
-    pub fn get_version_minor(&self) -> u16 {
-        self.version_minor
-    }
-
-    /// Indicates that the headers are finished parsing.
+    /// Indicates that header parsing has finished.
     pub fn is_finished(&self) -> bool {
         self.finished
     }
 
-    /// Indicates that the parsed data is an HTTP request.
+    /// Indicates that the parsed data is a request.
     pub fn is_request(&self) -> bool {
         !self.method.is_empty()
+    }
+
+    /// Retrieve the request method.
+    pub fn method(&self) -> &String {
+        &self.method
     }
 
     /// Reset the handler back to its original state.
@@ -306,6 +295,31 @@ impl HeadersHandler {
         self.status.clear();
         self.url.clear();
         self.value_buffer.clear();
+    }
+
+    /// Retrieve the response status.
+    pub fn status(&self) -> &String {
+        &self.status
+    }
+
+    /// Retrieve the response status code.
+    pub fn status_code(&self) -> u16 {
+        self.status_code
+    }
+
+    /// Retrieve the request URL.
+    pub fn url(&self) -> &String {
+        &self.url
+    }
+
+    /// Retrieve the HTTP major version.
+    pub fn version_major(&self) -> u16 {
+        self.version_major
+    }
+
+    /// Retrieve the HTTP minor version.
+    pub fn version_minor(&self) -> u16 {
+        self.version_minor
     }
 }
 
