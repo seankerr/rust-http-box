@@ -88,7 +88,7 @@ impl Cookie {
     }
 
     /// Retrieve the domain.
-    pub fn domain(&self) -> Option<&String> {
+    pub fn domain(&self) -> Option<&str> {
         if let Some(ref x) = self.domain {
             Some(x)
         } else {
@@ -97,7 +97,7 @@ impl Cookie {
     }
 
     /// Retrieve the expiration date and time.
-    pub fn expires(&self) -> Option<&String> {
+    pub fn expires(&self) -> Option<&str> {
         if let Some(ref x) = self.expires {
             Some(x)
         } else {
@@ -116,7 +116,7 @@ impl Cookie {
     }
 
     /// Retrieve the maximum age.
-    pub fn max_age(&self) -> Option<&String> {
+    pub fn max_age(&self) -> Option<&str> {
         if let Some(ref x) = self.max_age {
             Some(x)
         } else {
@@ -130,7 +130,7 @@ impl Cookie {
     }
 
     /// Retrieve the path.
-    pub fn path(&self) -> Option<&String> {
+    pub fn path(&self) -> Option<&str> {
         if let Some(ref x) = self.path {
             Some(x)
         } else {
@@ -139,13 +139,13 @@ impl Cookie {
     }
 
     /// Set the domain.
-    pub fn set_domain(&mut self, domain: &str) -> &mut Cookie {
-        self.domain = Some(domain.to_string());
+    pub fn set_domain(&mut self, domain: String) -> &mut Self {
+        self.domain = Some(domain);
         self
     }
 
     /// Set the domain.
-    pub fn set_domain_from_slice(&mut self, domain: &[u8]) -> &mut Cookie {
+    pub fn set_domain_from_slice(&mut self, domain: &[u8]) -> &mut Self {
         self.domain = Some(unsafe {
             let mut s = String::with_capacity(domain.len());
 
@@ -157,13 +157,13 @@ impl Cookie {
     }
 
     /// Set the expiration date and time.
-    pub fn set_expires(&mut self, expires: &str) -> &mut Cookie {
-        self.expires = Some(expires.to_string());
+    pub fn set_expires(&mut self, expires: String) -> &mut Self {
+        self.expires = Some(expires);
         self
     }
 
     /// Set the expiration date and time.
-    pub fn set_expires_from_slice(&mut self, expires: &[u8]) -> &mut Cookie {
+    pub fn set_expires_from_slice(&mut self, expires: &[u8]) -> &mut Self {
         self.expires = Some(unsafe {
             let mut s = String::with_capacity(expires.len());
 
@@ -175,19 +175,19 @@ impl Cookie {
     }
 
     /// Set the HTTP only status.
-    pub fn set_http_only(&mut self, http_only: bool) -> &mut Cookie {
+    pub fn set_http_only(&mut self, http_only: bool) -> &mut Self {
         self.http_only = http_only;
         self
     }
 
     /// Set the maximum age.
-    pub fn set_max_age(&mut self, max_age: &str) -> &mut Cookie {
-        self.max_age = Some(max_age.to_string());
+    pub fn set_max_age(&mut self, max_age: String) -> &mut Self {
+        self.max_age = Some(max_age);
         self
     }
 
     /// Set the maximum age.
-    pub fn set_max_age_from_slice(&mut self, max_age: &[u8]) -> &mut Cookie {
+    pub fn set_max_age_from_slice(&mut self, max_age: &[u8]) -> &mut Self {
         self.max_age = Some(unsafe {
             let mut s = String::with_capacity(max_age.len());
 
@@ -199,13 +199,13 @@ impl Cookie {
     }
 
     /// Set the name.
-    pub fn set_name(&mut self, name: &str) -> &mut Cookie {
-        self.name = name.to_string();
+    pub fn set_name(&mut self, name: String) -> &mut Self {
+        self.name = name;
         self
     }
 
     /// Set the name.
-    pub fn set_name_from_slice(&mut self, name: &[u8]) -> &mut Cookie {
+    pub fn set_name_from_slice(&mut self, name: &[u8]) -> &mut Self {
         self.name = unsafe {
             let mut s = String::with_capacity(name.len());
 
@@ -217,13 +217,13 @@ impl Cookie {
     }
 
     /// Set the path.
-    pub fn set_path(&mut self, path: &str) -> &mut Cookie {
-        self.path = Some(path.to_string());
+    pub fn set_path(&mut self, path: String) -> &mut Self {
+        self.path = Some(path);
         self
     }
 
     /// Set the path.
-    pub fn set_path_from_slice(&mut self, path: &[u8]) -> &mut Cookie {
+    pub fn set_path_from_slice(&mut self, path: &[u8]) -> &mut Self {
         self.path = Some(unsafe {
             let mut s = String::with_capacity(path.len());
 
@@ -235,19 +235,19 @@ impl Cookie {
     }
 
     /// Set the secure status.
-    pub fn set_secure(&mut self, secure: bool) -> &mut Cookie {
+    pub fn set_secure(&mut self, secure: bool) -> &mut Self {
         self.secure = secure;
         self
     }
 
     /// Set the value.
-    pub fn set_value(&mut self, value: &str) -> &mut Cookie {
-        self.value = Some(value.to_string());
+    pub fn set_value(&mut self, value: String) -> &mut Self {
+        self.value = Some(value);
         self
     }
 
     /// Set the value.
-    pub fn set_value_from_slice(&mut self, value: &[u8]) -> &mut Cookie {
+    pub fn set_value_from_slice(&mut self, value: &[u8]) -> &mut Self {
         self.value = Some(unsafe {
             let mut s = String::with_capacity(value.len());
 
@@ -259,7 +259,7 @@ impl Cookie {
     }
 
     /// Retrieve the value.
-    pub fn value(&self) -> Option<&String> {
+    pub fn value(&self) -> Option<&str> {
         if let Some(ref x) = self.value {
             Some(x)
         } else {

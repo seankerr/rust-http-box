@@ -64,23 +64,31 @@ impl FieldMap {
     /// Append `field` with `value` onto the collection.
     ///
     /// If `field` does not yet exist, add it.
-    pub fn push(&mut self, field: String, value: String) {
-        let mut entry = self.0.entry(field).or_insert(FieldValue::new());
+    pub fn push(&mut self, field: String, value: String) -> &mut Self {
+        {
+            let mut entry = self.0.entry(field).or_insert(FieldValue::new());
 
-        (*entry).push(value);
+            (*entry).push(value);
+        }
+
+        self
     }
 
     /// Append `field` with `value` onto the collection.
-    pub fn push_from_slice(&mut self, field: &[u8], value: &[u8]) {
-        let mut n = String::with_capacity(field.len());
+    pub fn push_slice(&mut self, field: &[u8], value: &[u8]) -> &mut Self {
+        {
+            let mut n = String::with_capacity(field.len());
 
-        unsafe {
-            n.as_mut_vec().extend_from_slice(field);
+            unsafe {
+                n.as_mut_vec().extend_from_slice(field);
+            }
+
+            let mut entry = self.0.entry(n).or_insert(FieldValue::new());
+
+            (*entry).push_slice(value);
         }
 
-        let mut entry = self.0.entry(n).or_insert(FieldValue::new());
-
-        (*entry).push_from_slice(value);
+        self
     }
 
     /// Remove `field` from the collection.
@@ -147,18 +155,21 @@ impl FieldValue {
     }
 
     /// Append `value` onto the collection.
-    pub fn push(&mut self, value: String) {
+    pub fn push(&mut self, value: String) -> &mut Self {
         self.0.push(value);
+        self
     }
 
     /// Append `value` onto the collection.
-    pub fn push_from_slice(&mut self, value: &[u8]) {
+    pub fn push_slice(&mut self, value: &[u8]) -> &mut Self {
         self.0.push(unsafe {
             let mut s = String::with_capacity(value.len());
 
             s.as_mut_vec().extend_from_slice(value);
             s
         });
+
+        self
     }
 
     /// Remove `index` from the collection and return it.
