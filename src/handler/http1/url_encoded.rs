@@ -87,7 +87,7 @@ impl UrlEncodedHandler {
     /// Flush the most recent field/value.
     fn flush(&mut self) {
         if !self.field_buffer.is_empty() {
-            self.fields.push_from_slice(&self.field_buffer, &self.value_buffer);
+            self.fields.push_slice(&self.field_buffer, &self.value_buffer);
         }
 
         self.field_buffer.clear();
