@@ -251,6 +251,16 @@ impl HeadersHandler {
         self.value_buffer.clear();
     }
 
+    /// Indicates that `cookie` exists within the collection of cookies.
+    pub fn has_cookie(&self, cookie: &str) -> bool {
+        self.cookies.contains(cookie)
+    }
+
+    /// Indicates that `cookie` exists within the collection of headers.
+    pub fn has_header(&self, header: &str) -> bool {
+        self.headers.contains_key(header)
+    }
+
     /// Retrieve `header` from the collection of headers.
     pub fn header(&self, header: &str) -> Option<&str> {
         if let Some(ref header) = self.headers.get(header) {
