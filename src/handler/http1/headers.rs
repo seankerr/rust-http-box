@@ -33,7 +33,7 @@ use std::slice;
 ///
 /// - [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
 ///
-/// # Request Example
+/// # Request Examples
 ///
 /// ```
 /// use http_box::HeadersHandler;
@@ -69,7 +69,7 @@ use std::slice;
 /// assert_eq!("value2", cookie.value().unwrap());
 /// ```
 ///
-/// # Response Example
+/// # Response Examples
 ///
 /// ```
 /// use http_box::HeadersHandler;

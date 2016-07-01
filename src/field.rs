@@ -22,6 +22,34 @@ use std::collections::HashMap;
 
 /// `FieldMap` is a wrapper around `HashMap<String, FieldValue>` that provides utility
 /// functions for accessing fields.
+///
+/// # Examples
+///
+/// ```
+/// use http_box::field::FieldMap;
+///
+/// let mut map = FieldMap::new();
+///
+/// map.push("key".to_string(), "value1".to_string());
+/// map.push("key".to_string(), "value2".to_string());
+/// map.push_slice(b"key", b"value3");
+///
+/// assert_eq!(1, map.len());
+/// assert_eq!(3, map.field("key").unwrap().len());
+///
+/// assert_eq!("value1", map.field("key").unwrap().first().unwrap());
+/// assert_eq!("value1", map.field("key").unwrap().get(0).unwrap());
+/// assert_eq!("value2", map.field("key").unwrap().get(1).unwrap());
+/// assert_eq!("value3", map.field("key").unwrap().get(2).unwrap());
+///
+/// map.field_mut("key").unwrap().remove(2);
+///
+/// assert_eq!(2, map.field("key").unwrap().len());
+///
+/// map.remove("key");
+///
+/// assert_eq!(false, map.has_field("key"));
+/// ```
 #[derive(Default)]
 pub struct FieldMap(HashMap<String, FieldValue>);
 
@@ -31,8 +59,8 @@ impl FieldMap {
         FieldMap(HashMap::new())
     }
 
-    /// Create a new `FieldMap`.
-    pub fn new_capacity(capacity: usize) -> Self {
+    /// Create a new `FieldMap` with an initial capacity of `capacity`.
+    pub fn with_capacity(capacity: usize) -> Self {
         FieldMap(HashMap::with_capacity(capacity))
     }
 
@@ -51,14 +79,24 @@ impl FieldMap {
         self.0.clear();
     }
 
-    /// Retrieve `field` from the collection.
+    /// Retrieve immutable `field` from the collection.
     pub fn field(&self, field: &str) -> Option<&FieldValue> {
         self.0.get(field)
+    }
+
+    /// Retrieve mutable `field` from the collection.
+    pub fn field_mut(&mut self, field: &str) -> Option<&mut FieldValue> {
+        self.0.get_mut(field)
     }
 
     /// Indicates that `field` exists within the collection.
     pub fn has_field(&self, field: &str) -> bool {
         self.0.contains_key(field)
+    }
+
+    /// Retrieve the number of fields within the collection.
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     /// Append `field` with `value` onto the collection.

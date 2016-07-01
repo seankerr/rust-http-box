@@ -27,7 +27,7 @@ use http1::Http1Handler;
 ///
 /// - [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use http_box::UrlEncodedHandler;

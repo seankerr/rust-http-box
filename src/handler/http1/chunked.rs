@@ -27,7 +27,7 @@ use std::collections::HashMap;
 ///
 /// - [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use http_box::ChunkedHandler;
