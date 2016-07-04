@@ -140,8 +140,8 @@ impl FieldMap {
 
 // -------------------------------------------------------------------------------------------------
 
-/// `FieldValue` is a wrapper around `Vec<String>` that provides utility functions for
-/// accessing values.
+/// `FieldValue` is a wrapper around `Vec<String>` that provides utility functions for accessing
+/// values.
 pub struct FieldValue(Vec<String>);
 
 impl FieldValue {

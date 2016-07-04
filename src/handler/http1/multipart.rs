@@ -25,10 +25,10 @@ use std::collections::HashMap;
 
 pub struct MultipartHandler {
     /// Fields.
-    fields: HashMap<String,String>,
+    fields: HashMap<String, String>,
 
     /// Current multipart section headers.
-    headers: HashMap<String,String>
+    headers: HashMap<String, String>
 }
 
 impl MultipartHandler {

@@ -286,7 +286,7 @@ impl HeadersHandler {
     }
 
     /// Retrieve the collection of headers.
-    pub fn headers(&self) -> &HashMap<String,String> {
+    pub fn headers(&self) -> &HashMap<String, String> {
         &self.headers
     }
 
