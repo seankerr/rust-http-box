@@ -32,7 +32,7 @@ use std::collections::HashMap;
 ///
 /// map.push("key".to_string(), "value1".to_string());
 /// map.push("key".to_string(), "value2".to_string());
-/// map.push_slice(b"key", b"value3");
+/// unsafe { map.push_slice(b"key", b"value3"); }
 ///
 /// assert_eq!(1, map.len());
 /// assert_eq!(3, map.field("key").unwrap().len());
@@ -113,15 +113,18 @@ impl FieldMap {
     }
 
     /// Append `field` with `value` onto the collection.
-    pub fn push_slice(&mut self, field: &[u8], value: &[u8]) -> &mut Self {
+    ///
+    /// # Unsafe
+    ///
+    /// This function is unsafe because it does not verify the contents of `field` and `value` to
+    /// contain valid UTF-8 sequences.
+    pub unsafe fn push_slice(&mut self, field: &[u8], value: &[u8]) -> &mut Self {
         {
-            let mut n = String::with_capacity(field.len());
+            let mut f = String::with_capacity(field.len());
 
-            unsafe {
-                n.as_mut_vec().extend_from_slice(field);
-            }
+            f.as_mut_vec().extend_from_slice(field);
 
-            let mut entry = self.0.entry(n).or_insert(FieldValue::new());
+            let mut entry = self.0.entry(f).or_insert(FieldValue::new());
 
             (*entry).push_slice(value);
         }
@@ -199,8 +202,13 @@ impl FieldValue {
     }
 
     /// Append `value` onto the collection.
-    pub fn push_slice(&mut self, value: &[u8]) -> &mut Self {
-        self.0.push(unsafe {
+    ///
+    /// # Unsafe
+    ///
+    /// This function is unsafe because it does not verify the contents of `value` to be valid
+    /// UTF-8 sequences.
+    pub unsafe fn push_slice(&mut self, value: &[u8]) -> &mut Self {
+        self.0.push({
             let mut s = String::with_capacity(value.len());
 
             s.as_mut_vec().extend_from_slice(value);

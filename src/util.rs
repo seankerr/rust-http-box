@@ -267,7 +267,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 /// - [`DecodeError::Byte`](enum.DecodeError.html#variant.Byte)
 /// - [`DecodeError::HexSequence`](enum.DecodeError.html#variant.HexSequence)
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use http_box::util;
@@ -345,7 +345,7 @@ where F : FnMut(&[u8]) {
 /// - [`FieldError::Name`](enum.FieldError.html#variant.Name)
 /// - [`FieldError::Value`](enum.FieldError.html#variant.Value)
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use http_box::util::FieldSegment;
@@ -532,7 +532,7 @@ where F : FnMut(FieldSegment) {
 /// - [`QueryError::Field`](enum.QueryError.html#variant.Field)
 /// - [`QueryError::Value`](enum.QueryError.html#variant.Value)
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// use http_box::util::QuerySegment;

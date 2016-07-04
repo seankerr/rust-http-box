@@ -73,7 +73,7 @@ pub struct ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> b
     extensions: HashMap<String, String>,
 
     /// Extension name buffer and trailer field buffer.
-    field_buffer: String,
+    field_buffer: Vec<u8>,
 
     /// Indicates that chunk parsing has finished.
     finished: bool,
@@ -91,7 +91,7 @@ pub struct ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> b
     trailers: HashMap<String, String>,
 
     /// Extension value buffer and trailer value buffer.
-    value_buffer: String
+    value_buffer: Vec<u8>
 }
 
 impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool {
@@ -106,12 +106,12 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
         ChunkedHandler{
             data_fn:      Some(data_fn),
             extensions:   HashMap::new(),
-            field_buffer: String::new(),
+            field_buffer: Vec::new(),
             finished:     false,
             index:        0,
             length:       0,
             toggle:       false,
-            value_buffer: String::new(),
+            value_buffer: Vec::new(),
             trailers:     HashMap::new(),
         }
     }
@@ -119,7 +119,17 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     /// Flush the most recent extension name/value.
     fn flush_extension(&mut self) {
         if !self.field_buffer.is_empty() {
-            self.extensions.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            self.extensions.insert(unsafe {
+                let mut s = String::with_capacity(self.field_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                s
+            }, unsafe {
+                let mut s = String::with_capacity(self.value_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                s
+            });
         }
 
         self.field_buffer.clear();
@@ -129,7 +139,17 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     /// Flush the most recent trailer field/value.
     fn flush_trailer(&mut self) {
         if !self.field_buffer.is_empty() {
-            self.trailers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            self.trailers.insert(unsafe {
+                let mut s = String::with_capacity(self.field_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                s
+            }, unsafe {
+                let mut s = String::with_capacity(self.value_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                s
+            });
         }
 
         self.field_buffer.clear();
@@ -146,7 +166,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     }
 
     /// Retrieve the extensions for the current chunk.
-    pub fn extensions(&self) -> &HashMap<String,String> {
+    pub fn extensions(&self) -> &HashMap<String, String> {
         &self.extensions
     }
 
@@ -185,7 +205,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     }
 
     /// Retrieve the trailers.
-    pub fn trailers(&self) -> &HashMap<String,String> {
+    pub fn trailers(&self) -> &HashMap<String, String> {
         &self.trailers
     }
 
@@ -231,21 +251,13 @@ impl<F> Http1Handler for ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F
             self.toggle = false;
         }
 
-        unsafe {
-            self.field_buffer
-                .as_mut_vec()
-                .extend_from_slice(name);
-        }
+        self.field_buffer.extend_from_slice(name);
 
         true
     }
 
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
-        unsafe {
-            self.value_buffer
-                .as_mut_vec()
-                .extend_from_slice(value);
-        }
+        self.value_buffer.extend_from_slice(value);
 
         self.toggle = true;
         true
@@ -276,21 +288,13 @@ impl<F> Http1Handler for ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F
             self.toggle = false;
         }
 
-        unsafe {
-            self.field_buffer
-                .as_mut_vec()
-                .extend_from_slice(field);
-        }
+        self.field_buffer.extend_from_slice(field);
 
         true
     }
 
     fn on_header_value(&mut self, value: &[u8]) -> bool {
-        unsafe {
-            self.value_buffer
-                .as_mut_vec()
-                .extend_from_slice(value);
-        }
+        self.value_buffer.extend_from_slice(value);
 
         self.toggle = true;
         true

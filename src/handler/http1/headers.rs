@@ -114,7 +114,7 @@ pub struct HeadersHandler {
     cookies: HashSet<Cookie>,
 
     /// Header field buffer.
-    field_buffer: String,
+    field_buffer: Vec<u8>,
 
     /// Indicates that header parsing has finished.
     finished: bool,
@@ -138,7 +138,7 @@ pub struct HeadersHandler {
     url: String,
 
     /// Header value buffer.
-    value_buffer: String,
+    value_buffer: Vec<u8>,
 
     /// HTTP major version.
     version_major: u16,
@@ -152,7 +152,7 @@ impl HeadersHandler {
     pub fn new() -> HeadersHandler {
         HeadersHandler {
             cookies:       HashSet::new(),
-            field_buffer:  String::new(),
+            field_buffer:  Vec::new(),
             finished:      false,
             headers:       HashMap::new(),
             method:        String::new(),
@@ -160,7 +160,7 @@ impl HeadersHandler {
             status_code:   0,
             toggle:        false,
             url:           String::new(),
-            value_buffer:  String::new(),
+            value_buffer:  Vec::new(),
             version_major: 0,
             version_minor: 0
         }
@@ -179,12 +179,10 @@ impl HeadersHandler {
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
         if self.is_request() {
-            if self.field_buffer == "cookie" {
+            if self.field_buffer == b"cookie" {
                 unsafe {
-                    let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
-                                                      self.value_buffer.as_mut_vec().len());
-
-                    util::parse_field(slice,
+                    util::parse_field(slice::from_raw_parts(self.value_buffer.as_ptr(),
+                                                            self.value_buffer.len()),
                         |s| {
                             match s {
                                 FieldSegment::Name(key) => {
@@ -202,16 +200,23 @@ impl HeadersHandler {
                     );
                 }
             } else {
-                self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+                self.headers.insert(unsafe {
+                    let mut s = String::with_capacity(self.field_buffer.len());
+
+                    s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                    s
+                }, unsafe {
+                    let mut s = String::with_capacity(self.value_buffer.len());
+
+                    s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                    s
+                });
             }
-        } else if self.field_buffer == "set-cookie" {
+        } else if self.field_buffer == b"set-cookie" {
             unsafe {
                 let mut cookie = Cookie::new("");
 
-                let slice = slice::from_raw_parts(self.value_buffer.as_ptr(),
-                                                  self.value_buffer.as_mut_vec().len());
-
-                util::parse_field(slice,
+                util::parse_field(&self.value_buffer,
                     |s| {
                         match s {
                             FieldSegment::Name(key) => {
@@ -244,7 +249,17 @@ impl HeadersHandler {
                 }
             }
         } else {
-            self.headers.insert(self.field_buffer.clone(), self.value_buffer.clone());
+            self.headers.insert(unsafe {
+                let mut s = String::with_capacity(self.field_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                s
+            }, unsafe {
+                let mut s = String::with_capacity(self.value_buffer.len());
+
+                s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                s
+            });
         }
 
         self.field_buffer.clear();
@@ -341,21 +356,13 @@ impl Http1Handler for HeadersHandler {
             self.toggle = false;
         }
 
-        unsafe {
-            self.field_buffer
-                .as_mut_vec()
-                .extend_from_slice(field);
-        }
+        self.field_buffer.extend_from_slice(field);
 
         true
     }
 
     fn on_header_value(&mut self, value: &[u8]) -> bool {
-        unsafe {
-            self.value_buffer
-                .as_mut_vec()
-                .extend_from_slice(value);
-        }
+        self.value_buffer.extend_from_slice(value);
 
         self.toggle = true;
         true
@@ -363,8 +370,15 @@ impl Http1Handler for HeadersHandler {
 
     fn on_headers_finished(&mut self) -> bool {
         self.flush();
-
         self.finished = true;
+
+        if self.is_request() {
+            self.method.shrink_to_fit();
+            self.url.shrink_to_fit();
+        } else {
+            self.status.shrink_to_fit();
+        }
+
         true
     }
 
