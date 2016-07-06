@@ -271,7 +271,7 @@ impl HeadersHandler {
         self.cookies.contains(cookie)
     }
 
-    /// Indicates that `cookie` exists within the collection of headers.
+    /// Indicates that `header` exists within the collection of headers.
     pub fn has_header(&self, header: &str) -> bool {
         self.headers.contains_key(header)
     }
