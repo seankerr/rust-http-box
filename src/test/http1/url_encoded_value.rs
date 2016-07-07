@@ -118,7 +118,7 @@ fn hex_error() {
 
     if let ParserError::UrlEncodedValue(x) = url_encoded_assert_error(&mut p, &mut h,
                                                                       b"%2z", 1000).unwrap() {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'z');
     } else {
         panic!();
     }
@@ -153,7 +153,7 @@ fn value_ending_percent() {
 
     setup!(p, h, 1000);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value%", ParserState::UrlEncodedValueHex, 1000, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value%", ParserState::UrlEncodedValueHex1, 1000, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 

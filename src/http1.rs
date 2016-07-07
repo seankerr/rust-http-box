@@ -599,8 +599,11 @@ pub enum ParserState {
     /// Parsing URL encoded field ampersand.
     UrlEncodedFieldAmpersand,
 
-    /// Parsing URL encoded field hex sequence.
-    UrlEncodedFieldHex,
+    /// Parsing URL encoded field hex sequence byte 1.
+    UrlEncodedFieldHex1,
+
+    /// Parsing URL encoded field hex sequence byte 2.
+    UrlEncodedFieldHex2,
 
     /// Parsing URL encoded field plus sign.
     UrlEncodedFieldPlus,
@@ -608,8 +611,11 @@ pub enum ParserState {
     /// Parsing URL encoded value.
     UrlEncodedValue,
 
-    /// Parsing URL encoded value hex sequence.
-    UrlEncodedValueHex,
+    /// Parsing URL encoded value hex sequence byte 1.
+    UrlEncodedValueHex1,
+
+    /// Parsing URL encoded value hex sequence byte 2.
+    UrlEncodedValueHex2,
 
     /// Parsing URL encoded value plus sign.
     UrlEncodedValuePlus,
@@ -1282,6 +1288,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: usize)
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
+            self.bit_data       = 0;
             self.length         = length;
             self.state          = ParserState::UrlEncodedField;
             self.state_function = Parser::url_encoded_field;
@@ -2544,7 +2551,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             b'%' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_url_encoded_field,
-                                                 ParserState::UrlEncodedFieldHex, url_encoded_field_hex);
+                                                 ParserState::UrlEncodedFieldHex1,
+                                                 url_encoded_field_hex1);
             },
             b'&' => {
                 callback_ignore_transition_fast!(self, context,
@@ -2571,24 +2579,44 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_field_hex(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_field_hex1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        if bs_has_bytes!(context, 2) {
-            bs_jump!(context, 2);
+        exit_if_eos!(self, context);
+        bs_next!(context);
 
-            match hex_to_byte(bs_slice!(context)) {
-                Some(byte) => {
-                    callback_transition!(self, context,
-                                         on_url_encoded_field, &[byte],
-                                         ParserState::UrlEncodedField, url_encoded_field);
-                },
-                _ => {
-                    return Err(ParserError::UrlEncodedField(context.byte));
-                }
-            }
-        }
+        self.bit_data = if is_digit!(context.byte) {
+            (context.byte - b'0') << 4
+        } else if b'@' < context.byte && context.byte < b'G' {
+            (context.byte - 0x37) << 4
+        } else if b'`' < context.byte && context.byte < b'g' {
+            (context.byte - 0x57) << 4
+        } else {
+            return Err(ParserError::UrlEncodedField(context.byte));
+        } as u32;
 
-        exit_eos!(self, context);
+        transition_fast!(self, context,
+                         ParserState::UrlEncodedFieldHex2, url_encoded_field_hex2);
+    }
+
+    #[inline]
+    fn url_encoded_field_hex2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        self.bit_data |= if is_digit!(context.byte) {
+            context.byte - b'0'
+        } else if b'@' < context.byte && context.byte < b'G' {
+            context.byte - 0x37
+        } else if b'`' < context.byte && context.byte < b'g' {
+            context.byte - 0x57
+        } else {
+            return Err(ParserError::UrlEncodedField(context.byte));
+        } as u32;
+
+        callback_transition!(self, context,
+                             on_url_encoded_field, &[self.bit_data as u8],
+                             ParserState::UrlEncodedField, url_encoded_field);
     }
 
     #[inline]
@@ -2617,7 +2645,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             b'%' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_url_encoded_value,
-                                                 ParserState::UrlEncodedValueHex, url_encoded_value_hex);
+                                                 ParserState::UrlEncodedValueHex1, url_encoded_value_hex1);
             },
             b'&' => {
                 callback_ignore_transition!(self, context,
@@ -2638,24 +2666,44 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_value_hex(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_hex1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        if bs_has_bytes!(context, 2) {
-            bs_jump!(context, 2);
+        exit_if_eos!(self, context);
+        bs_next!(context);
 
-            match hex_to_byte(bs_slice!(context)) {
-                Some(byte) => {
-                    callback_transition!(self, context,
-                                         on_url_encoded_value, &[byte],
-                                         ParserState::UrlEncodedValue, url_encoded_value);
-                },
-                _ => {
-                    return Err(ParserError::UrlEncodedValue(context.byte));
-                }
-            }
-        }
+        self.bit_data = if is_digit!(context.byte) {
+            (context.byte - b'0') << 4
+        } else if b'@' < context.byte && context.byte < b'G' {
+            (context.byte - 0x37) << 4
+        } else if b'`' < context.byte && context.byte < b'g' {
+            (context.byte - 0x57) << 4
+        } else {
+            return Err(ParserError::UrlEncodedValue(context.byte));
+        } as u32;
 
-        exit_eos!(self, context);
+        transition_fast!(self, context,
+                         ParserState::UrlEncodedValueHex2, url_encoded_value_hex2);
+    }
+
+    #[inline]
+    fn url_encoded_value_hex2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        self.bit_data |= if is_digit!(context.byte) {
+            context.byte - b'0'
+        } else if b'@' < context.byte && context.byte < b'G' {
+            context.byte - 0x37
+        } else if b'`' < context.byte && context.byte < b'g' {
+            context.byte - 0x57
+        } else {
+            return Err(ParserError::UrlEncodedValue(context.byte));
+        } as u32;
+
+        callback_transition!(self, context,
+                             on_url_encoded_value, &[self.bit_data as u8],
+                             ParserState::UrlEncodedValue, url_encoded_value);
     }
 
     #[inline]

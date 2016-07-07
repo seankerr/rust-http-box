@@ -95,7 +95,7 @@ fn ending_percent() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedFieldHex, 1000, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedFieldHex1, 1000, 6);
     assert_eq!(h.url_encoded_field, b"Field");
 }
 
@@ -124,7 +124,7 @@ fn hex_error() {
 
     if let ParserError::UrlEncodedField(x) = url_encoded_assert_error(&mut p, &mut h,
                                                                       b"%2z", 3).unwrap() {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'z');
     } else {
         panic!();
     }
