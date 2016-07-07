@@ -20,7 +20,6 @@
 
 #![allow(dead_code)]
 
-use byte::hex_to_byte;
 use byte::is_token;
 use fsm::{ ParserValue,
            Success };
@@ -2159,24 +2158,27 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        match hex_to_byte(&[context.byte]) {
-            Some(byte) => {
-                if (self.length << 4) + byte as usize > 0xFFFFFFF {
-                    // limit chunk length to 28 bits
-                    return Err(ParserError::MaxChunkLength);
-                }
+        let byte = if is_digit!(context.byte) {
+            context.byte - b'0'
+        } else if b'@' < context.byte && context.byte < b'G' {
+            context.byte - 0x37
+        } else if b'`' < context.byte && context.byte < b'g' {
+            context.byte - 0x57
+        } else {
+            bs_replay!(context);
 
-                self.length <<= 4;
-                self.length  += byte as usize;
+            transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
+        };
 
-                transition!(self, context, ParserState::ChunkLength2, chunk_length2);
-            },
-            None => {
-                bs_replay!(context);
-
-                transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
-            }
+        if (self.length << 4) + byte as usize > 0xFFFFFFF {
+            // limit chunk length to 28 bits
+            return Err(ParserError::MaxChunkLength);
         }
+
+        self.length <<= 4;
+        self.length  += byte as usize;
+
+        transition!(self, context, ParserState::ChunkLength2, chunk_length2);
     }
 
     #[inline]

@@ -92,13 +92,13 @@ fn ending_hex_error() {
     }
 
     if let Err(DecodeError::HexSequence(x)) = decode(b"a%2", |_|{}) {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'2');
     } else {
         panic!();
     }
 
     if let Err(DecodeError::HexSequence(x)) = decode(b"a%2G", |_|{}) {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'G');
     } else {
         panic!();
     }
@@ -133,7 +133,7 @@ fn middle_hex() {
 #[test]
 fn middle_hex_error() {
     if let Err(DecodeError::HexSequence(x)) = decode(b"a%2Ga", |_|{}) {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'G');
     } else {
         panic!();
     }
@@ -187,13 +187,13 @@ fn starting_hex_error() {
     }
 
     if let Err(DecodeError::HexSequence(x)) = decode(b"%2", |_|{}) {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'2');
     } else {
         panic!();
     }
 
     if let Err(DecodeError::HexSequence(x)) = decode(b"%2G", |_|{}) {
-        assert_eq!(x, b'%');
+        assert_eq!(x, b'G');
     } else {
         panic!();
     }

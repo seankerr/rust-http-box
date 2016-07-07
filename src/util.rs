@@ -21,8 +21,7 @@
 //! This module provides support for decoding URL encoded data, parsing header fields, and parsing
 //! query strings.
 
-use byte::{ hex_to_byte,
-            is_token };
+use byte::is_token;
 use byte_slice::ByteStream;
 
 use std::{ fmt,
@@ -307,14 +306,36 @@ where F : FnMut(&[u8]) {
         if context.byte == b'+' {
             slice_fn(b" ");
         } else if bs_has_bytes!(context, 2) {
-            if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
-                bs_jump!(context, 2);
+            bs_next!(context);
 
-                slice_fn(&[byte]);
+            let mut byte = if is_digit!(context.byte) {
+                (context.byte - b'0') << 4
+            } else if b'@' < context.byte && context.byte < b'G' {
+                (context.byte - 0x37) << 4
+            } else if b'`' < context.byte && context.byte < b'g' {
+                (context.byte - 0x57) << 4
             } else {
                 return Err(DecodeError::HexSequence(context.byte));
-            }
+            } as u8;
+
+            bs_next!(context);
+
+            byte |= if is_digit!(context.byte) {
+                context.byte - b'0'
+            } else if b'@' < context.byte && context.byte < b'G' {
+                context.byte - 0x37
+            } else if b'`' < context.byte && context.byte < b'g' {
+                context.byte - 0x57
+            } else {
+                return Err(DecodeError::HexSequence(context.byte));
+            } as u8;
+
+            slice_fn(&[byte]);
         } else {
+            if bs_has_bytes!(context, 1) {
+                bs_next!(context);
+            }
+
             return Err(DecodeError::HexSequence(context.byte));
         }
     }
@@ -587,14 +608,36 @@ where F : FnMut(QuerySegment) {
 
             if context.byte == b'%' {
                 if bs_has_bytes!(context, 2) {
-                    if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
-                        bs_jump!(context, 2);
+                    bs_next!(context);
 
-                        name.push(byte);
+                    let mut byte = if is_digit!(context.byte) {
+                        (context.byte - b'0') << 4
+                    } else if b'@' < context.byte && context.byte < b'G' {
+                        (context.byte - 0x37) << 4
+                    } else if b'`' < context.byte && context.byte < b'g' {
+                        (context.byte - 0x57) << 4
                     } else {
                         return Err(QueryError::Field(context.byte));
-                    }
+                    } as u8;
+
+                    bs_next!(context);
+
+                    byte |= if is_digit!(context.byte) {
+                        context.byte - b'0'
+                    } else if b'@' < context.byte && context.byte < b'G' {
+                        context.byte - 0x37
+                    } else if b'`' < context.byte && context.byte < b'g' {
+                        context.byte - 0x57
+                    } else {
+                        return Err(QueryError::Field(context.byte));
+                    } as u8;
+
+                    name.push(byte);
                 } else {
+                    if bs_has_bytes!(context, 1) {
+                        bs_next!(context);
+                    }
+
                     return Err(QueryError::Field(context.byte));
                 }
             } else if context.byte == b'+' {
@@ -645,14 +688,36 @@ where F : FnMut(QuerySegment) {
 
             if context.byte == b'%' {
                 if bs_has_bytes!(context, 2) {
-                    if let Some(byte) = hex_to_byte(bs_peek!(context, 2)) {
-                        bs_jump!(context, 2);
+                    bs_next!(context);
 
-                        value.push(byte);
+                    let mut byte = if is_digit!(context.byte) {
+                        (context.byte - b'0') << 4
+                    } else if b'@' < context.byte && context.byte < b'G' {
+                        (context.byte - 0x37) << 4
+                    } else if b'`' < context.byte && context.byte < b'g' {
+                        (context.byte - 0x57) << 4
                     } else {
                         return Err(QueryError::Value(context.byte));
-                    }
+                    } as u8;
+
+                    bs_next!(context);
+
+                    byte |= if is_digit!(context.byte) {
+                        context.byte - b'0'
+                    } else if b'@' < context.byte && context.byte < b'G' {
+                        context.byte - 0x37
+                    } else if b'`' < context.byte && context.byte < b'g' {
+                        context.byte - 0x57
+                    } else {
+                        return Err(QueryError::Value(context.byte));
+                    } as u8;
+
+                    value.push(byte);
                 } else {
+                    if bs_has_bytes!(context, 1) {
+                        bs_next!(context);
+                    }
+
                     return Err(QueryError::Value(context.byte));
                 }
             } else if context.byte == b'+' {

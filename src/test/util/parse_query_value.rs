@@ -63,12 +63,12 @@ fn ending_hex_error1() {
 
 #[test]
 fn ending_hex_error2() {
-    query_error!(b"Field=Value%2", b'%', QueryError::Value);
+    query_error!(b"Field=Value%2", b'2', QueryError::Value);
 }
 
 #[test]
 fn ending_hex_error3() {
-    query_error!(b"Field=Value%2G", b'%', QueryError::Value);
+    query_error!(b"Field=Value%2G", b'G', QueryError::Value);
 }
 
 #[test]
@@ -105,12 +105,12 @@ fn starting_hex_error1() {
 
 #[test]
 fn starting_hex_error2() {
-    query_error!(b"Field=%2", b'%', QueryError::Value);
+    query_error!(b"Field=%2", b'2', QueryError::Value);
 }
 
 #[test]
 fn starting_hex_error3() {
-    query_error!(b"Field=%2G", b'%', QueryError::Value);
+    query_error!(b"Field=%2G", b'G', QueryError::Value);
 }
 
 #[test]
