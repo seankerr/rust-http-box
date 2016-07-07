@@ -18,64 +18,6 @@
 
 //! Byte verification functions and macros.
 
-/// Encode a byte into a hex sequence *XX*.
-///
-/// If `None` is returned, the byte could not be encoded.
-///
-/// **Returns**
-///
-/// The hex sequence without the preceeding *%*.
-#[inline]
-pub fn byte_to_hex(byte: u8) -> [u8; 2] {
-    if byte > 15 {
-        [b"0123456789ABCDEF"[(byte >> 4) as usize],
-         b"0123456789ABCDEF"[(byte & 0xF) as usize]]
-    } else {
-        [b'0',
-         b"0123456789ABCDEF"[(byte & 0xF) as usize]]
-    }
-}
-
-/// Decode a hex sequence *X* or *XX* into a single byte.
-///
-/// **Returns**
-///
-/// `None` if the hex sequence is invalid.
-#[inline]
-pub fn hex_to_byte(hex: &[u8]) -> Option<u8> {
-    if hex.len() == 1 {
-        return if is_digit!(hex[0]) {
-            Some(hex[0] - b'0' as u8)
-        } else if b'@' < hex[0] && hex[0] < b'G' {
-            Some(hex[0] - 0x37 as u8)
-        } else if b'`' < hex[0] && hex[0] < b'g' {
-            Some(hex[0] - 0x57 as u8)
-        } else {
-            None
-        };
-    }
-
-    let byte: u8 = if is_digit!(hex[0]) {
-        (hex[0] - b'0') << 4
-    } else if b'@' < hex[0] && hex[0] < b'G' {
-        (hex[0] - 0x37) << 4
-    } else if b'`' < hex[0] && hex[0] < b'g' {
-        (hex[0] - 0x57) << 4
-    } else {
-        return None;
-    };
-
-    if is_digit!(hex[1]) {
-        Some(byte + (hex[1] - b'0'))
-    } else if b'@' < hex[1] && hex[1] < b'G' {
-        Some(byte + (hex[1] - 0x37))
-    } else if b'`' < hex[1] && hex[1] < b'g' {
-        Some(byte + (hex[1] - 0x57))
-    } else {
-        None
-    }
-}
-
 /// Indicates that a byte should be encoded to hex.
 ///
 /// This encodes all control characters `0x00` thru `0x1F`, DEL `0x7F`, SPC `0x20`, and all
