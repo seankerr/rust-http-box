@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Handler implementations.
+//! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementations.
 
 pub mod chunked;
 pub mod debug;

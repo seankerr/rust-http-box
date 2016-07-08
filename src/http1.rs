@@ -659,15 +659,6 @@ pub trait Http1Handler {
         true
     }
 
-    /// Retrieve the multipart boundary.
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
-    fn get_boundary(&mut self) -> Option<&[u8]> {
-        None
-    }
-
     /// Callback that is executed when chunk encoded data has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
@@ -1178,37 +1169,26 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         }
 
         if self.length < stream.len() {
-            // amount of data to process is less than the stream length, so let's cut it
-            // off and only process what we need
+            // amount of data to process is less than the stream length
             stream = &stream[0..self.length];
         }
 
         match self.parse(handler, stream) {
-            Ok(Success::Eos(length)) => {
-                self.length -= length;
-
-                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
-                    Ok(Success::Eos(length))
-                } else {
-                    // maximum headers length has been met
-                    Err(ParserError::MaxHeadersLength)
+            Ok(ref success) => {
+                match *success {
+                    Success::Eos(length) => {
+                        self.length -= length;
+                    },
+                    Success::Finished(length) => {
+                        self.length -= length;
+                    },
+                    Success::Callback(length) => {
+                        self.length -= length;
+                    }
                 }
-            },
-            Ok(Success::Finished(length)) => {
-                self.length -= length;
 
                 if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
-                    Ok(Success::Finished(length))
-                } else {
-                    // maximum headers length has been met
-                    Err(ParserError::MaxHeadersLength)
-                }
-            },
-            Ok(Success::Callback(length)) => {
-                self.length -= length;
-
-                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
-                    Ok(Success::Callback(length))
+                    Ok(*success)
                 } else {
                     // maximum headers length has been met
                     Err(ParserError::MaxHeadersLength)
@@ -1233,6 +1213,10 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// The stream of data to be parsed.
     ///
+    /// **`boundary`**
+    ///
+    /// The multipart boundary.
+    ///
     /// # Callbacks
     ///
     /// - [`Http1Handler::get_boundary()`](trait.Http1Handler.html#method.get_boundary)
@@ -1248,11 +1232,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     #[inline]
-    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
+    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8], boundary: &[u8])
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
             self.state          = ParserState::MultipartHyphen1;
             self.state_function = Parser::multipart_hyphen1;
+        } else if self.state == ParserState::Finished {
+            // already finished
+            return Ok(Success::Finished(0));
         }
 
         self.parse(handler, stream)
@@ -1297,8 +1284,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         }
 
         if self.length < stream.len() {
-            // amount of data to process is less than the stream length, so let's trim
-            // the stream to match the proper length (we won't process the rest anyways)
+            // amount of data to process is less than the stream length
             stream = &stream[0..self.length];
         }
 

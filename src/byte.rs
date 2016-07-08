@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Byte verification functions and macros.
+//! Byte verification functions.
 
 /// Indicates that a byte should be encoded to hex.
 ///

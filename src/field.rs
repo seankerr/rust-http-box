@@ -94,6 +94,11 @@ impl FieldMap {
         self.0.contains_key(field)
     }
 
+    /// Indicates that the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Retrieve the number of fields within the collection.
     pub fn len(&self) -> usize {
         self.0.len()
@@ -142,6 +147,7 @@ impl FieldMap {
 
 /// `FieldValue` is a wrapper around `Vec<String>` that provides utility functions for accessing
 /// values.
+#[derive(Default)]
 pub struct FieldValue(Vec<String>);
 
 impl FieldValue {

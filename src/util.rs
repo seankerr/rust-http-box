@@ -415,7 +415,7 @@ where F : FnMut(FieldSegment) {
                     name.extend_from_slice(bs_slice!(context));
                 }
 
-                segment_fn(FieldSegment::Name(&name[..]));
+                segment_fn(FieldSegment::Name(&name));
 
                 exit_ok!(context);
             }
@@ -445,7 +445,7 @@ where F : FnMut(FieldSegment) {
                         // found end quote
                         value.extend_from_slice(bs_slice_ignore!(context));
 
-                        segment_fn(FieldSegment::NameValue(&name[..], &value[..]));
+                        segment_fn(FieldSegment::NameValue(&name, &value));
 
                         name.clear();
                         value.clear();
@@ -499,7 +499,7 @@ where F : FnMut(FieldSegment) {
                             value.extend_from_slice(bs_slice!(context));
                         }
 
-                        segment_fn(FieldSegment::NameValue(&name[..], &value[..]));
+                        segment_fn(FieldSegment::NameValue(&name, &value));
 
                         exit_ok!(context);
                     }
@@ -507,10 +507,10 @@ where F : FnMut(FieldSegment) {
 
                 if bs_slice_length!(context) == 0 {
                     // name without a value
-                    segment_fn(FieldSegment::Name(&name[..]));
+                    segment_fn(FieldSegment::Name(&name));
                 } else {
                     // name/value pair
-                    segment_fn(FieldSegment::NameValue(&name[..], bs_slice_ignore!(context)));
+                    segment_fn(FieldSegment::NameValue(&name, bs_slice_ignore!(context)));
                 }
 
                 name.clear();
@@ -518,7 +518,7 @@ where F : FnMut(FieldSegment) {
             }
         } else if context.byte == b';' {
             // name without a value
-            segment_fn(FieldSegment::Name(&name[..]));
+            segment_fn(FieldSegment::Name(&name));
 
             name.clear();
         } else {
@@ -526,8 +526,6 @@ where F : FnMut(FieldSegment) {
             name.push(context.byte + 0x20);
         }
     }
-
-    exit_ok!(context);
 }
 
 /// Parse a query.
@@ -596,7 +594,7 @@ where F : FnMut(QuerySegment) {
                         name.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::Field(&name[..]));
+                    segment_fn(QuerySegment::Field(&name));
 
                     exit_ok!(context);
                 }
@@ -654,7 +652,7 @@ where F : FnMut(QuerySegment) {
                 return Err(QueryError::Field(context.byte));
             } else {
                 // field without a value
-                segment_fn(QuerySegment::Field(&name[..]));
+                segment_fn(QuerySegment::Field(&name));
 
                 name.clear();
             }
@@ -676,7 +674,7 @@ where F : FnMut(QuerySegment) {
                         value.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::FieldValue(&name[..], &value[..]));
+                    segment_fn(QuerySegment::FieldValue(&name, &value));
 
                     exit_ok!(context);
                 }
@@ -723,7 +721,7 @@ where F : FnMut(QuerySegment) {
             } else if context.byte == b'+' {
                 value.push(b' ');
             } else {
-                segment_fn(QuerySegment::FieldValue(&name[..], &value[..]));
+                segment_fn(QuerySegment::FieldValue(&name, &value));
 
                 name.clear();
                 value.clear();

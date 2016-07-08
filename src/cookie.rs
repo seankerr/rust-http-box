@@ -69,13 +69,13 @@ impl Cookie {
     }
 
     /// Create a new `Cookie`.
-    pub fn new_from_slice(name: &[u8]) -> Self {
+    pub unsafe fn new_from_slice(name: &[u8]) -> Self {
         Cookie{
             domain:    None,
             expires:   None,
             http_only: false,
             max_age:   None,
-            name:      unsafe {
+            name:      {
                 let mut s = String::with_capacity(name.len());
 
                 s.as_mut_vec().extend_from_slice(name);
@@ -145,8 +145,8 @@ impl Cookie {
     }
 
     /// Set the domain.
-    pub fn set_domain_from_slice(&mut self, domain: &[u8]) -> &mut Self {
-        self.domain = Some(unsafe {
+    pub unsafe fn set_domain_from_slice(&mut self, domain: &[u8]) -> &mut Self {
+        self.domain = Some({
             let mut s = String::with_capacity(domain.len());
 
             s.as_mut_vec().extend_from_slice(domain);
@@ -163,8 +163,8 @@ impl Cookie {
     }
 
     /// Set the expiration date and time.
-    pub fn set_expires_from_slice(&mut self, expires: &[u8]) -> &mut Self {
-        self.expires = Some(unsafe {
+    pub unsafe fn set_expires_from_slice(&mut self, expires: &[u8]) -> &mut Self {
+        self.expires = Some({
             let mut s = String::with_capacity(expires.len());
 
             s.as_mut_vec().extend_from_slice(expires);
@@ -187,8 +187,8 @@ impl Cookie {
     }
 
     /// Set the maximum age.
-    pub fn set_max_age_from_slice(&mut self, max_age: &[u8]) -> &mut Self {
-        self.max_age = Some(unsafe {
+    pub unsafe fn set_max_age_from_slice(&mut self, max_age: &[u8]) -> &mut Self {
+        self.max_age = Some({
             let mut s = String::with_capacity(max_age.len());
 
             s.as_mut_vec().extend_from_slice(max_age);
@@ -205,8 +205,8 @@ impl Cookie {
     }
 
     /// Set the name.
-    pub fn set_name_from_slice(&mut self, name: &[u8]) -> &mut Self {
-        self.name = unsafe {
+    pub unsafe fn set_name_from_slice(&mut self, name: &[u8]) -> &mut Self {
+        self.name = {
             let mut s = String::with_capacity(name.len());
 
             s.as_mut_vec().extend_from_slice(name);
@@ -223,8 +223,8 @@ impl Cookie {
     }
 
     /// Set the path.
-    pub fn set_path_from_slice(&mut self, path: &[u8]) -> &mut Self {
-        self.path = Some(unsafe {
+    pub unsafe fn set_path_from_slice(&mut self, path: &[u8]) -> &mut Self {
+        self.path = Some({
             let mut s = String::with_capacity(path.len());
 
             s.as_mut_vec().extend_from_slice(path);
@@ -247,8 +247,8 @@ impl Cookie {
     }
 
     /// Set the value.
-    pub fn set_value_from_slice(&mut self, value: &[u8]) -> &mut Self {
-        self.value = Some(unsafe {
+    pub unsafe fn set_value_from_slice(&mut self, value: &[u8]) -> &mut Self {
+        self.value = Some({
             let mut s = String::with_capacity(value.len());
 
             s.as_mut_vec().extend_from_slice(value);
