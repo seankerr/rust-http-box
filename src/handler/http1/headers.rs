@@ -183,6 +183,7 @@ impl HeadersHandler {
                 unsafe {
                     util::parse_field(slice::from_raw_parts(self.value_buffer.as_ptr(),
                                                             self.value_buffer.len()),
+                                      b';',
                         |s| {
                             match s {
                                 FieldSegment::Name(key) => {
@@ -216,7 +217,7 @@ impl HeadersHandler {
             unsafe {
                 let mut cookie = Cookie::new("");
 
-                util::parse_field(&self.value_buffer,
+                util::parse_field(&self.value_buffer, b';',
                     |s| {
                         match s {
                             FieldSegment::Name(key) => {

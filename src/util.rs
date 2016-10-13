@@ -351,6 +351,10 @@ where F : FnMut(&[u8]) {
 ///
 /// The field data to be parsed.
 ///
+/// **`delimiter`**
+///
+/// The delimiting byte.
+///
 /// **`segment_fn`**
 ///
 /// A closure that receives instances of [`FieldSegment`](enum.FieldSegment.html).
@@ -372,7 +376,7 @@ where F : FnMut(&[u8]) {
 /// use http_box::util::FieldSegment;
 /// use http_box::util;
 ///
-/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"",
+/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';',
 ///     |s| {
 ///         match s {
 ///             FieldSegment::Name(name) => {
@@ -385,7 +389,7 @@ where F : FnMut(&[u8]) {
 ///     }
 /// );
 /// ```
-pub fn parse_field<F>(field: &[u8], mut segment_fn: F) -> Result<usize, FieldError>
+pub fn parse_field<F>(field: &[u8], delimiter: u8, mut segment_fn: F) -> Result<usize, FieldError>
 where F : FnMut(FieldSegment) {
     let mut context = ByteStream::new(field);
     let mut name    = Vec::new();
@@ -405,7 +409,7 @@ where F : FnMut(FieldSegment) {
         collect_tokens!(context, FieldError::Name,
             // stop on these bytes
                context.byte == b'='
-            || context.byte == b';'
+            || context.byte == delimiter
             || (context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
@@ -460,7 +464,7 @@ where F : FnMut(FieldSegment) {
                         exit_if_eos!(context);
                         bs_next!(context);
 
-                        if context.byte == b';' {
+                        if context.byte == delimiter {
                             break;
                         }
 
@@ -492,7 +496,7 @@ where F : FnMut(FieldSegment) {
 
                 bs_mark!(context);
 
-                collect_field!(context, FieldError::Value, b';',
+                collect_field!(context, FieldError::Value, delimiter,
                     // on end-of-stream
                     {
                         if bs_slice_length!(context) > 0 {
@@ -516,7 +520,7 @@ where F : FnMut(FieldSegment) {
                 name.clear();
                 value.clear();
             }
-        } else if context.byte == b';' {
+        } else if context.byte == delimiter {
             // name without a value
             segment_fn(FieldSegment::Name(&name));
 
@@ -535,6 +539,10 @@ where F : FnMut(FieldSegment) {
 /// **`query`**
 ///
 /// The query data to be parsed.
+///
+/// **`delimiter`**
+///
+/// The delimiting byte.
 ///
 /// **`segment_fn`**
 ///
@@ -570,7 +578,7 @@ where F : FnMut(FieldSegment) {
 ///     }
 /// );
 /// ```
-pub fn parse_query<F>(query: &[u8], separator: u8, mut segment_fn: F) -> Result<usize, QueryError>
+pub fn parse_query<F>(query: &[u8], delimiter: u8, mut segment_fn: F) -> Result<usize, QueryError>
 where F : FnMut(QuerySegment) {
     let mut context = ByteStream::new(query);
     let mut name    = Vec::new();
@@ -586,7 +594,7 @@ where F : FnMut(QuerySegment) {
                    context.byte == b'%'
                 || context.byte == b'+'
                 || context.byte == b'='
-                || context.byte == separator,
+                || context.byte == delimiter,
 
                 // on end-of-stream
                 {
@@ -666,7 +674,7 @@ where F : FnMut(QuerySegment) {
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
-                || context.byte == separator,
+                || context.byte == delimiter,
 
                 // on end-of-stream
                 {
