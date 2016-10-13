@@ -17,10 +17,9 @@ triggered the error when it occurred.
 
 ## Progress
 
-I'm in the stage of refactoring filenames, types, and overall locations of everything in the API.
-Aside from this, the current changes are also in progress:
-
-- MultipartHandler (the entire thing)
+Multipart parsing has been wrapped up, but I'm in the process of fleshing out the handler implementation.
+If you do not need a handler implementation, and want to work with the raw multipart data, the current state
+should suffice.
 
 ## Features
 
@@ -36,7 +35,7 @@ Aside from this, the current changes are also in progress:
   - Chunk encoded data
   - URL encoded data
   - Query strings
-  - Multipart (in the works)
+  - Multipart
 
 ## Access To:
 
@@ -56,7 +55,7 @@ Aside from this, the current changes are also in progress:
   - [Extension name/value](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_extensions)
   - [Trailer field/value](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_trailers)
   - [Raw data](http://www.metatomic.org/docs/api/http_box/handler/struct.ChunkedHandler.html#example)
-- Multipart (in the works)
+- Multipart
   - Header field/value
   - File support
 - [URL encoded](http://www.metatomic.org/docs/api/http_box/handler/struct.UrlEncodedHandler.html):
