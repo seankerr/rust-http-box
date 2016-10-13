@@ -274,13 +274,6 @@ impl borrow::Borrow<str> for Cookie {
     }
 }
 
-impl PartialEq<str> for Cookie {
-    #[inline]
-    fn eq(&self, other: &str) -> bool {
-        self.name == other
-    }
-}
-
 impl Debug for Cookie {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         write!(formatter,
@@ -307,5 +300,12 @@ impl hash::Hash for Cookie {
     #[inline]
     fn hash<H>(&self, state: &mut H) where H : hash::Hasher {
         self.name.hash(state)
+    }
+}
+
+impl PartialEq<str> for Cookie {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.name == other
     }
 }
