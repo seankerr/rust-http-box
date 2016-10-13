@@ -60,10 +60,10 @@ impl fmt::Debug for DecodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodeError::Byte(x) => {
-                write!(formatter, "DecodeError::Byte(Invalid byte at {})", x)
+                write!(formatter, "DecodeError::Byte(Invalid byte on byte {})", x)
             },
             DecodeError::HexSequence(x) => {
-                write!(formatter, "DecodeError::HexSequence(Invalid hex sequence at {})", x)
+                write!(formatter, "DecodeError::HexSequence(Invalid hex sequence on byte {})", x)
             }
         }
     }
@@ -73,10 +73,10 @@ impl fmt::Display for DecodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodeError::Byte(x) => {
-                write!(formatter, "Invalid byte at {}", x)
+                write!(formatter, "Invalid byte on byte {}", x)
             },
             DecodeError::HexSequence(x) => {
-                write!(formatter, "Invalid hex sequence at {}", x)
+                write!(formatter, "Invalid hex sequence on byte {}", x)
             }
         }
     }
@@ -97,10 +97,10 @@ impl fmt::Debug for FieldError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldError::Name(x) => {
-                write!(formatter, "FieldError::Name(Invalid field name at {})", x)
+                write!(formatter, "FieldError::Name(Invalid field name on byte {})", x)
             },
             FieldError::Value(x) => {
-                write!(formatter, "FieldError::Value(Invalid field value at {})", x)
+                write!(formatter, "FieldError::Value(Invalid field value on byte {})", x)
             }
         }
     }
@@ -110,10 +110,10 @@ impl fmt::Display for FieldError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldError::Name(x) => {
-                write!(formatter, "Invalid field name at {}", x)
+                write!(formatter, "Invalid field name on byte {}", x)
             },
             FieldError::Value(x) => {
-                write!(formatter, "Invalid field value at {}", x)
+                write!(formatter, "Invalid field value on byte {}", x)
             }
         }
     }
@@ -201,10 +201,10 @@ impl fmt::Debug for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QueryError::Field(x) => {
-                write!(formatter, "QueryError::Field(Invalid query field at {})", x)
+                write!(formatter, "QueryError::Field(Invalid query field on byte {})", x)
             },
             QueryError::Value(x) => {
-                write!(formatter, "QueryError::Value(Invalid query value at {})", x)
+                write!(formatter, "QueryError::Value(Invalid query value on byte {})", x)
             }
         }
     }
@@ -214,10 +214,10 @@ impl fmt::Display for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QueryError::Field(x) => {
-                write!(formatter, "Invalid query field at {}", x)
+                write!(formatter, "Invalid query field on byte {}", x)
             },
             QueryError::Value(x) => {
-                write!(formatter, "Invalid query value at {}", x)
+                write!(formatter, "Invalid query value on byte {}", x)
             }
         }
     }
