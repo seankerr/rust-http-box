@@ -2567,7 +2567,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                 }
             } else {
                 // no boundary available
-                println!("EXPECTED BOUNDARY");
                 return Err(ParserError::MultipartBoundaryExpected);
             };
 
