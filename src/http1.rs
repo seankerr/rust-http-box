@@ -52,7 +52,7 @@ const UPPER14_SHIFT: u8 = 18;
 // -------------------------------------------------------------------------------------------------
 
 /// Parsing chunk encoded.
-const F_CHUNKED: u32 = 1 << 0;
+const F_CHUNKED: u32 = 1;
 
 /// Parsing chunk encoded extensions.
 const F_CHUNK_EXTENSIONS: u32 = 1 << 1;
@@ -85,6 +85,20 @@ macro_rules! get_upper14 {
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => ({
         (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag == $flag
+    });
+}
+
+/// Increase the lower 14 bits.
+macro_rules! inc_lower14 {
+    ($parser:expr, $length:expr) => ({
+        set_lower14!($parser, get_lower14!($parser) as usize + $length as usize);
+    });
+}
+
+/// Increase the upper 14 bits.
+macro_rules! inc_upper14 {
+    ($parser:expr, $length:expr) => ({
+        set_upper14!($parser, get_upper14!($parser) as usize + $length as usize);
     });
 }
 
@@ -2608,7 +2622,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         }
 
         // boundary comparison not finished
-        set_upper14!(self, get_upper14!(self) as usize + length);
+        inc_upper14!(self, length);
 
         exit_eos!(self, context);
     }
