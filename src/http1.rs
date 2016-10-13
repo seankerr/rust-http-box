@@ -24,8 +24,7 @@ use byte::is_token;
 use fsm::{ ParserValue,
            Success };
 
-use std::{ fmt,
-           str };
+use std::fmt;
 
 // -------------------------------------------------------------------------------------------------
 
