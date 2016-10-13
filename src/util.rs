@@ -130,6 +130,32 @@ pub enum FieldSegment<'a> {
     NameValue(&'a [u8], &'a [u8])
 }
 
+impl<'a> FieldSegment<'a> {
+    /// Indicates that this [`FieldSegment`] contains a value.
+    pub fn has_value(&self) -> bool {
+        match *self {
+            FieldSegment::Name(_) => false,
+            _ => true
+        }
+    }
+
+    /// Retrieve the name.
+    pub fn name(&self) -> &'a [u8] {
+        match *self {
+            FieldSegment::Name(ref name) => name,
+            FieldSegment::NameValue(ref name, _) => name
+        }
+    }
+
+    /// Retrieve the value.
+    pub fn value(&self) -> Option<&'a [u8]> {
+        match *self {
+            FieldSegment::NameValue(_, ref value) => Some(value),
+            _ => None
+        }
+    }
+}
+
 impl<'a> fmt::Debug for FieldSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -206,6 +232,32 @@ pub enum QuerySegment<'a> {
 
     /// Field and value pair.
     FieldValue(&'a [u8], &'a [u8])
+}
+
+impl<'a> QuerySegment<'a> {
+    /// Retrieve the field.
+    pub fn field(&self) -> &'a [u8] {
+        match *self {
+            QuerySegment::Field(ref field) => field,
+            QuerySegment::FieldValue(ref field, _) => field
+        }
+    }
+
+    /// Indicates that this [`QuerySegment`] contains a value.
+    pub fn has_value(&self) -> bool {
+        match *self {
+            QuerySegment::Field(_) => false,
+            _ => true
+        }
+    }
+
+    /// Retrieve the value.
+    pub fn value(&self) -> Option<&'a [u8]> {
+        match *self {
+            QuerySegment::FieldValue(_, ref value) => Some(value),
+            _ => None
+        }
+    }
 }
 
 impl<'a> fmt::Debug for QuerySegment<'a> {
@@ -343,7 +395,7 @@ where F : FnMut(&[u8]) {
 
 /// Parse the content of a header field.
 ///
-/// *Note:* This will normalize all upper-cased bytes to lower-cased.
+/// *Note:* This will normalize all names so that upper-cased bytes are converted to lower-case.
 ///
 /// # Arguments
 ///
@@ -378,13 +430,11 @@ where F : FnMut(&[u8]) {
 ///
 /// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';',
 ///     |s| {
-///         match s {
-///             FieldSegment::Name(name) => {
-///                 // name without a value
-///             },
-///             FieldSegment::NameValue(name,value) => {
-///                 // name/value pair
-///             }
+///         if s.has_value() {
+///             s.name();
+///             s.value().unwrap();
+///         } else {
+///             s.name();
 ///         }
 ///     }
 /// );
@@ -399,9 +449,7 @@ where F : FnMut(FieldSegment) {
         // parsing name
         consume_spaces!(context,
             // on end-of-stream
-            {
-                exit_ok!(context);
-            }
+            exit_ok!(context)
         );
 
         bs_mark!(context);
@@ -439,10 +487,8 @@ where F : FnMut(FieldSegment) {
 
                     collect_quoted_field!(context, FieldError::Value,
                         // on end-of-stream
-                        {
-                            // didn't find an ending quote
-                            return Err(FieldError::Value(context.byte));
-                        }
+                        // didn't find an ending quote
+                        return Err(FieldError::Value(context.byte))
                     );
 
                     if context.byte == b'"' {
@@ -456,9 +502,7 @@ where F : FnMut(FieldSegment) {
 
                         consume_spaces!(context,
                             // on end-of-stream
-                            {
-                                exit_ok!(context);
-                            }
+                            exit_ok!(context)
                         );
 
                         exit_if_eos!(context);
@@ -489,9 +533,7 @@ where F : FnMut(FieldSegment) {
 
                 consume_spaces!(context,
                     // on end-of-stream
-                    {
-                        exit_ok!(context);
-                    }
+                    exit_ok!(context)
                 );
 
                 bs_mark!(context);
@@ -567,13 +609,11 @@ where F : FnMut(FieldSegment) {
 ///
 /// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
 ///     |s| {
-///         match s {
-///             QuerySegment::Field(field) => {
-///                 // field without a value
-///             },
-///             QuerySegment::FieldValue(field,value) => {
-///                 // field/value pair
-///             }
+///         if s.has_value() {
+///             s.field();
+///             s.value().unwrap();
+///         } else {
+///             s.field();
 ///         }
 ///     }
 /// );
