@@ -24,7 +24,9 @@ use byte::is_token;
 use fsm::{ ParserValue,
            Success };
 
-use std::{ fmt,
+use std::{ cmp,
+           fmt,
+           slice,
            str };
 
 // -------------------------------------------------------------------------------------------------
@@ -51,17 +53,17 @@ const UPPER14_SHIFT: u8 = 18;
 // FLAGS
 // -------------------------------------------------------------------------------------------------
 
-/// Parsing chunk encoded data.
-const F_CHUNKED: u32 = 1;
+/// Parsing chunk encoded.
+const F_CHUNKED: u32 = 1 << 0;
 
 /// Parsing chunk encoded extensions.
-const F_CHUNK_EXTENSIONS: u32 = 2;
+const F_CHUNK_EXTENSIONS: u32 = 1 << 1;
 
 /// Headers are finished parsing.
-const F_HEADERS_FINISHED: u32 = 4;
+const F_HEADERS_FINISHED: u32 = 1 << 2;
 
-/// Parsing multipart data.
-const F_MULTIPART: u32 = 8;
+/// Parsing multipart.
+const F_MULTIPART: u32 = 1 << 3;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -163,8 +165,14 @@ pub enum ParserError {
     /// Invalid request method on byte `u8`.
     Method(u8),
 
-    /// Invalid multipart boundary on byte `u8`.
+    /// Invalid multipart data.
+    Multipart(u8),
+
+    /// Invalid multipart boundary.
     MultipartBoundary(u8),
+
+    /// Expected multipart boundary.
+    MultipartBoundaryExpected,
 
     /// Invalid status on byte `u8`.
     Status(u8),
@@ -220,9 +228,16 @@ impl fmt::Debug for ParserError {
             ParserError::Method(ref byte) => {
                 write!(formatter, "ParserError::Method(Invalid method on byte {})", byte)
             },
+            ParserError::Multipart(ref byte) => {
+                write!(formatter, "ParserError::Multipart(Invalid multipart data on byte {})",
+                       byte)
+            },
             ParserError::MultipartBoundary(ref byte) => {
                 write!(formatter, "ParserError::MultipartBoundary(Invalid multipart boundary on byte {})",
                        byte)
+            },
+            ParserError::MultipartBoundaryExpected => {
+                write!(formatter, "ParserError::MultipartBoundaryExpected(Expected multipart boundary)")
             },
             ParserError::Status(ref byte) => {
                 write!(formatter, "ParserError::Status(Invalid status on byte {})", byte)
@@ -281,8 +296,14 @@ impl fmt::Display for ParserError {
             ParserError::Method(ref byte) => {
                 write!(formatter, "Invalid method on byte {}", byte)
             },
+            ParserError::Multipart(ref byte) => {
+                write!(formatter, "Invalid multipart data on byte {}", byte)
+            },
             ParserError::MultipartBoundary(ref byte) => {
                 write!(formatter, "Invalid multipart boundary on byte {}", byte)
+            },
+            ParserError::MultipartBoundaryExpected => {
+                write!(formatter, "Expected multipart boundary")
             },
             ParserError::Status(ref byte) => {
                 write!(formatter, "Invalid status on byte {}", byte)
@@ -564,29 +585,35 @@ pub enum ParserState {
     // MULTIPART
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing first hyphen before multipart boundary.
+    /// Parsing pre boundary hyphen 1.
     MultipartHyphen1,
 
-    /// Parsing second hyphen before multipart boundary.
+    /// Parsing pre boundary hyphen 2.
     MultipartHyphen2,
 
-    /// Parsing potential first hyphen before multipart boundary.
-    MultipartTryHyphen1,
-
-    /// Parsing potential second hyphen before multipart boundary.
-    MultipartTryHyphen2,
-
-    /// Parsing potential multipart boundary.
-    MultipartTryBoundary,
-
-    /// Parsing carriage return after multipart boundary.
-    MultipartNewline1,
-
-    /// Parsing line feed after multipart boundary.
-    MultipartNewline2,
+    /// Parsing multipart boundary.
+    MultipartBoundary,
 
     /// Parsing multipart data.
     MultipartData,
+
+    /// Parsing line feed inside data.
+    MultipartDataNewline,
+
+    /// Parsing post boundary carriage return or hyphen.
+    MultipartNewline1,
+
+    /// Parsing post boundary line feed.
+    MultipartNewline2,
+
+    /// Parsing post boundary second hyphen.
+    MultipartEnd,
+
+    /// Parsing carriage return after last boundary.
+    MultipartEndNewline1,
+
+    /// Parsing line feed after last boundary.
+    MultipartEndNewline2,
 
     // ---------------------------------------------------------------------------------------------
     // URL ENCODED
@@ -635,6 +662,15 @@ pub enum ParserState {
 /// Type that handles HTTP/1.1 parser events.
 #[allow(unused_variables)]
 pub trait Http1Handler {
+    /// Retrieve the multipart boundary.
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    fn get_multipart_boundary(&mut self) -> Option<&[u8]> {
+        None
+    }
+
     /// Callback that is executed when body parsing has completed successfully.
     ///
     /// **Returns:**
@@ -986,7 +1022,6 @@ pub struct Parser<'a, T: Http1Handler> {
     bit_data: u32,
 
     /// Total byte count processed for headers, and body.
-    /// Once the headers are finished processing, this is reset to 0 to track the body length.
     byte_count: usize,
 
     /// Length storage for max headers length and chunk length.
@@ -1213,13 +1248,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// The stream of data to be parsed.
     ///
-    /// **`boundary`**
-    ///
-    /// The multipart boundary.
-    ///
     /// # Callbacks
     ///
-    /// - [`Http1Handler::get_boundary()`](trait.Http1Handler.html#method.get_boundary)
+    /// - [`Http1Handler::get_multipart_boundary()`](trait.Http1Handler.html#method.get_multipart_boundary)
     /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
@@ -1232,11 +1263,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     #[inline]
-    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8], boundary: &[u8])
+    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
+            self.bit_data       = 0;
+            self.length         = 0;
             self.state          = ParserState::MultipartHyphen1;
             self.state_function = Parser::multipart_hyphen1;
+
+            set_flag!(self, F_MULTIPART);
         } else if self.state == ParserState::Finished {
             // already finished
             return Ok(Success::Finished(0));
@@ -1754,6 +1789,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
             if has_flag!(self, F_CHUNKED) {
                 set_state!(self, ParserState::BodyFinished, body_finished);
+            } else if has_flag!(self, F_MULTIPART) {
+                set_state!(self, ParserState::MultipartData, multipart_data);
             } else {
                 set_state!(self, ParserState::Finished, finished);
             }
@@ -2277,9 +2314,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         // since the chunk extension has no value, let's send an empty one
         if context.handler.on_chunk_extension_value(b"") {
             transition!(self, context);
-        } else {
-            exit_callback!(self, context);
         }
+
+        exit_callback!(self, context);
     }
 
     #[inline]
@@ -2462,8 +2499,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'-' {
             transition_fast!(self, context, ParserState::MultipartHyphen2, multipart_hyphen2);
+        } else if get_lower14!(self) == 1 {
+            // we're checking for the boundary within multipart data, but it's not the boundary,
+            // so let's send the data to the callback and get back to parsing
+            callback_transition!(self, context,
+                                 on_multipart_data, &[b'\r', b'\n', context.byte],
+                                 ParserState::MultipartData, multipart_data);
         }
 
+        // we're parsing the initial boundary, and it's invalid
         Err(ParserError::MultipartBoundary(context.byte))
     }
 
@@ -2474,46 +2518,209 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'-' {
-            transition_fast!(self, context, ParserState::MultipartTryBoundary, multipart_try_boundary);
+            transition_fast!(self, context, ParserState::MultipartBoundary, multipart_boundary);
+        } else if get_lower14!(self) == 1 {
+            // we're checking for the boundary within multipart data, but it's not the boundary,
+            // so let's send the data to the callback and get back to parsing
+            callback_transition!(self, context,
+                                 on_multipart_data, &[b'\r', b'\n', b'-', context.byte],
+                                 ParserState::MultipartData, multipart_data);
         }
 
+        // we're parsing the initial boundary, and it's invalid
         Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
-    fn multipart_try_hyphen1(&mut self, context: &mut ParserContext<T>)
+    fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
-    }
+        exit_if_eos!(self, context);
 
-    #[inline]
-    fn multipart_try_hyphen2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
-    }
+        let (length, callback_data, finished) =
+            if let Some(boundary) = context.handler.get_multipart_boundary() {
+                let slice = if boundary.len() -
+                               get_upper14!(self) as usize <= bs_available!(context) {
+                    // compare remainder of boundary
+                    &boundary[get_upper14!(self) as usize..]
+                } else {
+                    // compare remainder of stream
+                    &boundary[get_upper14!(self) as usize..
+                              get_upper14!(self) as usize + bs_available!(context)]
+                };
 
-    #[inline]
-    fn multipart_try_boundary(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
-    }
+                if bs_starts_with!(context, slice) {
+                    // matches
+                    (slice.len(), None, get_upper14!(self) as usize + slice.len() == boundary.len())
+                } else {
+                    // does not match, so we need to provide all the data that has been
+                    // compared as the boundary up to this point
+                    let mut v = Vec::with_capacity(// \r\n--
+                                                   4 as usize +
 
-    #[inline]
-    fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
-    }
+                                                   // old boundary data
+                                                   get_upper14!(self) as usize);
 
-    #[inline]
-    fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
+                    v.extend_from_slice(b"\r\n--");
+                    v.extend_from_slice(&boundary[..get_upper14!(self) as usize]);
+
+                    (0, Some(v), false)
+                }
+            } else {
+                // no boundary available
+                println!("EXPECTED BOUNDARY");
+                return Err(ParserError::MultipartBoundaryExpected);
+            };
+
+        // due to the borrow checker holding 'boundary', we must transition down here
+        bs_jump!(context, length);
+
+        if let Some(v) = callback_data {
+            // boundary did not match
+            if get_lower14!(self) == 1 {
+                // reset boundary comparison index
+                set_upper14!(self, 0);
+
+                callback_transition!(self, context,
+                                     on_multipart_data, &v,
+                                     ParserState::MultipartData, multipart_data);
+            } else {
+                // we're parsing the initial boundary, and it's invalid
+                //
+                // there is one caveat to this error:
+                //     it will always report the first byte being invalid, even if
+                //     it's another byte that did not match, because we're using
+                //     bs_starts_with!() vs an individual byte check
+                bs_next!(context);
+
+                return Err(ParserError::MultipartBoundary(context.byte));
+            }
+        }
+
+        // boundary matched
+        if finished {
+            // boundary comparison finished
+
+            // reset boundary comparison index
+            set_upper14!(self, 0);
+
+            // toggle first boundary passed flag
+            set_lower14!(self, 1);
+
+            transition_fast!(self, context,
+                             ParserState::MultipartNewline1, multipart_newline1);
+        }
+
+        // boundary comparison not finished
+        set_upper14!(self, get_upper14!(self) as usize + length);
+
         exit_eos!(self, context);
     }
 
     #[inline]
     fn multipart_data(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        exit_eos!(self, context);
+        bs_collect_until!(context,
+            // collect bytes until
+            context.byte == b'\r',
+
+            // on end-of-stream
+            callback_eos_expr!(self, context, on_multipart_data)
+        );
+
+        callback_ignore_transition_fast!(self, context,
+                                         on_multipart_data,
+                                         ParserState::MultipartDataNewline, multipart_data_newline)
+    }
+
+    #[inline]
+    fn multipart_data_newline(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            transition_fast!(self, context,
+                             ParserState::MultipartHyphen1, multipart_hyphen1);
+        }
+
+        callback_transition!(self, context,
+                             on_multipart_data, &[b'\r', context.byte],
+                             ParserState::MultipartData, multipart_data);
+    }
+
+    #[inline]
+    fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context,
+                             ParserState::PreHeaders1, pre_headers1);
+        } else if context.byte == b'-' {
+            transition_fast!(self, context,
+                             ParserState::MultipartEnd, multipart_end);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            transition!(self, context,
+                        ParserState::StripHeaderField, strip_header_field);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_end(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'-' {
+            set_state!(self, ParserState::MultipartEndNewline1, multipart_end_newline1);
+
+            transition!(self, context);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_end_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context,
+                             ParserState::MultipartEndNewline2, multipart_end_newline2);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_end_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            // end of multipart
+            transition_fast!(self, context,
+                             ParserState::BodyFinished, body_finished);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]

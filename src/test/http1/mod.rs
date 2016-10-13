@@ -31,11 +31,9 @@ mod header_quoted_value;
 mod header_value;
 mod headers_finished;
 
-/*
 mod multipart_boundary;
 mod multipart_data;
 mod multipart_header;
-*/
 
 mod request_method;
 mod request_url;
@@ -143,6 +141,56 @@ pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn multipart_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+                                                  stream: &[u8], state: ParserState, length: usize) {
+    assert!(match parser.parse_multipart(handler, stream) {
+        Ok(Success::Callback(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn multipart_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                             state: ParserState, length: usize) {
+    assert!(match parser.parse_multipart(handler, stream) {
+        Ok(Success::Eos(byte_count)) => {
+            assert_eq!(byte_count, length);
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
+pub fn multipart_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
+-> Option<ParserError> {
+    match parser.parse_multipart(handler, stream) {
+        Err(error) => {
+            assert_eq!(parser.get_state(), ParserState::Dead);
+            Some(error)
+        },
+        _ => {
+            assert_eq!(parser.get_state(), ParserState::Dead);
+            None
+        }
+    }
+}
+
+pub fn multipart_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+                                                  state: ParserState, length: usize) {
+    assert!(match parser.parse_multipart(handler, stream) {
+        Ok(Success::Finished(byte_count)) => {
+            assert_eq!(byte_count, length);
             assert_eq!(parser.get_state(), state);
             true
         },

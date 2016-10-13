@@ -170,6 +170,13 @@ macro_rules! exit_if_eos {
     });
 }
 
+/// Retrieve the state.
+macro_rules! get_state {
+    ($parser:expr) => ({
+        $parser.state
+    })
+}
+
 /// Set state and state function.
 macro_rules! set_state {
     ($parser:expr, $state:expr, $state_function:ident) => ({

@@ -16,11 +16,20 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use handler::*;
 use http1::*;
-use test::*;
 use test::http1::*;
 
-struct H {
-}
+#[test]
+fn headers_ok () {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
 
-impl Http1Handler for H {}
+    multipart_assert_eos(&mut p, &mut h,
+                         b"--XXDebugBoundaryXX\r\nH1: V1\r\nH2: V2\r\n\r\n",
+                         ParserState::MultipartData, 39);
+
+    assert_eq!(h.header_field, b"h1h2");
+    assert_eq!(h.header_value, b"V1V2");
+    assert!(h.headers_finished);
+}

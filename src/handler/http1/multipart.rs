@@ -26,6 +26,9 @@ use http1::Http1Handler;
 use std::collections::HashMap;
 
 pub struct MultipartHandler {
+    /// Boundary.
+    boundary: Vec<u8>,
+
     /// Field buffer.
     field_buffer: Vec<u8>,
 
@@ -47,8 +50,20 @@ pub struct MultipartHandler {
 
 impl MultipartHandler {
     /// Create a new `MultipartHandler`.
-    pub fn new() -> MultipartHandler {
+    ///
+    /// # Arguments
+    ///
+    /// **`boundary`**
+    ///
+    /// The multipart boundary.
+    pub fn new(boundary: &[u8]) -> MultipartHandler {
         MultipartHandler {
+            boundary:     {
+                let mut v = Vec::with_capacity(boundary.len());
+
+                v.extend_from_slice(boundary);
+                v
+            },
             field_buffer: Vec::new(),
             fields:       FieldMap::new(),
             finished:     false,

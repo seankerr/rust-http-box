@@ -16,11 +16,28 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use handler::*;
 use http1::*;
-use test::*;
 use test::http1::*;
 
-struct H {
+#[test]
+fn data_ok () {
+    let mut h = DebugHttp1Handler::new();
+    let mut p = Parser::new();
+
+    multipart_assert_finished(&mut p, &mut h,
+                              b"--XXDebugBoundaryXX\r\n\r\n\
+                                DATA1\r\n\
+                                --XXDebugBoundaryXX\r\n\
+                                Header1: Value1\r\n\
+                                Header2: Value2\r\n\
+                                \r\n\
+                                DATA2\r\n\
+                                --XXDebugBoundaryXX--\r\n",
+                         ParserState::Finished, 117);
+
+    assert_eq!(h.multipart_data, b"DATA1DATA2");
+    assert_eq!(h.header_field, b"header1header2");
+    assert_eq!(h.header_value, b"Value1Value2");
 }
 
-impl Http1Handler for H {}
