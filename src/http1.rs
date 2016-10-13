@@ -24,9 +24,7 @@ use byte::is_token;
 use fsm::{ ParserValue,
            Success };
 
-use std::{ cmp,
-           fmt,
-           slice,
+use std::{ fmt,
            str };
 
 // -------------------------------------------------------------------------------------------------
@@ -2605,8 +2603,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             // toggle first boundary passed flag
             set_lower14!(self, 1);
 
-            transition_fast!(self, context,
-                             ParserState::MultipartNewline1, multipart_newline1);
+            transition!(self, context,
+                        ParserState::MultipartNewline1, multipart_newline1);
         }
 
         // boundary comparison not finished
