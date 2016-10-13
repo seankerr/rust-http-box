@@ -2582,17 +2582,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                 callback_transition!(self, context,
                                      on_multipart_data, &v,
                                      ParserState::MultipartData, multipart_data);
-            } else {
-                // we're parsing the initial boundary, and it's invalid
-                //
-                // there is one caveat to this error:
-                //     it will always report the first byte being invalid, even if
-                //     it's another byte that did not match, because we're using
-                //     bs_starts_with!() vs an individual byte check
-                bs_next!(context);
-
-                return Err(ParserError::MultipartBoundary(context.byte));
             }
+
+            // we're parsing the initial boundary, and it's invalid
+            //
+            // there is one caveat to this error:
+            //     it will always report the first byte being invalid, even if
+            //     it's another byte that did not match, because we're using
+            //     bs_starts_with!() vs an individual byte check
+            bs_next!(context);
+
+            return Err(ParserError::MultipartBoundary(context.byte));
         }
 
         // boundary matched
