@@ -58,9 +58,10 @@ macro_rules! collect_field {
 macro_rules! collect_quoted_field {
     ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if b'"' == $context.byte || b'\\' == $context.byte {
+            if $context.byte == b'"' || $context.byte == b'\\' {
                 break;
-            } else if is_not_visible_7bit!($context.byte) && $context.byte != b' ' {
+            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' {
+            } else {
                 return Err($error($context.byte));
             },
             $on_eos
