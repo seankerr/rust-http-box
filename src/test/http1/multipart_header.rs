@@ -26,7 +26,10 @@ fn headers_ok () {
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\nH1: V1\r\nH2: V2\r\n\r\n",
+                         b"--XXDebugBoundaryXX\r\n\
+                           H1: V1\r\n\
+                           H2: V2\r\n\
+                           \r\n",
                          ParserState::MultipartData, 39);
 
     assert_eq!(h.header_field, b"h1h2");

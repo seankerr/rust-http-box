@@ -132,7 +132,10 @@ fn second_boundary_match () {
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\r\nDATA1\r\n--XXDebugBoundaryXX\r\n",
+                         b"--XXDebugBoundaryXX\r\n\
+                           \r\n\
+                           DATA1\r\n\
+                           --XXDebugBoundaryXX\r\n",
                          ParserState::PreHeaders2, 51);
 
     assert_eq!(h.multipart_data, b"DATA1");
@@ -144,7 +147,10 @@ fn second_false_boundary () {
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\r\nDATA1\r\n--XXDebugBoundaryQ",
+                         b"--XXDebugBoundaryXX\r\n\
+                           \r\n\
+                           DATA1\r\n\
+                           --XXDebugBoundaryQ",
                          ParserState::MultipartData, 48);
 
     assert_eq!(h.multipart_data, b"DATA1\r\n--XXDebugBoundaryQ");
@@ -156,7 +162,13 @@ fn second_false_third_boundary_match () {
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\r\nDATA1\r\n--XXDebugBoundaryQ\r\n--XXDebugBoundaryXX\r\n\r\nABCD",
+                         b"--XXDebugBoundaryXX\r\n\
+                           \r\n\
+                           DATA1\r\n\
+                           --XXDebugBoundaryQ\r\n\
+                           --XXDebugBoundaryXX\r\n\
+                           \r\n\
+                           ABCD",
                          ParserState::MultipartData, 77);
 
     assert_eq!(h.multipart_data, b"DATA1\r\n--XXDebugBoundaryQABCD");
