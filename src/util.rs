@@ -142,15 +142,15 @@ impl<'a> FieldSegment<'a> {
     /// Retrieve the name.
     pub fn name(&self) -> &'a [u8] {
         match *self {
-            FieldSegment::Name(ref name) => name,
-            FieldSegment::NameValue(ref name, _) => name
+            FieldSegment::Name(name) => name,
+            FieldSegment::NameValue(name, _) => name
         }
     }
 
     /// Retrieve the value.
     pub fn value(&self) -> Option<&'a [u8]> {
         match *self {
-            FieldSegment::NameValue(_, ref value) => Some(value),
+            FieldSegment::NameValue(_, value) => Some(value),
             _ => None
         }
     }
@@ -238,8 +238,8 @@ impl<'a> QuerySegment<'a> {
     /// Retrieve the field.
     pub fn field(&self) -> &'a [u8] {
         match *self {
-            QuerySegment::Field(ref field) => field,
-            QuerySegment::FieldValue(ref field, _) => field
+            QuerySegment::Field(field) => field,
+            QuerySegment::FieldValue(field, _) => field
         }
     }
 
@@ -254,7 +254,7 @@ impl<'a> QuerySegment<'a> {
     /// Retrieve the value.
     pub fn value(&self) -> Option<&'a [u8]> {
         match *self {
-            QuerySegment::FieldValue(_, ref value) => Some(value),
+            QuerySegment::FieldValue(_, value) => Some(value),
             _ => None
         }
     }

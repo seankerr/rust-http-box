@@ -279,7 +279,7 @@ impl HeadersHandler {
 
     /// Retrieve `header` from the collection of headers.
     pub fn header(&self, header: &str) -> Option<&str> {
-        if let Some(ref header) = self.headers.get(header) {
+        if let Some(header) = self.headers.get(header) {
             Some(&header[..])
         } else {
             None
@@ -288,8 +288,8 @@ impl HeadersHandler {
 
     /// Retrieve `header` as a slice of bytes from the collection of headers.
     pub fn header_as_bytes(&self, header: &str) -> Option<&[u8]> {
-        if let Some(ref header) = self.headers.get(header) {
-            Some(&header[..].as_bytes())
+        if let Some(header) = self.headers.get(header) {
+            Some(header.as_bytes())
         } else {
             None
         }
