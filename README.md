@@ -40,26 +40,27 @@ should suffice.
 ## Access To:
 
 - [Request](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#request-example):
-  - [Method](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_method)
-  - [URL](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_url)
-  - [Version](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
+  - [Method](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.method)
+  - [URL](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.url)
+  - [Version](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.version_major)
 - [Response](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#response-example):
-  - [Status](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status)
-  - [Status code](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_status_code)
-  - [Version](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_version_major)
+  - [Status](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.status)
+  - [Status code](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.status_code)
+  - [Version](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.version_major)
 - [Headers](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html) (quoted and multi-line values are supported):
-  - [Cookie name/value](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_cookies)
-  - [Header field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.get_headers)
+  - [Cookie name/value](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.cookies)
+  - [Header field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.HeadersHandler.html#method.headers)
 - [Chunk encoded](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html):
-  - [Length](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_length)
-  - [Extension name/value](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_extensions)
-  - [Trailer field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.get_trailers)
+  - [Length](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.len)
+  - [Extension name/value](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.extensions)
+  - [Trailer field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#method.trailers)
   - [Raw data](http://www.metatomic.io/docs/api/http_box/handler/struct.ChunkedHandler.html#example)
-- Multipart
-  - Header field/value
-  - File support
+- [Multipart](http://www.metatomic.io/docs/api/http_box/handler/struct.MultipartHandler.html):
+  - [Field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.MultipartHandler.html#method.fields)
+  - [Header field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.MultipartHandler.html#method.headers)
+  - File support (working on it)
 - [URL encoded](http://www.metatomic.io/docs/api/http_box/handler/struct.UrlEncodedHandler.html):
-  - [Field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.UrlEncodedHandler.html#method.get_fields)
+  - [Field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.UrlEncodedHandler.html#method.fields)
 
 ## Performance
 
