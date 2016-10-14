@@ -286,6 +286,15 @@ impl HeadersHandler {
         }
     }
 
+    /// Retrieve `header` as a slice of bytes from the collection of headers.
+    pub fn header_as_bytes(&self, header: &str) -> Option<&[u8]> {
+        if let Some(ref header) = self.headers.get(header) {
+            Some(&header[..].as_bytes())
+        } else {
+            None
+        }
+    }
+
     /// Retrieve the collection of headers.
     pub fn headers(&self) -> &HashMap<String, String> {
         &self.headers
@@ -304,6 +313,11 @@ impl HeadersHandler {
     /// Retrieve the request method.
     pub fn method(&self) -> &String {
         &self.method
+    }
+
+    /// Retrieve the request method as a slice of bytes.
+    pub fn method_as_bytes(&self) -> &[u8] {
+        self.method.as_bytes()
     }
 
     /// Reset the handler back to its original state.
@@ -328,6 +342,11 @@ impl HeadersHandler {
         &self.status
     }
 
+    /// Retrieve the response status as a slice of bytes.
+    pub fn status_as_bytes(&self) -> &[u8] {
+        self.status.as_bytes()
+    }
+
     /// Retrieve the response status code.
     pub fn status_code(&self) -> u16 {
         self.status_code
@@ -336,6 +355,11 @@ impl HeadersHandler {
     /// Retrieve the request URL.
     pub fn url(&self) -> &String {
         &self.url
+    }
+
+    /// Retrieve the request URL as a slice of bytes.
+    pub fn url_as_bytes(&self) -> &[u8] {
+        self.url.as_bytes()
     }
 
     /// Retrieve the HTTP major version.
