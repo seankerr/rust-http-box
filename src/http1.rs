@@ -876,6 +876,20 @@ pub trait Http1Handler {
         true
     }
 
+    /// Callback that is executed when a new multipart section has been located.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    fn on_multipart_begin(&mut self) -> bool {
+        true
+    }
+
     /// Callback that is executed when multipart data has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
@@ -2665,8 +2679,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            transition_fast!(self, context,
-                             ParserState::PreHeaders1, pre_headers1);
+            set_state!(self, ParserState::PreHeaders1, pre_headers1);
+
+            if context.handler.on_multipart_begin() {
+                transition!(self, context);
+            } else {
+                exit_callback!(self, context);
+            }
         } else if context.byte == b'-' {
             transition_fast!(self, context,
                              ParserState::MultipartEnd, multipart_end);
