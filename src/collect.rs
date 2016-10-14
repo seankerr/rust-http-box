@@ -77,7 +77,8 @@ macro_rules! collect_tokens {
         bs_collect!($context,
             if $stop {
                 break;
-            } else if !is_token($context.byte) {
+            } else if is_token($context.byte) {
+            } else {
                 return Err($error($context.byte));
             },
             $on_eos
@@ -86,7 +87,8 @@ macro_rules! collect_tokens {
 
     ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if !is_token($context.byte) {
+            if is_token($context.byte) {
+            } else {
                 return Err($error($context.byte));
             },
             $on_eos
