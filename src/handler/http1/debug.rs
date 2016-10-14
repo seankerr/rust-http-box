@@ -200,6 +200,11 @@ impl Http1Handler for DebugHttp1Handler {
         true
     }
 
+    fn on_multipart_begin(&mut self) -> bool {
+        println!("on_multipart_begin");
+        true
+    }
+
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         println!("on_multipart_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
         self.multipart_data.extend_from_slice(data);
