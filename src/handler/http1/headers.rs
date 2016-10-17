@@ -374,6 +374,34 @@ impl HeadersHandler {
 }
 
 impl Http1Handler for HeadersHandler {
+    fn content_length(&mut self) -> Option<usize> {
+        if let Some(content_length) = self.header_as_bytes("content-length") {
+            let mut length: usize = 0;
+
+            for byte in content_length.iter() {
+                if is_digit!(*byte) {
+                    if let Some(num) = length.checked_mul(10) {
+                        if let Some(num) = num.checked_add((*byte - b'0') as usize) {
+                            length = num;
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+
+                } else {
+                    // contains non-digit
+                    return None;
+                }
+            }
+
+            Some(length)
+        } else {
+            None
+        }
+    }
+
     fn on_header_field(&mut self, field: &[u8]) -> bool {
         if self.toggle {
             self.flush();

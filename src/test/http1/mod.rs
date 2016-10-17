@@ -198,6 +198,17 @@ pub fn multipart_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handle
     });
 }
 
+pub fn multipart_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
+    assert!(match parser.parse_multipart(handler, stream) {
+        Ok(Success::Eos(length)) => {
+            assert_eq!(length, stream.len());
+            assert_eq!(parser.get_state(), state);
+            true
+        },
+        _ => false
+    });
+}
+
 pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(length)) => {

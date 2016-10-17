@@ -673,12 +673,21 @@ pub enum ParserState {
 /// Type that handles HTTP/1.1 parser events.
 #[allow(unused_variables)]
 pub trait Http1Handler {
+    /// Retrieve the content length.
+    ///
+    /// **Called From::**
+    ///
+    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    fn content_length(&mut self) -> Option<usize> {
+        None
+    }
+
     /// Retrieve the multipart boundary.
     ///
     /// **Called From:**
     ///
     /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
-    fn get_multipart_boundary(&mut self) -> Option<&[u8]> {
+    fn multipart_boundary(&mut self) -> Option<&[u8]> {
         None
     }
 
@@ -1275,7 +1284,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`Http1Handler::get_multipart_boundary()`](trait.Http1Handler.html#method.get_multipart_boundary)
+    /// - [`Http1Handler::multipart_boundary()`](trait.Http1Handler.html#method.multipart_boundary)
     /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
@@ -2562,7 +2571,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         exit_if_eos!(self, context);
 
         let (length, callback_data, finished) =
-            if let Some(boundary) = context.handler.get_multipart_boundary() {
+            if let Some(boundary) = context.handler.multipart_boundary() {
                 let slice = if boundary.len() -
                                get_upper14!(self) as usize <= bs_available!(context) {
                     // compare remainder of boundary

@@ -17,7 +17,7 @@
 // +-----------------------------------------------------------------------------------------------+
 
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing multipart
-//! data.
+//! form data.
 
 use field::{ FieldMap,
              FieldValue };
@@ -25,7 +25,10 @@ use http1::Http1Handler;
 use util;
 use util::FieldSegment;
 
+use std;
 use std::collections::HashMap;
+use std::io::Result;
+use std::fs::File;
 use std::str;
 
 /// Content disposition.
@@ -37,7 +40,7 @@ enum ContentDisposition {
     Field,
 
     /// Field with file data content disposition.
-    File(Vec<u8>)
+    File(Vec<u8>, File)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -88,11 +91,35 @@ pub struct MultipartHandler {
     /// Fields.
     fields: FieldMap,
 
+    /// File upload path.
+    file_upload_path: String,
+
+    /// Files.
+    files: HashMap<String, File>,
+
     /// Indicates that parsing has finished.
     finished: bool,
 
+    /// Closure used to close a file.
+    fn_close: Box<Fn(&mut File) -> Result<()>>,
+
+    /// Closure used to create a file.
+    fn_create: Box<Fn(&[u8]) -> Result<File>>,
+
+    /// Closure used to delete a file.
+    fn_delete: Box<Fn(&mut File) -> Result<()>>,
+
+    /// Closure used to write to a file.
+    fn_write: Box<Fn(&mut File, &[u8]) -> Result<()>>,
+
     /// Current multipart section headers.
     headers: HashMap<String, String>,
+
+    /// Maximum field size.
+    max_field_size: usize,
+
+    /// Maximum file size.
+    max_file_size: usize,
 
     /// Field/value toggle.
     toggle: bool,
@@ -102,7 +129,7 @@ pub struct MultipartHandler {
 }
 
 impl MultipartHandler {
-    /// Create a new `MultipartHandler`.
+    /// Create a new `MultipartHandler` using default settings.
     ///
     /// # Arguments
     ///
@@ -120,8 +147,16 @@ impl MultipartHandler {
             content_disposition: ContentDisposition::Unknown,
             field_buffer:        Vec::new(),
             fields:              FieldMap::new(),
+            file_upload_path:    "/tmp".to_string(),
+            files:               HashMap::with_capacity(0),
             finished:            false,
-            headers:             HashMap::new(),
+            fn_close:            Box::new(MultipartHandler::fn_close),
+            fn_create:           Box::new(MultipartHandler::fn_create),
+            fn_delete:           Box::new(MultipartHandler::fn_delete),
+            fn_write:            Box::new(MultipartHandler::fn_write),
+            max_field_size:      std::usize::MAX,
+            max_file_size:       std::usize::MAX,
+            headers:             HashMap::with_capacity(1),
             toggle:              false,
             value_buffer:        Vec::new()
         }
@@ -137,6 +172,20 @@ impl MultipartHandler {
         &self.fields
     }
 
+    /// Retrieve `file` from the collection of files.
+    pub fn file(&self, file: &str) -> Option<&File> {
+        if let Some(file) = self.files.get(file) {
+            Some(&file)
+        } else {
+            None
+        }
+    }
+
+    /// Retrieve the files.
+    pub fn files(&self) -> &HashMap<String, File> {
+        &self.files
+    }
+
     /// Flush the most recent field or file.
     fn flush_field_file(&mut self) {
         match self.content_disposition {
@@ -145,7 +194,7 @@ impl MultipartHandler {
                     unsafe { self.fields.push_slice(&self.field_buffer, &self.value_buffer); }
                 }
             },
-            ContentDisposition::File(ref filename) => {
+            ContentDisposition::File(ref filename, ref file) => {
                 // todo: flush file
             },
             ContentDisposition::Unknown => {
@@ -177,9 +226,34 @@ impl MultipartHandler {
         self.value_buffer.clear();
     }
 
+    /// Close a file.
+    fn fn_close(file: &mut File) -> Result<()> {
+        panic!("X");
+    }
+
+    /// Create a file.
+    fn fn_create(filename: &[u8]) -> Result<File> {
+        panic!("X");
+    }
+
+    /// Delete a file.
+    fn fn_delete(file: &mut File) -> Result<()> {
+        panic!("X");
+    }
+
+    /// Write to a file.
+    fn fn_write(file: &mut File, data: &[u8]) -> Result<()> {
+        panic!("X");
+    }
+
     /// Indicates that `field` exists within the collection of fields.
     pub fn has_field(&self, field: &str) -> bool {
         self.fields.has_field(field)
+    }
+
+    /// Indicates that `file` exists within the collection of files.
+    pub fn has_file(&self, file: &str) -> bool {
+        self.files.contains_key(file)
     }
 
     /// Indicates that `header` exists within the collection of headers.
@@ -226,10 +300,72 @@ impl MultipartHandler {
         self.headers.clear();
         self.value_buffer.clear();
     }
+
+    /// Set the file close closure.
+    pub fn set_file_close<F>(&mut self, fn_close: F)
+    where F : 'static + Fn(&mut File) -> Result<()> {
+        self.fn_close = Box::new(fn_close);
+    }
+
+    /// Set the file create closure.
+    pub fn set_file_create<F>(&mut self, fn_create: F)
+    where F : 'static + Fn(&[u8]) -> Result<File> {
+        self.fn_create = Box::new(fn_create);
+    }
+
+    /// Set the file delete closure.
+    pub fn set_file_delete<F>(&mut self, fn_delete: F)
+    where F : 'static + Fn(&mut File) -> Result<()> {
+        self.fn_delete = Box::new(fn_delete);
+    }
+
+    /// Set the file write closure.
+    pub fn set_file_write<F>(&mut self, fn_write: F)
+    where F : 'static + Fn(&mut File, &[u8]) -> Result<()> {
+        self.fn_write = Box::new(fn_write);
+    }
+
+    /// Set the max field size.
+    pub fn set_max_field_size(&mut self, size: usize) {
+        self.max_field_size = size;
+    }
+
+    /// Set the max file size.
+    pub fn set_max_file_size(&mut self, size: usize) {
+        self.max_file_size = size;
+    }
 }
 
 impl Http1Handler for MultipartHandler {
-    fn get_multipart_boundary(&mut self) -> Option<&[u8]> {
+    fn content_length(&mut self) -> Option<usize> {
+        if let Some(content_length) = self.header_as_bytes("content-length") {
+            let mut length: usize = 0;
+
+            for byte in content_length.iter() {
+                if is_digit!(*byte) {
+                    if let Some(num) = length.checked_mul(10) {
+                        if let Some(num) = num.checked_add((*byte - b'0') as usize) {
+                            length = num;
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+
+                } else {
+                    // contains non-digit
+                    return None;
+                }
+            }
+
+            Some(length)
+        } else {
+            None
+        }
+    }
+
+    fn multipart_boundary(&mut self) -> Option<&[u8]> {
         Some(&self.boundary)
     }
 
@@ -295,7 +431,7 @@ impl Http1Handler for MultipartHandler {
                 if let Some(name) = name {
                     self.field_buffer.extend_from_slice(&name);
 
-                    ContentDisposition::File(filename)
+                    ContentDisposition::Unknown//File(filename, self.fn_create())
                 } else {
                     ContentDisposition::Unknown
                 }
@@ -315,6 +451,7 @@ impl Http1Handler for MultipartHandler {
 
     fn on_multipart_begin(&mut self) -> bool {
         self.flush_field_file();
+        self.headers.clear();
 
         true
     }
@@ -324,7 +461,7 @@ impl Http1Handler for MultipartHandler {
             ContentDisposition::Field => {
                 self.value_buffer.extend_from_slice(data);
             },
-            ContentDisposition::File(ref filename) => {
+            ContentDisposition::File(ref filename, ref file) => {
             },
             ContentDisposition::Unknown => {
                 // nothing to do

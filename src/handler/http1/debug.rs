@@ -135,7 +135,11 @@ impl DebugHttp1Handler {
 }
 
 impl Http1Handler for DebugHttp1Handler {
-    fn get_multipart_boundary(&mut self) -> Option<&[u8]> {
+    fn content_length(&mut self) -> Option<usize> {
+        None
+    }
+
+    fn multipart_boundary(&mut self) -> Option<&[u8]> {
         Some(b"XXDebugBoundaryXX")
     }
 
