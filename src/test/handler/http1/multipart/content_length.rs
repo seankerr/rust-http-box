@@ -27,11 +27,11 @@ fn content_length_non_byte_error() {
     let mut p = Parser::new();
 
     assert!(match p.parse_multipart(&mut h, b"--BOUNDARY\r\n\
-                                              Content-Length: 123F\r\n\
+                                              Content-Length: 14F\r\n\
                                               \r\n\
-                                              \r\n\
+                                              Multipart Data\r\n\
                                               --BOUNDARY--\r\n") {
-        Ok(Success::Finished(52)) => {
+        Ok(Success::Finished(65)) => {
             assert_eq!(None, h.content_length());
             true
         },
@@ -45,12 +45,29 @@ fn content_length_ok() {
     let mut p = Parser::new();
 
     assert!(match p.parse_multipart(&mut h, b"--BOUNDARY\r\n\
-                                              Content-Length: 1234\r\n\
+                                              Content-Length: 14\r\n\
                                               \r\n\
+                                              Multipart Data") {
+        Ok(Success::Eos(48)) => {
+            assert_eq!(Some(14), h.content_length());
+            assert_eq!(p.get_state(), ParserState::MultipartDataNewline1);
+            true
+        },
+        _ => false
+    });
+
+    assert!(match p.parse_multipart(&mut h, b"\r\n\
+                                              --BOUNDARY\r\n") {
+        Ok(Success::Eos(14)) => true,
+        _ => false
+    });
+
+    assert!(match p.parse_multipart(&mut h, b"Content-Length: 13\r\n\
                                               \r\n\
+                                              Hello, world!\r\n\
                                               --BOUNDARY--\r\n") {
-        Ok(Success::Finished(52)) => {
-            assert_eq!(Some(1234), h.content_length());
+        Ok(Success::Finished(51)) => {
+            assert_eq!(Some(13), h.content_length());
             true
         },
         _ => false

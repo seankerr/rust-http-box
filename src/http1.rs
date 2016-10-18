@@ -605,11 +605,23 @@ pub enum ParserState {
     /// Parsing multipart boundary.
     MultipartBoundary,
 
-    /// Parsing multipart data.
-    MultipartData,
+    /// Determining whether or not we're parsing data by content length or byte check.
+    MultipartPreData,
 
-    /// Parsing line feed inside data.
-    MultipartDataNewline,
+    /// Parsing multipart data by byte.
+    MultipartDataByByte,
+
+    /// Parsing multipart data by content length.
+    MultipartDataByLength,
+
+    /// Parsing carriage return after data by length.
+    MultipartDataNewline1,
+
+    /// Parsing line feed after data by length.
+    MultipartDataNewline2,
+
+    /// Parsing potential line feed after data by byte.
+    MultipartDataNewline3,
 
     /// Parsing post boundary carriage return or hyphen.
     MultipartNewline1,
@@ -1284,11 +1296,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
+    /// - [`Http1Handler::content_length()`](trait.Http1Handler.html#method.content_length)
     /// - [`Http1Handler::multipart_boundary()`](trait.Http1Handler.html#method.multipart_boundary)
     /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
     /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`Http1Handler::on_multipart_begin()`](trait.Http1Handler.html#method.on_multipart_begin)
     /// - [`Http1Handler::on_multipart_data()`](trait.Http1Handler.html#method.on_multipart_data)
     ///
     /// # Errors
@@ -1306,6 +1320,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             self.state_function = Parser::multipart_hyphen1;
 
             set_flag!(self, F_MULTIPART);
+
+            // lower14 == 1 when we expect a boundary
+            set_lower14!(self, 1);
         } else if self.state == ParserState::Finished {
             // already finished
             return Ok(Success::Finished(0));
@@ -1824,7 +1841,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             if has_flag!(self, F_CHUNKED) {
                 set_state!(self, ParserState::BodyFinished, body_finished);
             } else if has_flag!(self, F_MULTIPART) {
-                set_state!(self, ParserState::MultipartData, multipart_data);
+                set_state!(self, ParserState::MultipartPreData, multipart_pre_data);
             } else {
                 set_state!(self, ParserState::Finished, finished);
             }
@@ -2227,6 +2244,17 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
         };
 
+        if let Some(length) = self.length.checked_mul(16) {
+            if let Some(length) = length.checked_add(byte as usize) {
+                self.length = length;
+            } else {
+                return Err(ParserError::MaxChunkLength);
+            }
+        } else {
+            return Err(ParserError::MaxChunkLength);
+        }
+
+        /*
         if (self.length << 4) + byte as usize > 0xFFFFFFF {
             // limit chunk length to 28 bits
             return Err(ParserError::MaxChunkLength);
@@ -2234,6 +2262,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         self.length <<= 4;
         self.length  += byte as usize;
+        */
 
         transition!(self, context, ParserState::ChunkLength2, chunk_length2);
     }
@@ -2402,9 +2431,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_quoted_field!(context, ParserError::ChunkExtensionValue,
             // on end-of-stream
-            {
-                callback_eos_expr!(self, context, on_chunk_extension_value);
-            }
+            callback_eos_expr!(self, context, on_chunk_extension_value)
         );
 
         if context.byte == b'"' {
@@ -2481,6 +2508,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         exit_if_eos!(self, context);
 
         if bs_available!(context) >= self.length {
+            // collect remaining chunk data
             bs_collect_length!(context, self.length);
 
             self.length = 0;
@@ -2490,6 +2518,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                  ParserState::ChunkDataNewline1, chunk_data_newline1);
         }
 
+        // collect remaining stream data
         self.length -= bs_available!(context);
 
         bs_collect_length!(context, bs_available!(context));
@@ -2533,12 +2562,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'-' {
             transition_fast!(self, context, ParserState::MultipartHyphen2, multipart_hyphen2);
-        } else if get_lower14!(self) == 1 {
+        } else if get_lower14!(self) == 0 {
             // we're checking for the boundary within multipart data, but it's not the boundary,
             // so let's send the data to the callback and get back to parsing
             callback_transition!(self, context,
                                  on_multipart_data, &[b'\r', b'\n', context.byte],
-                                 ParserState::MultipartData, multipart_data);
+                                 ParserState::MultipartDataByByte, multipart_data_by_byte);
         }
 
         // we're parsing the initial boundary, and it's invalid
@@ -2553,12 +2582,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if context.byte == b'-' {
             transition_fast!(self, context, ParserState::MultipartBoundary, multipart_boundary);
-        } else if get_lower14!(self) == 1 {
+        } else if get_lower14!(self) == 0 {
             // we're checking for the boundary within multipart data, but it's not the boundary,
             // so let's send the data to the callback and get back to parsing
             callback_transition!(self, context,
                                  on_multipart_data, &[b'\r', b'\n', b'-', context.byte],
-                                 ParserState::MultipartData, multipart_data);
+                                 ParserState::MultipartDataByByte, multipart_data_by_byte);
         }
 
         // we're parsing the initial boundary, and it's invalid
@@ -2609,13 +2638,13 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         if let Some(v) = callback_data {
             // boundary did not match
-            if get_lower14!(self) == 1 {
+            if get_lower14!(self) == 0 {
                 // reset boundary comparison index
                 set_upper14!(self, 0);
 
                 callback_transition!(self, context,
                                      on_multipart_data, &v,
-                                     ParserState::MultipartData, multipart_data);
+                                     ParserState::MultipartDataByByte, multipart_data_by_byte);
             }
 
             // we're parsing the initial boundary, and it's invalid
@@ -2636,9 +2665,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             // reset boundary comparison index
             set_upper14!(self, 0);
 
-            // toggle first boundary passed flag
-            set_lower14!(self, 1);
-
             transition!(self, context,
                         ParserState::MultipartNewline1, multipart_newline1);
         }
@@ -2650,7 +2676,55 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data(&mut self, context: &mut ParserContext<T>)
+    fn multipart_pre_data(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        if let Some(length) = context.handler.content_length() {
+            self.length = length;
+
+            // expect boundary after data
+            set_lower14!(self, 1);
+
+            transition_fast!(self, context,
+                             ParserState::MultipartDataByLength,
+                             multipart_data_by_length);
+        }
+
+        // do not expect boundary since it can be part of the data itself
+        set_lower14!(self, 0);
+
+        transition_fast!(self, context,
+                         ParserState::MultipartDataByByte,
+                         multipart_data_by_byte);
+    }
+
+    #[inline]
+    fn multipart_data_by_length(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+
+        if bs_available!(context) >= self.length {
+            // collect remaining multipart data
+            bs_collect_length!(context, self.length);
+
+            self.length = 0;
+
+            callback_transition!(self, context,
+                                 on_multipart_data,
+                                 ParserState::MultipartDataNewline1, multipart_data_newline1);
+        }
+
+        // collect remaining stream data
+        self.length -= bs_available!(context);
+
+        bs_collect_length!(context, bs_available!(context));
+
+        callback_transition!(self, context,
+                             on_multipart_data,
+                             ParserState::MultipartDataByLength, multipart_data_by_length);
+    }
+
+    #[inline]
+    fn multipart_data_by_byte(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         bs_collect_until!(context,
             // collect bytes until
@@ -2662,11 +2736,43 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         callback_ignore_transition_fast!(self, context,
                                          on_multipart_data,
-                                         ParserState::MultipartDataNewline, multipart_data_newline)
+                                         ParserState::MultipartDataNewline3, multipart_data_newline3)
     }
 
     #[inline]
-    fn multipart_data_newline(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_newline1(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context,
+                             ParserState::MultipartDataNewline2, multipart_data_newline2);
+        }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_data_newline2(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            transition_fast!(self, context,
+                             ParserState::MultipartHyphen1, multipart_hyphen1);
+        }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_data_newline3(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2678,7 +2784,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         callback_transition!(self, context,
                              on_multipart_data, &[b'\r', context.byte],
-                             ParserState::MultipartData, multipart_data);
+                             ParserState::MultipartDataByByte, multipart_data_by_byte);
     }
 
     #[inline]

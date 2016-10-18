@@ -30,7 +30,7 @@ fn headers_ok () {
                            H1: V1\r\n\
                            H2: V2\r\n\
                            \r\n",
-                         ParserState::MultipartData, 39);
+                         ParserState::MultipartDataByByte, 39);
 
     assert_eq!(h.header_field, b"h1h2");
     assert_eq!(h.header_value, b"V1V2");
