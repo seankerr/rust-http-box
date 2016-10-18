@@ -40,6 +40,49 @@ fn content_length_non_byte_error() {
 }
 
 #[test]
+fn content_length_multiple_ok() {
+    let mut h = MultipartHandler::new(b"BOUNDARY");
+    let mut p = Parser::new();
+
+    assert!(match p.parse_multipart(&mut h, b"--BOUNDARY\r\n\
+                                              Content-Length: 14\r\n\
+                                              \r\n\
+                                              Multipart") {
+        Ok(Success::Eos(43)) => {
+            assert_eq!(Some(14), h.content_length());
+            assert_eq!(p.get_state(), ParserState::MultipartDataByLength);
+            true
+        },
+        _ => false
+    });
+
+    assert!(match p.parse_multipart(&mut h, b" Data") {
+        Ok(Success::Eos(5)) => {
+            assert_eq!(p.get_state(), ParserState::MultipartDataNewline1);
+            true
+        },
+        _ => false
+    });
+
+    assert!(match p.parse_multipart(&mut h, b"\r\n\
+                                              --BOUNDARY\r\n") {
+        Ok(Success::Eos(14)) => true,
+        _ => false
+    });
+
+    assert!(match p.parse_multipart(&mut h, b"Content-Length: 13\r\n\
+                                              \r\n\
+                                              Hello, world!\r\n\
+                                              --BOUNDARY--\r\n") {
+        Ok(Success::Finished(51)) => {
+            assert_eq!(Some(13), h.content_length());
+            true
+        },
+        _ => false
+    });
+}
+
+#[test]
 fn content_length_ok() {
     let mut h = MultipartHandler::new(b"BOUNDARY");
     let mut p = Parser::new();
