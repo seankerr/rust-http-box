@@ -187,10 +187,10 @@ impl HeadersHandler {
                         |s| {
                             match s {
                                 FieldSegment::Name(key) => {
-                                    self.cookies.insert(Cookie::new_from_slice(key));
+                                    self.cookies.insert(Cookie::from_slice(key));
                                 },
                                 FieldSegment::NameValue(key,value) => {
-                                    let mut cookie = Cookie::new_from_slice(key);
+                                    let mut cookie = Cookie::from_slice(key);
 
                                     cookie.set_value_from_slice(value);
 

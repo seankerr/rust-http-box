@@ -69,7 +69,7 @@ impl Cookie {
     }
 
     /// Create a new `Cookie`.
-    pub unsafe fn new_from_slice(name: &[u8]) -> Self {
+    pub unsafe fn from_slice(name: &[u8]) -> Self {
         Cookie{
             domain:    None,
             expires:   None,
