@@ -61,14 +61,17 @@ enum ContentDisposition {
 /// p.parse_multipart(&mut h,
 ///                   b"--ExampleBoundary\r\n\
 ///                     Content-Disposition: form-data; name=\"field1\"\r\n\
+///                     Content-Length: 7\r\n\
 ///                     \r\n\
 ///                     value 1\r\n\
 ///                     --ExampleBoundary\r\n\
 ///                     Content-Disposition: form-data; name=\"field1\"\r\n\
+///                     Content-Length: 7\r\n\
 ///                     \r\n\
 ///                     value 2\r\n\
 ///                     --ExampleBoundary\r\n\
 ///                     Content-Disposition: form-data; name=\"field2\"\r\n\
+///                     Content-Length: 7\r\n\
 ///                     \r\n\
 ///                     value 3\r\n\
 ///                     --ExampleBoundary--\r\n");
@@ -91,26 +94,11 @@ pub struct MultipartHandler {
     /// Fields.
     fields: FieldMap,
 
-    /// File upload path.
-    file_upload_path: String,
-
     /// Files.
     files: HashMap<String, File>,
 
     /// Indicates that parsing has finished.
     finished: bool,
-
-    /// Closure used to close a file.
-    fn_close: Box<Fn(&mut File) -> Result<()>>,
-
-    /// Closure used to create a file.
-    fn_create: Box<Fn(&[u8]) -> Result<File>>,
-
-    /// Closure used to delete a file.
-    fn_delete: Box<Fn(&mut File) -> Result<()>>,
-
-    /// Closure used to write to a file.
-    fn_write: Box<Fn(&mut File, &[u8]) -> Result<()>>,
 
     /// Current multipart section headers.
     headers: HashMap<String, String>,
@@ -123,6 +111,9 @@ pub struct MultipartHandler {
 
     /// Field/value toggle.
     toggle: bool,
+
+    /// File upload path.
+    upload_path: String,
 
     /// Value buffer.
     value_buffer: Vec<u8>
@@ -147,17 +138,13 @@ impl MultipartHandler {
             content_disposition: ContentDisposition::Unknown,
             field_buffer:        Vec::new(),
             fields:              FieldMap::new(),
-            file_upload_path:    "/tmp".to_string(),
             files:               HashMap::with_capacity(0),
             finished:            false,
-            fn_close:            Box::new(MultipartHandler::fn_close),
-            fn_create:           Box::new(MultipartHandler::fn_create),
-            fn_delete:           Box::new(MultipartHandler::fn_delete),
-            fn_write:            Box::new(MultipartHandler::fn_write),
             max_field_size:      std::usize::MAX,
             max_file_size:       std::usize::MAX,
             headers:             HashMap::with_capacity(1),
             toggle:              false,
+            upload_path:         "/tmp".to_string(),
             value_buffer:        Vec::new()
         }
     }
@@ -301,30 +288,6 @@ impl MultipartHandler {
         self.value_buffer.clear();
     }
 
-    /// Set the file close closure.
-    pub fn set_file_close<F>(&mut self, fn_close: F)
-    where F : 'static + Fn(&mut File) -> Result<()> {
-        self.fn_close = Box::new(fn_close);
-    }
-
-    /// Set the file create closure.
-    pub fn set_file_create<F>(&mut self, fn_create: F)
-    where F : 'static + Fn(&[u8]) -> Result<File> {
-        self.fn_create = Box::new(fn_create);
-    }
-
-    /// Set the file delete closure.
-    pub fn set_file_delete<F>(&mut self, fn_delete: F)
-    where F : 'static + Fn(&mut File) -> Result<()> {
-        self.fn_delete = Box::new(fn_delete);
-    }
-
-    /// Set the file write closure.
-    pub fn set_file_write<F>(&mut self, fn_write: F)
-    where F : 'static + Fn(&mut File, &[u8]) -> Result<()> {
-        self.fn_write = Box::new(fn_write);
-    }
-
     /// Set the max field size.
     pub fn set_max_field_size(&mut self, size: usize) {
         self.max_field_size = size;
@@ -333,6 +296,11 @@ impl MultipartHandler {
     /// Set the max file size.
     pub fn set_max_file_size(&mut self, size: usize) {
         self.max_file_size = size;
+    }
+
+    /// Set the file upload path.
+    pub fn set_upload_path(&mut self, path: &str) {
+        self.upload_path = path.to_string();
     }
 }
 
