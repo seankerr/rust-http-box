@@ -638,6 +638,8 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
 ///         } else {
 ///             s.field();
 ///         }
+///
+///         true
 ///     }
 /// );
 /// ```
@@ -723,9 +725,14 @@ where F : FnMut(QuerySegment) {
                 return Err(QueryError::Field(context.byte));
             } else {
                 // field without a value
-                segment_fn(QuerySegment::Field(&name));
+                if segment_fn(QuerySegment::Field(&name)) {
+                    name.clear();
+                } else {
+                    // callback exited
+                    name.clear();
 
-                name.clear();
+                    exit_ok!(context);
+                }
             }
         }
 
@@ -792,10 +799,16 @@ where F : FnMut(QuerySegment) {
             } else if context.byte == b'+' {
                 value.push(b' ');
             } else {
-                segment_fn(QuerySegment::FieldValue(&name, &value));
+                if segment_fn(QuerySegment::FieldValue(&name, &value)) {
+                    name.clear();
+                    value.clear();
+                } else {
+                    // callback exited
+                    name.clear();
+                    value.clear();
 
-                name.clear();
-                value.clear();
+                    exit_ok!(context);
+                }
 
                 break;
             }
