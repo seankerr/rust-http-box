@@ -20,10 +20,11 @@
 
 use std::{ borrow,
            hash };
-use std::fmt::{ Debug,
-                Display,
-                Formatter,
-                Result };
+use std::fmt;
+
+use util;
+use util::{ FieldError,
+            FieldSegment };
 
 /// HTTP cookie.
 #[derive(Clone,Eq,PartialEq)]
@@ -50,41 +51,138 @@ pub struct Cookie {
     secure: bool,
 
     /// Value.
-    value: Option<String>
+    value: String
 }
 
 impl Cookie {
     /// Create a new `Cookie`.
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: String, value: String) -> Self {
         Cookie{
             domain:    None,
             expires:   None,
             http_only: false,
             max_age:   None,
-            name:      name.to_string(),
+            name:      name,
             path:      None,
             secure:    false,
-            value:     None
+            value:     value
         }
     }
 
-    /// Create a new `Cookie`.
-    pub unsafe fn from_slice(name: &[u8]) -> Self {
-        Cookie{
-            domain:    None,
-            expires:   None,
-            http_only: false,
-            max_age:   None,
-            name:      {
-                let mut s = String::with_capacity(name.len());
+    /// Create a new `Cookie` from header data.
+    pub fn from_header(header: &str) -> Result<Self, Option<FieldError>> {
+        unsafe { Cookie::from_header_slice(header.as_bytes()) }
+    }
 
-                s.as_mut_vec().extend_from_slice(name);
-                s
-            },
-            path:      None,
-            secure:    false,
-            value:     None
+    /// Create a new `Cookie` from a header slice.
+    pub unsafe fn from_header_slice(slice: &[u8]) -> Result<Self, Option<FieldError>> {
+        let mut domain    = None;
+        let mut expires   = None;
+        let mut http_only = false;
+        let mut max_age   = None;
+        let mut name      = None;
+        let mut path      = None;
+        let mut secure    = false;
+        let mut value     = None;
+
+        // parse the name separately from the rest because we are not normalizing it per the RFC
+        let index = try!(util::parse_field(slice, b';', false,
+            |s| {
+                match s {
+                    FieldSegment::NameValue(n, v) => {
+                        name = unsafe {
+                            let mut s = String::with_capacity(n.len());
+
+                            s.as_mut_vec().extend_from_slice(n);
+
+                            Some(s)
+                        };
+
+                        value = unsafe {
+                            let mut s = String::with_capacity(v.len());
+
+                            s.as_mut_vec().extend_from_slice(v);
+
+                            Some(s)
+                        };
+                    },
+                    _ => {
+                        // missing value
+                    }
+                }
+
+                // exit parser
+                false
+            }
+        ));
+
+        if let None = value {
+            // missing name and value
+            return Err(None);
         }
+
+        // parse the rest of the cookie details
+        try!(util::parse_field(&slice[index..], b';', true,
+            |s| {
+                match s {
+                    FieldSegment::Name(name) => {
+                        if name == b"httponly" {
+                            http_only = true;
+                        } else if name == b"secure" {
+                            secure = true;
+                        }
+                    },
+                    FieldSegment::NameValue(name, value) => {
+                        if name == b"domain" {
+                            domain = unsafe {
+                                let mut s = String::with_capacity(value.len());
+
+                                s.as_mut_vec().extend_from_slice(value);
+
+                                Some(s)
+                            };
+                        } else if name == b"expires" {
+                            expires = unsafe {
+                                let mut s = String::with_capacity(value.len());
+
+                                s.as_mut_vec().extend_from_slice(value);
+
+                                Some(s)
+                            };
+                        } else if name == b"max-age" {
+                            max_age = unsafe {
+                                let mut s = String::with_capacity(value.len());
+
+                                s.as_mut_vec().extend_from_slice(value);
+
+                                Some(s)
+                            };
+                        } else if name == b"path" {
+                            path = unsafe {
+                                let mut s = String::with_capacity(value.len());
+
+                                s.as_mut_vec().extend_from_slice(value);
+
+                                Some(s)
+                            };
+                        }
+                    }
+                }
+
+                true
+            }
+        ));
+
+        Ok(Cookie {
+            domain:    domain,
+            expires:   expires,
+            http_only: http_only,
+            max_age:   max_age,
+            name:      name.unwrap(),
+            path:      path,
+            secure:    secure,
+            value:     value.unwrap()
+        })
     }
 
     /// Retrieve the domain.
@@ -144,33 +242,9 @@ impl Cookie {
         self
     }
 
-    /// Set the domain.
-    pub unsafe fn set_domain_from_slice(&mut self, domain: &[u8]) -> &mut Self {
-        self.domain = Some({
-            let mut s = String::with_capacity(domain.len());
-
-            s.as_mut_vec().extend_from_slice(domain);
-            s
-        });
-
-        self
-    }
-
     /// Set the expiration date and time.
     pub fn set_expires(&mut self, expires: String) -> &mut Self {
         self.expires = Some(expires);
-        self
-    }
-
-    /// Set the expiration date and time.
-    pub unsafe fn set_expires_from_slice(&mut self, expires: &[u8]) -> &mut Self {
-        self.expires = Some({
-            let mut s = String::with_capacity(expires.len());
-
-            s.as_mut_vec().extend_from_slice(expires);
-            s
-        });
-
         self
     }
 
@@ -186,51 +260,15 @@ impl Cookie {
         self
     }
 
-    /// Set the maximum age.
-    pub unsafe fn set_max_age_from_slice(&mut self, max_age: &[u8]) -> &mut Self {
-        self.max_age = Some({
-            let mut s = String::with_capacity(max_age.len());
-
-            s.as_mut_vec().extend_from_slice(max_age);
-            s
-        });
-
-        self
-    }
-
     /// Set the name.
     pub fn set_name(&mut self, name: String) -> &mut Self {
         self.name = name;
         self
     }
 
-    /// Set the name.
-    pub unsafe fn set_name_from_slice(&mut self, name: &[u8]) -> &mut Self {
-        self.name = {
-            let mut s = String::with_capacity(name.len());
-
-            s.as_mut_vec().extend_from_slice(name);
-            s
-        };
-
-        self
-    }
-
     /// Set the path.
     pub fn set_path(&mut self, path: String) -> &mut Self {
         self.path = Some(path);
-        self
-    }
-
-    /// Set the path.
-    pub unsafe fn set_path_from_slice(&mut self, path: &[u8]) -> &mut Self {
-        self.path = Some({
-            let mut s = String::with_capacity(path.len());
-
-            s.as_mut_vec().extend_from_slice(path);
-            s
-        });
-
         self
     }
 
@@ -242,29 +280,13 @@ impl Cookie {
 
     /// Set the value.
     pub fn set_value(&mut self, value: String) -> &mut Self {
-        self.value = Some(value);
-        self
-    }
-
-    /// Set the value.
-    pub unsafe fn set_value_from_slice(&mut self, value: &[u8]) -> &mut Self {
-        self.value = Some({
-            let mut s = String::with_capacity(value.len());
-
-            s.as_mut_vec().extend_from_slice(value);
-            s
-        });
-
+        self.value = value;
         self
     }
 
     /// Retrieve the value.
-    pub fn value(&self) -> Option<&str> {
-        if let Some(ref x) = self.value {
-            Some(x)
-        } else {
-            None
-        }
+    pub fn value(&self) -> &str {
+        &self.value
     }
 }
 
@@ -274,13 +296,13 @@ impl borrow::Borrow<str> for Cookie {
     }
 }
 
-impl Debug for Cookie {
-    fn fmt(&self, formatter: &mut Formatter) -> Result {
+impl fmt::Debug for Cookie {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter,
                "Cookie(name=\"{}\", value=\"{}\", domain=\"{}\", path=\"{}\", \
                        expires=\"{}\", max-age=\"{}\", http-only={}, secure={})",
                self.name,
-               if let Some(ref s) = self.value { &s[..] } else { "" },
+               self.value,
                if let Some(ref s) = self.domain { &s[..] } else { "" },
                if let Some(ref s) = self.path { &s[..] } else { "" },
                if let Some(ref s) = self.expires { &s[..] } else { "" },
@@ -290,9 +312,9 @@ impl Debug for Cookie {
     }
 }
 
-impl Display for Cookie {
-    fn fmt(&self, formatter: &mut Formatter) -> Result {
-        write!(formatter, "{}", if let Some(ref s) = self.value { &s[..] } else { "" })
+impl fmt::Display for Cookie {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{}", self.value)
     }
 }
 

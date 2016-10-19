@@ -60,13 +60,13 @@ use std::slice;
 /// assert_eq!(1, h.version_minor());
 ///
 /// // cookie names are normalized to lower-case
-/// let mut cookie = h.cookies().get("cookie1").unwrap();
+/// let mut cookie = h.cookies().get("Cookie1").unwrap();
 ///
-/// assert_eq!("value1", cookie.value().unwrap());
+/// assert_eq!("value1", cookie.value());
 ///
-/// cookie = h.cookies().get("cookie2").unwrap();
+/// cookie = h.cookies().get("Cookie2").unwrap();
 ///
-/// assert_eq!("value2", cookie.value().unwrap());
+/// assert_eq!("value2", cookie.value());
 /// ```
 ///
 /// # Response Examples
@@ -82,8 +82,8 @@ use std::slice;
 ///                 b"HTTP/1.1 200 OK\r\n\
 ///                   Header1: value1\r\n\
 ///                   Header2: value2\r\n\
-///                   Set-Cookie: cookie1=value1; domain=.domain1; path=/path1\r\n\
-///                   Set-Cookie: cookie2=value2; domain=.domain2; path=/path2\r\n\
+///                   Set-Cookie: Cookie1=value1; domain=.domain1; path=/path1\r\n\
+///                   Set-Cookie: Cookie2=value2; domain=.domain2; path=/path2\r\n\
 ///                   \r\n\r\n", 0);
 ///
 /// // header fields are normalized to lower-case
@@ -97,15 +97,15 @@ use std::slice;
 /// assert_eq!("OK", h.status());
 ///
 /// // cookie names are normalized to lower-case
-/// let mut cookie = h.cookie("cookie1").unwrap();
+/// let mut cookie = h.cookie("Cookie1").unwrap();
 ///
-/// assert_eq!("value1", cookie.value().unwrap());
+/// assert_eq!("value1", cookie.value());
 /// assert_eq!(".domain1", cookie.domain().unwrap());
 /// assert_eq!("/path1", cookie.path().unwrap());
 ///
-/// cookie = h.cookie("cookie2").unwrap();
+/// cookie = h.cookie("Cookie2").unwrap();
 ///
-/// assert_eq!("value2", cookie.value().unwrap());
+/// assert_eq!("value2", cookie.value());
 /// assert_eq!(".domain2", cookie.domain().unwrap());
 /// assert_eq!("/path2", cookie.path().unwrap());
 /// ```
@@ -178,76 +178,46 @@ impl HeadersHandler {
 
     /// Flush the most recent header field/value.
     fn flush(&mut self) {
-        if self.is_request() {
-            if self.field_buffer == b"cookie" {
-                unsafe {
-                    util::parse_field(slice::from_raw_parts(self.value_buffer.as_ptr(),
-                                                            self.value_buffer.len()),
-                                      b';',
-                        |s| {
-                            match s {
-                                FieldSegment::Name(key) => {
-                                    self.cookies.insert(Cookie::from_slice(key));
-                                },
-                                FieldSegment::NameValue(key,value) => {
-                                    let mut cookie = Cookie::from_slice(key);
+        if self.field_buffer == b"cookie" {
+            let buffer = self.value_buffer.clone();
 
-                                    cookie.set_value_from_slice(value);
+            util::parse_field(&buffer, b';', false,
+                |s| {
+                    match s {
+                        FieldSegment::NameValue(name, value) => {
+                            self.cookies.insert(unsafe {
+                                Cookie::new({
+                                    let mut s = String::with_capacity(name.len());
 
-                                    self.cookies.insert(cookie);
-                                }
-                            }
-                        }
-                    );
-                }
-            } else {
-                self.headers.insert(unsafe {
-                    let mut s = String::with_capacity(self.field_buffer.len());
+                                    s.as_mut_vec().extend_from_slice(name);
+                                    s
+                                }, {
+                                    let mut s = String::with_capacity(value.len());
 
-                    s.as_mut_vec().extend_from_slice(&self.field_buffer);
-                    s
-                }, unsafe {
-                    let mut s = String::with_capacity(self.value_buffer.len());
+                                    s.as_mut_vec().extend_from_slice(value);
+                                    s
+                                })
+                            });
 
-                    s.as_mut_vec().extend_from_slice(&self.value_buffer);
-                    s
-                });
-            }
-        } else if self.field_buffer == b"set-cookie" {
-            unsafe {
-                let mut cookie = Cookie::new("");
-
-                util::parse_field(&self.value_buffer, b';',
-                    |s| {
-                        match s {
-                            FieldSegment::Name(key) => {
-                                if key == b"httponly" {
-                                    cookie.set_http_only(true);
-                                } else if key == b"secure" {
-                                    cookie.set_secure(true);
-                                }
-                            },
-                            FieldSegment::NameValue(key,value) => {
-                                if key == b"domain" {
-                                    cookie.set_domain_from_slice(value);
-                                } else if key == b"expires" {
-                                    cookie.set_expires_from_slice(value);
-                                } else if key == b"max-age" {
-                                    cookie.set_max_age_from_slice(value);
-                                } else if key == b"path" {
-                                    cookie.set_path_from_slice(value);
-                                } else {
-                                    cookie.set_name_from_slice(key)
-                                          .set_value_from_slice(value);
-                                }
-                            }
+                            true
+                        },
+                        _ => {
+                            // missing value
+                            false
                         }
                     }
-                );
-
-                if cookie.name() != "" {
-                    self.cookies.insert(cookie);
                 }
+            );
+        } else if self.field_buffer == b"set-cookie" {
+            unsafe {
+                match Cookie::from_header_slice(&self.value_buffer) {
+                    Ok(cookie) => {
+                        self.cookies.insert(cookie);
+                    },
+                    _ => {
+                        // invalid cookie headder
+                    }
+                };
             }
         } else {
             self.headers.insert(unsafe {

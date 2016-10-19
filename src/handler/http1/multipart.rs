@@ -372,7 +372,7 @@ impl Http1Handler for MultipartHandler {
             let mut name     = None;
 
             util::parse_field(self.header_as_bytes("content-disposition").unwrap(),
-                              b';',
+                              b';', true,
                 |s| {
                     match s {
                         FieldSegment::NameValue(n, v) => {
@@ -392,6 +392,8 @@ impl Http1Handler for MultipartHandler {
                         },
                         _ => {}
                     }
+
+                    true
                 }
             );
 
