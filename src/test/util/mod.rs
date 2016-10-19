@@ -19,7 +19,7 @@
 #[macro_export]
 macro_rules! field {
     ($map:expr, $stream:expr, $length:expr) => ({
-        assert!(match parse_field($stream, b';',
+        assert!(match parse_field($stream, b';', true,
                                   |s| {
                                       match s {
                                           FieldSegment::Name(x) => {
@@ -48,6 +48,7 @@ macro_rules! field {
                                               println!("{:?}", FieldSegment::NameValue(x,y));
                                           }
                                       }
+                                      true
                                   }) {
             Ok($length) => {
                 true
@@ -60,7 +61,7 @@ macro_rules! field {
 #[macro_export]
 macro_rules! field_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_field($stream, b';', |_|{}) {
+        assert!(match parse_field($stream, b';', true, |_|{true}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
@@ -102,6 +103,8 @@ macro_rules! query {
                                               println!("{:?}", QuerySegment::FieldValue(x,y));
                                           }
                                       }
+
+                                      true
                                   }) {
             Ok($length) => {
                 true
@@ -114,7 +117,7 @@ macro_rules! query {
 #[macro_export]
 macro_rules! query_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_query($stream, b'&', |_|{}) {
+        assert!(match parse_query($stream, b'&', |_|{true}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
