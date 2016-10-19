@@ -407,6 +407,10 @@ where F : FnMut(&[u8]) {
 ///
 /// The delimiting byte.
 ///
+/// **`normalize`**
+///
+/// Indicates that field names should be normalized to lower-case.
+///
 /// **`segment_fn`**
 ///
 /// A closure that receives instances of [`FieldSegment`](enum.FieldSegment.html).
@@ -428,7 +432,7 @@ where F : FnMut(&[u8]) {
 /// use http_box::util::FieldSegment;
 /// use http_box::util;
 ///
-/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';',
+/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';', true,
 ///     |s| {
 ///         if s.has_value() {
 ///             s.name();
@@ -436,11 +440,13 @@ where F : FnMut(&[u8]) {
 ///         } else {
 ///             s.name();
 ///         }
+///
+///         true
 ///     }
 /// );
 /// ```
-pub fn parse_field<F>(field: &[u8], delimiter: u8, mut segment_fn: F) -> Result<usize, FieldError>
-where F : FnMut(FieldSegment) {
+pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_fn: F)
+-> Result<usize, FieldError> where F : FnMut(FieldSegment) -> bool {
     let mut context = ByteStream::new(field);
     let mut name    = Vec::new();
     let mut value   = Vec::new();
@@ -458,7 +464,7 @@ where F : FnMut(FieldSegment) {
             // stop on these bytes
                context.byte == b'='
             || context.byte == delimiter
-            || (context.byte > 0x40 && context.byte < 0x5B),
+            || (normalize && context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
             {
@@ -495,10 +501,16 @@ where F : FnMut(FieldSegment) {
                         // found end quote
                         value.extend_from_slice(bs_slice_ignore!(context));
 
-                        segment_fn(FieldSegment::NameValue(&name, &value));
+                        if segment_fn(FieldSegment::NameValue(&name, &value)) {
+                            name.clear();
+                            value.clear();
+                        } else {
+                            // callback exited
+                            name.clear();
+                            value.clear();
 
-                        name.clear();
-                        value.clear();
+                            exit_ok!(context);
+                        }
 
                         consume_spaces!(context,
                             // on end-of-stream
@@ -553,10 +565,16 @@ where F : FnMut(FieldSegment) {
 
                 if bs_slice_length!(context) == 0 {
                     // name without a value
-                    segment_fn(FieldSegment::Name(&name));
+                    if !segment_fn(FieldSegment::Name(&name)) {
+                        // callback exited
+                        exit_ok!(context);
+                    }
                 } else {
                     // name/value pair
-                    segment_fn(FieldSegment::NameValue(&name, bs_slice_ignore!(context)));
+                    if !segment_fn(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
+                        // callback exited
+                        exit_ok!(context);
+                    }
                 }
 
                 name.clear();
@@ -564,9 +582,14 @@ where F : FnMut(FieldSegment) {
             }
         } else if context.byte == delimiter {
             // name without a value
-            segment_fn(FieldSegment::Name(&name));
+            if segment_fn(FieldSegment::Name(&name)) {
+                name.clear();
+            } else {
+                // callback exited
+                name.clear();
 
-            name.clear();
+                exit_ok!(context);
+            }
         } else {
             // upper-cased byte, let's lower-case it
             name.push(context.byte + 0x20);
