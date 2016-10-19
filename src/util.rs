@@ -644,7 +644,7 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
 /// );
 /// ```
 pub fn parse_query<F>(query: &[u8], delimiter: u8, mut segment_fn: F) -> Result<usize, QueryError>
-where F : FnMut(QuerySegment) {
+where F : FnMut(QuerySegment) -> bool {
     let mut context = ByteStream::new(query);
     let mut name    = Vec::new();
     let mut value   = Vec::new();
