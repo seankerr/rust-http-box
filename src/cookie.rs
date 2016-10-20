@@ -99,25 +99,19 @@ impl Cookie {
     /// The cookie name and value are the only required fields in order for parsing to succeed. If
     /// the cookie name or value are not present, the error will be `None`.
     ///
-    /// # Unsafe
-    ///
-    /// This function is unsafe because it does not verify `header` is valid UTF-8.
-    ///
     /// # Examples
     ///
     /// ```
     /// use http_box::Cookie;
     ///
-    /// let cookie = unsafe {
-    ///     Cookie::from_bytes("Cookie=value; domain=rust-lang.org; path=/").unwrap()
-    /// };
+    /// let cookie = Cookie::from_bytes("Cookie=value; domain=rust-lang.org; path=/").unwrap();
     ///
     /// assert_eq!("Cookie", cookie.name());
     /// assert_eq!("value", cookie.value());
     /// assert_eq!("rust-lang.org", cookie.domain().unwrap());
     /// assert_eq!("/", cookie.path().unwrap());
     /// ```
-    pub unsafe fn from_bytes<'a, T: AsRef<[u8]>>(header: T) -> Result<Self, Option<FieldError>> {
+    pub fn from_bytes<'a, T: AsRef<[u8]>>(header: T) -> Result<Self, Option<FieldError>> {
         let bytes         = header.as_ref();
         let mut domain    = None;
         let mut expires   = None;
@@ -140,7 +134,7 @@ impl Cookie {
                 |s: FieldSegment| {
                     match s {
                         FieldSegment::NameValue(n, v) => {
-                            name = {
+                            name = unsafe {
                                 let mut s = String::with_capacity(n.len());
 
                                 s.as_mut_vec().extend_from_slice(n);
@@ -148,7 +142,7 @@ impl Cookie {
                                 Some(s)
                             };
 
-                            value = {
+                            value = unsafe {
                                 let mut s = String::with_capacity(v.len());
 
                                 s.as_mut_vec().extend_from_slice(v);
@@ -185,7 +179,7 @@ impl Cookie {
                     },
                     FieldSegment::NameValue(name, value) => {
                         if name == b"domain" {
-                            domain = {
+                            domain = unsafe {
                                 let mut s = String::with_capacity(value.len());
 
                                 s.as_mut_vec().extend_from_slice(value);
@@ -193,7 +187,7 @@ impl Cookie {
                                 Some(s)
                             };
                         } else if name == b"expires" {
-                            expires = {
+                            expires = unsafe {
                                 let mut s = String::with_capacity(value.len());
 
                                 s.as_mut_vec().extend_from_slice(value);
@@ -201,7 +195,7 @@ impl Cookie {
                                 Some(s)
                             };
                         } else if name == b"max-age" {
-                            max_age = {
+                            max_age = unsafe {
                                 let mut s = String::with_capacity(value.len());
 
                                 s.as_mut_vec().extend_from_slice(value);
@@ -209,7 +203,7 @@ impl Cookie {
                                 Some(s)
                             };
                         } else if name == b"path" {
-                            path = {
+                            path = unsafe {
                                 let mut s = String::with_capacity(value.len());
 
                                 s.as_mut_vec().extend_from_slice(value);

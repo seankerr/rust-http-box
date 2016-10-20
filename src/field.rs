@@ -34,16 +34,15 @@ use std::collections::HashMap;
 /// map.push("key", "value2");
 ///
 /// assert_eq!(1, map.len());
-/// assert_eq!(3, map.field("key").unwrap().len());
+/// assert_eq!(2, map.field("key").unwrap().len());
 ///
 /// assert_eq!("value1", map.field("key").unwrap().first().unwrap());
 /// assert_eq!("value1", map.field("key").unwrap().get(0).unwrap());
 /// assert_eq!("value2", map.field("key").unwrap().get(1).unwrap());
-/// assert_eq!("value3", map.field("key").unwrap().get(2).unwrap());
 ///
-/// map.field_mut("key").unwrap().remove(2);
+/// map.field_mut("key").unwrap().remove(1);
 ///
-/// assert_eq!(2, map.field("key").unwrap().len());
+/// assert_eq!(1, map.field("key").unwrap().len());
 ///
 /// map.remove("key");
 ///
