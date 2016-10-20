@@ -94,7 +94,7 @@ impl Cookie {
         }
     }
 
-    /// Create a new `Cookie` from header data.
+    /// Create a new `Cookie` from a slice of bytes.
     ///
     /// The cookie name and value are the only required fields in order for parsing to succeed. If
     /// the cookie name or value are not present, the error will be `None`.
@@ -236,7 +236,7 @@ impl Cookie {
         })
     }
 
-    /// Create a new `Cookie` from header data.
+    /// Create a new `Cookie` from a string.
     ///
     /// # Examples
     ///
