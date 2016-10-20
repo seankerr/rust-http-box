@@ -35,6 +35,20 @@ macro_rules! collect_digits32 {
 
 /// Collect an unquoted field value.
 macro_rules! collect_field {
+    ($context:expr, $error:expr, $delimiter:expr, $byte_error:expr, $eos:expr) => ({
+        bs_collect!($context, {
+                if $context.byte == $delimiter {
+                    break;
+                } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
+                    // space + visible + no byte error
+                } else {
+                    return Err($error($context.byte));
+                }
+            },
+            $eos
+        );
+    });
+
     ($context:expr, $error:expr, $delimiter:expr, $eos:expr) => ({
         bs_collect!($context, {
                 if $context.byte == $delimiter {
@@ -54,8 +68,20 @@ macro_rules! collect_field {
 /// Collect a quoted field value.
 ///
 /// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
-/// non-visible 7-bit byte that also isn't a space.
+/// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
 macro_rules! collect_quoted_field {
+    ($context:expr, $error:expr, $byte_error:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if $context.byte == b'"' || $context.byte == b'\\' {
+                break;
+            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' || !$byte_error {
+            } else {
+                return Err($error($context.byte));
+            },
+            $on_eos
+        );
+    });
+
     ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if $context.byte == b'"' || $context.byte == b'\\' {

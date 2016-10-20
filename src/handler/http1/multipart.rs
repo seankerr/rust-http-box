@@ -373,7 +373,7 @@ impl Http1Handler for MultipartHandler {
 
             util::parse_field(self.header_as_bytes("content-disposition").unwrap(),
                               b';', true,
-                |s| {
+                |s: FieldSegment| {
                     match s {
                         FieldSegment::NameValue(n, v) => {
                             if n == b"name" {

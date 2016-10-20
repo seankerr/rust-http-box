@@ -111,7 +111,7 @@ impl Cookie {
 
         // parse the name separately from the rest because we are not normalizing it per the RFC
         let index = try!(util::parse_field(slice, b';', false,
-            |s| {
+            |s: FieldSegment| {
                 match s {
                     FieldSegment::NameValue(n, v) => {
                         name = unsafe {
@@ -147,7 +147,7 @@ impl Cookie {
 
         // parse the rest of the cookie details
         try!(util::parse_field(&slice[index..], b';', true,
-            |s| {
+            |s: FieldSegment| {
                 match s {
                     FieldSegment::Name(name) => {
                         if name == b"httponly" {

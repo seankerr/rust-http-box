@@ -182,7 +182,7 @@ impl HeadersHandler {
             let buffer = self.value_buffer.clone();
 
             util::parse_field(&buffer, b';', false,
-                |s| {
+                |s: FieldSegment| {
                     match s {
                         FieldSegment::NameValue(name, value) => {
                             self.cookies.insert(unsafe {

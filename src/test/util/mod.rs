@@ -20,7 +20,7 @@
 macro_rules! field {
     ($map:expr, $stream:expr, $length:expr) => ({
         assert!(match parse_field($stream, b';', true,
-                                  |s| {
+                                  |s: FieldSegment| {
                                       match s {
                                           FieldSegment::Name(x) => {
                                               let mut n = String::new();
@@ -61,7 +61,7 @@ macro_rules! field {
 #[macro_export]
 macro_rules! field_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_field($stream, b';', true, |_|{true}) {
+        assert!(match parse_field($stream, b';', true, |s: FieldSegment|{true}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true

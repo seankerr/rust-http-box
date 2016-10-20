@@ -84,6 +84,37 @@ impl fmt::Display for DecodeError {
 
 // -------------------------------------------------------------------------------------------------
 
+/// Field closure support.
+pub trait FieldClosure {
+    /// Run the field segment closure.
+    fn run(&mut self, segment: FieldSegment) -> bool;
+
+    /// Run the byte validation closure.
+    fn validate(&mut self, byte: u8) -> bool;
+}
+
+impl<F: FnMut(FieldSegment) -> bool> FieldClosure for F {
+    fn run(&mut self, segment: FieldSegment) -> bool {
+        self(segment)
+    }
+
+    fn validate(&mut self, byte: u8) -> bool {
+        true
+    }
+}
+
+impl<F1: FnMut(u8) -> bool, F2: FnMut(FieldSegment) -> bool> FieldClosure for (F1, F2) {
+    fn run(&mut self, segment: FieldSegment) -> bool {
+        self.1(segment)
+    }
+
+    fn validate(&mut self, byte: u8) -> bool {
+        self.0(byte)
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// Field errors.
 pub enum FieldError {
     /// Invalid field name.
@@ -395,8 +426,6 @@ where F : FnMut(&[u8]) {
 
 /// Parse the content of a header field.
 ///
-/// *Note:* This will normalize all names so that upper-cased bytes are converted to lower-case.
-///
 /// # Arguments
 ///
 /// **`field`**
@@ -411,9 +440,10 @@ where F : FnMut(&[u8]) {
 ///
 /// Indicates that field names should be normalized to lower-case.
 ///
-/// **`segment_fn`**
+/// **`field_fn`**
 ///
-/// A closure that receives instances of [`FieldSegment`](enum.FieldSegment.html).
+/// A `FieldClosure` implementation that receives instances of
+/// [`FieldSegment`](enum.FieldSegment.html).
 ///
 /// # Returns
 ///
@@ -428,12 +458,15 @@ where F : FnMut(&[u8]) {
 ///
 /// # Examples
 ///
+/// This is an example of a `FieldClosure` implementation that is a single closure that accepts
+/// instances of `FieldSegment`.
+///
 /// ```
 /// use http_box::util::FieldSegment;
 /// use http_box::util;
 ///
 /// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';', true,
-///     |s| {
+///     |s: FieldSegment| {
 ///         if s.has_value() {
 ///             s.name();
 ///             s.value().unwrap();
@@ -445,8 +478,41 @@ where F : FnMut(&[u8]) {
 ///     }
 /// );
 /// ```
-pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_fn: F)
--> Result<usize, FieldError> where F : FnMut(FieldSegment) -> bool {
+///
+/// This is an example of a `FieldClosure` implementation that is a tuple of two closures. The first
+/// closure accepts the current field value byte, an returns a boolean indicating that the byte is valid.
+/// The second closure accepts the instance of `FieldSegment`.
+///
+/// You will notice that in the 'name2' value, there is a null byte. The validation closure checks
+/// for this, and since it returns `false`, `Err(FieldError::Value)` is returned.
+///
+/// ```
+/// use http_box::util::{ FieldError, FieldSegment };
+/// use http_box::util;
+///
+/// match util::parse_field(b"name-no-value; name1=value1; name2=\"value2\0\"", b';', true,
+///     ( // field value byte validation closure
+///      |b: u8| {
+///          b != b'\0'
+///      },
+///      // field segment closure
+///      |s: FieldSegment| {
+///          if s.has_value() {
+///              s.name();
+///              s.value().unwrap();
+///          } else {
+///              s.name();
+///          }
+///
+///          true
+///      })
+/// ) {
+///     Err(FieldError::Value(b'\0')) => { },
+///     _ => panic!()
+/// }
+/// ```
+pub fn parse_field<F: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool, mut field_fn: F)
+-> Result<usize, FieldError> {
     let mut context = ByteStream::new(field);
     let mut name    = Vec::new();
     let mut value   = Vec::new();
@@ -464,7 +530,7 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
             // stop on these bytes
                context.byte == b'='
             || context.byte == delimiter
-            || (normalize && context.byte > 0x40 && context.byte < 0x5B),
+            || (context.byte > 0x40 && context.byte < 0x5B && normalize),
 
             // on end-of-stream
             {
@@ -473,7 +539,7 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
                     name.extend_from_slice(bs_slice!(context));
                 }
 
-                segment_fn(FieldSegment::Name(&name));
+                field_fn.run(FieldSegment::Name(&name));
 
                 exit_ok!(context);
             }
@@ -492,6 +558,9 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
                     bs_mark!(context);
 
                     collect_quoted_field!(context, FieldError::Value,
+                        // error on these bytes
+                        !field_fn.validate(context.byte),
+
                         // on end-of-stream
                         // didn't find an ending quote
                         return Err(FieldError::Value(context.byte))
@@ -501,7 +570,7 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
                         // found end quote
                         value.extend_from_slice(bs_slice_ignore!(context));
 
-                        if segment_fn(FieldSegment::NameValue(&name, &value)) {
+                        if field_fn.run(FieldSegment::NameValue(&name, &value)) {
                             name.clear();
                             value.clear();
                         } else {
@@ -545,13 +614,16 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
                 bs_mark!(context);
 
                 collect_field!(context, FieldError::Value, delimiter,
+                    // error on these bytes
+                    !field_fn.validate(context.byte),
+
                     // on end-of-stream
                     {
                         if bs_slice_length!(context) > 0 {
                             value.extend_from_slice(bs_slice!(context));
                         }
 
-                        segment_fn(FieldSegment::NameValue(&name, &value));
+                        field_fn.run(FieldSegment::NameValue(&name, &value));
 
                         exit_ok!(context);
                     }
@@ -559,13 +631,13 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
 
                 if bs_slice_length!(context) == 0 {
                     // name without a value
-                    if !segment_fn(FieldSegment::Name(&name)) {
+                    if !field_fn.run(FieldSegment::Name(&name)) {
                         // callback exited
                         exit_ok!(context);
                     }
                 } else {
                     // name/value pair
-                    if !segment_fn(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
+                    if !field_fn.run(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
                         // callback exited
                         exit_ok!(context);
                     }
@@ -576,7 +648,7 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
             }
         } else if context.byte == delimiter {
             // name without a value
-            if segment_fn(FieldSegment::Name(&name)) {
+            if field_fn.run(FieldSegment::Name(&name)) {
                 name.clear();
             } else {
                 // callback exited
