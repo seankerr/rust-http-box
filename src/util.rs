@@ -542,12 +542,6 @@ pub fn parse_field<F>(field: &[u8], delimiter: u8, normalize: bool, mut segment_
             } else {
                 // unquoted value
                 bs_replay!(context);
-
-                consume_spaces!(context,
-                    // on end-of-stream
-                    exit_ok!(context)
-                );
-
                 bs_mark!(context);
 
                 collect_field!(context, FieldError::Value, delimiter,
