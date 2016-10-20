@@ -111,33 +111,41 @@ impl Cookie {
 
         // parse the name separately from the rest because we are not normalizing it per the RFC
         let index = try!(util::parse_field(slice, b';', false,
-            |s: FieldSegment| {
-                match s {
-                    FieldSegment::NameValue(n, v) => {
-                        name = unsafe {
-                            let mut s = String::with_capacity(n.len());
+            (
+                |b: u8| {
+                    // additional byte check since cookie field values also cannot contain
+                    // backslashes or commas
+                    !(b == b'\\' || b == b',')
+                },
 
-                            s.as_mut_vec().extend_from_slice(n);
+                |s: FieldSegment| {
+                    match s {
+                        FieldSegment::NameValue(n, v) => {
+                            name = unsafe {
+                                let mut s = String::with_capacity(n.len());
 
-                            Some(s)
-                        };
+                                s.as_mut_vec().extend_from_slice(n);
 
-                        value = unsafe {
-                            let mut s = String::with_capacity(v.len());
+                                Some(s)
+                            };
 
-                            s.as_mut_vec().extend_from_slice(v);
+                            value = unsafe {
+                                let mut s = String::with_capacity(v.len());
 
-                            Some(s)
-                        };
-                    },
-                    _ => {
-                        // missing value
+                                s.as_mut_vec().extend_from_slice(v);
+
+                                Some(s)
+                            };
+                        },
+                        _ => {
+                            // missing value
+                        }
                     }
-                }
 
-                // exit parser
-                false
-            }
+                    // exit parser
+                    false
+                }
+            )
         ));
 
         if let None = value {
