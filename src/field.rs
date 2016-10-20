@@ -30,8 +30,8 @@ use std::collections::HashMap;
 ///
 /// let mut map = FieldMap::new();
 ///
-/// map.push("key".to_string(), "value1".to_string());
-/// map.push("key".to_string(), "value2".to_string());
+/// map.push("key", "value1");
+/// map.push("key", "value2");
 /// unsafe { map.push_slice(b"key", b"value3"); }
 ///
 /// assert_eq!(1, map.len());
