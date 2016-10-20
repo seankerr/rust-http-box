@@ -1096,7 +1096,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// Retrieve the total byte count processed since the instantiation of `Parser`.
     ///
     /// The byte count is updated when any of the parsing functions completes. This means that if a
-    /// call to `get_byte_count()` is executed from within a callback, it will be accurate within
+    /// call to `byte_count()` is executed from within a callback, it will be accurate within
     /// `stream.len()` bytes. For precise accuracy, the best time to retrieve the byte count is
     /// outside of all callbacks, and outside of the following functions:
     ///
@@ -1104,13 +1104,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - `parse_headers()`
     /// - `parse_multipart()`
     /// - `parse_url_encoded()`
-    pub fn get_byte_count(&self) -> usize {
+    pub fn byte_count(&self) -> usize {
         self.byte_count
-    }
-
-    /// Retrieve the current state.
-    pub fn get_state(&self) -> ParserState {
-        self.state
     }
 
     /// Main parser loop.
@@ -1409,6 +1404,11 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         self.length         = 0;
         self.state          = ParserState::Detect1;
         self.state_function = Parser::detect1;
+    }
+
+    /// Retrieve the current state.
+    pub fn state(&self) -> ParserState {
+        self.state
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -53,7 +53,7 @@ pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -65,7 +65,7 @@ pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stre
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -76,11 +76,11 @@ pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
 -> Option<ParserError> {
     match parser.parse_headers(handler, stream, 0) {
         Err(error) => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             None
         }
     }
@@ -91,7 +91,7 @@ pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -103,7 +103,7 @@ pub fn chunked_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler:
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -115,7 +115,7 @@ pub fn chunked_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -126,11 +126,11 @@ pub fn chunked_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
 -> Option<ParserError> {
     match parser.parse_chunked(handler, stream) {
         Err(error) => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             None
         }
     }
@@ -141,7 +141,7 @@ pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -153,7 +153,7 @@ pub fn multipart_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handle
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -165,7 +165,7 @@ pub fn multipart_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -176,11 +176,11 @@ pub fn multipart_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: 
 -> Option<ParserError> {
     match parser.parse_multipart(handler, stream) {
         Err(error) => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             None
         }
     }
@@ -191,7 +191,7 @@ pub fn multipart_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handle
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -202,7 +202,7 @@ pub fn multipart_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, 
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -213,7 +213,7 @@ pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[
     assert!(match parser.parse_headers(handler, stream, 0) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -226,7 +226,7 @@ pub fn url_encoded_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, hand
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -239,7 +239,7 @@ pub fn url_encoded_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: 
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false
@@ -251,11 +251,11 @@ pub fn url_encoded_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler
 -> Option<ParserError> {
     match parser.parse_url_encoded(handler, stream, data_length) {
         Err(error) => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             Some(error)
         },
         _ => {
-            assert_eq!(parser.get_state(), ParserState::Dead);
+            assert_eq!(parser.state(), ParserState::Dead);
             None
         }
     }
@@ -267,7 +267,7 @@ pub fn url_encoded_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, hand
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
-            assert_eq!(parser.get_state(), ParserState::Finished);
+            assert_eq!(parser.state(), ParserState::Finished);
             true
         },
         _ => false
@@ -279,7 +279,7 @@ pub fn url_encoded_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
-            assert_eq!(parser.get_state(), state);
+            assert_eq!(parser.state(), state);
             true
         },
         _ => false

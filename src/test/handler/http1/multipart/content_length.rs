@@ -50,7 +50,7 @@ fn content_length_multiple_ok() {
                                               Multipart") {
         Ok(Success::Eos(43)) => {
             assert_eq!(Some(14), h.content_length());
-            assert_eq!(p.get_state(), ParserState::MultipartDataByLength);
+            assert_eq!(p.state(), ParserState::MultipartDataByLength);
             true
         },
         _ => false
@@ -58,7 +58,7 @@ fn content_length_multiple_ok() {
 
     assert!(match p.parse_multipart(&mut h, b" Data") {
         Ok(Success::Eos(5)) => {
-            assert_eq!(p.get_state(), ParserState::MultipartDataNewline1);
+            assert_eq!(p.state(), ParserState::MultipartDataNewline1);
             true
         },
         _ => false
@@ -93,7 +93,7 @@ fn content_length_ok() {
                                               Multipart Data") {
         Ok(Success::Eos(48)) => {
             assert_eq!(Some(14), h.content_length());
-            assert_eq!(p.get_state(), ParserState::MultipartDataNewline1);
+            assert_eq!(p.state(), ParserState::MultipartDataNewline1);
             true
         },
         _ => false
