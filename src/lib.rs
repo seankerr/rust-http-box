@@ -42,6 +42,7 @@ pub mod util;
 #[cfg(test)]
 mod test;
 
+pub use cookie::Cookie;
 pub use fsm::Success;
 pub use handler::*;
 

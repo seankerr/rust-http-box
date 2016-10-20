@@ -26,7 +26,31 @@ use util;
 use util::{ FieldError,
             FieldSegment };
 
-/// HTTP cookie.
+/// Cookie implementation.
+///
+/// # Examples
+///
+/// ```
+/// use http_box::Cookie;
+///
+/// let mut cookie = Cookie::new("SessionId".to_string(), ":N4('<TYqK%un_yd".to_string());
+///
+/// cookie.set_domain("rust-lang.org".to_string());
+/// cookie.set_expires("1998-10-19 20:38".to_string());
+/// cookie.set_http_only(true);
+/// cookie.set_max_age("1998-10-19 19:38".to_string());
+/// cookie.set_path("/".to_string());
+/// cookie.set_secure(true);
+///
+/// assert_eq!("SessionId", cookie.name());
+/// assert_eq!(":N4('<TYqK%un_yd", cookie.value());
+/// assert_eq!("1998-10-19 20:38", cookie.expires().unwrap());
+/// assert_eq!("rust-lang.org", cookie.domain().unwrap());
+/// assert!(cookie.is_http_only());
+/// assert_eq!("1998-10-19 19:38", cookie.max_age().unwrap());
+/// assert_eq!("/", cookie.path().unwrap());
+/// assert!(cookie.is_secure());
+/// ```
 #[derive(Clone,Eq,PartialEq)]
 pub struct Cookie {
     /// Domain.
@@ -57,7 +81,7 @@ pub struct Cookie {
 impl Cookie {
     /// Create a new `Cookie`.
     pub fn new(name: String, value: String) -> Self {
-        Cookie{
+        Cookie {
             domain:    None,
             expires:   None,
             http_only: false,
