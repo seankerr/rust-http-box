@@ -33,13 +33,13 @@ use util::{ FieldError,
 /// ```
 /// use http_box::Cookie;
 ///
-/// let mut cookie = Cookie::new("SessionId".to_string(), ":N4('<TYqK%un_yd".to_string());
+/// let mut cookie = Cookie::new("SessionId", ":N4('<TYqK%un_yd");
 ///
-/// cookie.set_domain("rust-lang.org".to_string());
-/// cookie.set_expires("1998-10-19 20:38".to_string());
+/// cookie.set_domain("rust-lang.org");
+/// cookie.set_expires("1998-10-19 20:38");
 /// cookie.set_http_only(true);
-/// cookie.set_max_age("1998-10-19 19:38".to_string());
-/// cookie.set_path("/".to_string());
+/// cookie.set_max_age("1998-10-19 19:38");
+/// cookie.set_path("/");
 /// cookie.set_secure(true);
 ///
 /// assert_eq!("SessionId", cookie.name());
