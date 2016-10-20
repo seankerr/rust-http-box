@@ -27,30 +27,6 @@ use util::{ FieldError,
             FieldSegment };
 
 /// Cookie implementation.
-///
-/// # Examples
-///
-/// ```
-/// use http_box::Cookie;
-///
-/// let mut cookie = Cookie::new("SessionId", ":N4('<TYqK%un_yd");
-///
-/// cookie.set_domain("rust-lang.org");
-/// cookie.set_expires("1998-10-19 20:38");
-/// cookie.set_http_only(true);
-/// cookie.set_max_age("1998-10-19 19:38");
-/// cookie.set_path("/");
-/// cookie.set_secure(true);
-///
-/// assert_eq!("SessionId", cookie.name());
-/// assert_eq!(":N4('<TYqK%un_yd", cookie.value());
-/// assert_eq!("1998-10-19 20:38", cookie.expires().unwrap());
-/// assert_eq!("rust-lang.org", cookie.domain().unwrap());
-/// assert!(cookie.is_http_only());
-/// assert_eq!("1998-10-19 19:38", cookie.max_age().unwrap());
-/// assert_eq!("/", cookie.path().unwrap());
-/// assert!(cookie.is_secure());
-/// ```
 #[derive(Clone,Eq,PartialEq)]
 pub struct Cookie {
     /// Domain.
@@ -80,6 +56,31 @@ pub struct Cookie {
 
 impl Cookie {
     /// Create a new `Cookie`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use http_box::Cookie;
+    ///
+    /// let mut cookie = Cookie::new("SessionId", ":N4('<TYqK%un_yd");
+    ///
+    /// cookie.set_domain("rust-lang.org");
+    /// cookie.set_expires("1998-10-19 20:38");
+    /// cookie.set_http_only(true);
+    /// cookie.set_max_age("1998-10-19 19:38");
+    /// cookie.set_path("/");
+    /// cookie.set_secure(true);
+    ///
+    /// assert_eq!("SessionId", cookie.name());
+    /// assert_eq!(":N4('<TYqK%un_yd", cookie.value());
+    /// assert_eq!("1998-10-19 20:38", cookie.expires().unwrap());
+    /// assert_eq!("rust-lang.org", cookie.domain().unwrap());
+    /// assert!(cookie.is_http_only());
+    /// assert_eq!("1998-10-19 19:38", cookie.max_age().unwrap());
+    /// assert_eq!("/", cookie.path().unwrap());
+    /// assert!(cookie.is_secure());
+    /// ```
+
     pub fn new<T: Into<String>>(name: T, value: T) -> Self {
         Cookie {
             domain:    None,
