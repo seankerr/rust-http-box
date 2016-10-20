@@ -109,12 +109,12 @@ impl Cookie {
         let mut secure    = false;
         let mut value     = None;
 
-        // parse the name separately from the rest because we are not normalizing it per the RFC
+        // parse the name and value separately from the rest of the cookie, because we are
+        // normalizing the other field names, but the cookie name cannot be
         let index = try!(util::parse_field(slice, b';', false,
             (
                 |b: u8| {
-                    // additional byte check since cookie field values also cannot contain
-                    // backslashes or commas
+                    // cookie value cannot contain a backslash or comma per the RFC
                     !(b == b'\\' || b == b',')
                 },
 
