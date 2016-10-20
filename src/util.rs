@@ -442,8 +442,7 @@ where F : FnMut(&[u8]) {
 ///
 /// **`field_fn`**
 ///
-/// A `FieldClosure` implementation that receives instances of
-/// [`FieldSegment`](enum.FieldSegment.html).
+/// A `FieldClosure` implementation.
 ///
 /// # Returns
 ///
@@ -480,11 +479,11 @@ where F : FnMut(&[u8]) {
 /// ```
 ///
 /// This is an example of a `FieldClosure` implementation that is a tuple of two closures. The first
-/// closure accepts the current field value byte, an returns a boolean indicating that the byte is valid.
-/// The second closure accepts the instance of `FieldSegment`.
+/// closure accepts the current field value byte, and returns a boolean indicating that the byte is
+/// valid. The second closure accepts the instance of `FieldSegment`.
 ///
 /// You will notice that in the 'name2' value, there is a null byte. The validation closure checks
-/// for this, and since it returns `false`, `Err(FieldError::Value)` is returned.
+/// for this, and since it returns `false`, `parse_field()` returns an error.
 ///
 /// ```
 /// use http_box::util::{ FieldError, FieldSegment };
