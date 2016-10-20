@@ -107,11 +107,11 @@ impl FieldMap {
     /// Append `field` with `value` onto the collection.
     ///
     /// If `field` does not yet exist, add it.
-    pub fn push(&mut self, field: String, value: String) -> &mut Self {
+    pub fn push<T: Into<String>>(&mut self, field: T, value: T) -> &mut Self {
         {
-            let mut entry = self.0.entry(field).or_insert(FieldValue::new());
+            let mut entry = self.0.entry(field.into()).or_insert(FieldValue::new());
 
-            (*entry).push(value);
+            (*entry).push(value.into());
         }
 
         self
@@ -202,8 +202,8 @@ impl FieldValue {
     }
 
     /// Append `value` onto the collection.
-    pub fn push(&mut self, value: String) -> &mut Self {
-        self.0.push(value);
+    pub fn push<T: Into<String>>(&mut self, value: T) -> &mut Self {
+        self.0.push(value.into());
         self
     }
 
