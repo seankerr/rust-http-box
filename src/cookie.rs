@@ -80,21 +80,21 @@ pub struct Cookie {
 
 impl Cookie {
     /// Create a new `Cookie`.
-    pub fn new(name: String, value: String) -> Self {
+    pub fn new<T: Into<String>>(name: T, value: T) -> Cookie {
         Cookie {
             domain:    None,
             expires:   None,
             http_only: false,
             max_age:   None,
-            name:      name,
+            name:      name.into(),
             path:      None,
             secure:    false,
-            value:     value
+            value:     value.into()
         }
     }
 
     /// Create a new `Cookie` from header data.
-    pub fn from_header(header: &str) -> Result<Self, Option<FieldError>> {
+    pub fn from_header(header: &str) -> Result<Cookie, Option<FieldError>> {
         unsafe { Cookie::from_header_slice(header.as_bytes()) }
     }
 
@@ -269,14 +269,14 @@ impl Cookie {
     }
 
     /// Set the domain.
-    pub fn set_domain(&mut self, domain: String) -> &mut Self {
-        self.domain = Some(domain);
+    pub fn set_domain<T: Into<String>>(&mut self, domain: T) -> &mut Self {
+        self.domain = Some(domain.into());
         self
     }
 
     /// Set the expiration date and time.
-    pub fn set_expires(&mut self, expires: String) -> &mut Self {
-        self.expires = Some(expires);
+    pub fn set_expires<T: Into<String>>(&mut self, expires: T) -> &mut Self {
+        self.expires = Some(expires.into());
         self
     }
 
@@ -287,20 +287,20 @@ impl Cookie {
     }
 
     /// Set the maximum age.
-    pub fn set_max_age(&mut self, max_age: String) -> &mut Self {
-        self.max_age = Some(max_age);
+    pub fn set_max_age<T: Into<String>>(&mut self, max_age: T) -> &mut Self {
+        self.max_age = Some(max_age.into());
         self
     }
 
     /// Set the name.
-    pub fn set_name(&mut self, name: String) -> &mut Self {
-        self.name = name;
+    pub fn set_name<T: Into<String>>(&mut self, name: T) -> &mut Self {
+        self.name = name.into();
         self
     }
 
     /// Set the path.
-    pub fn set_path(&mut self, path: String) -> &mut Self {
-        self.path = Some(path);
+    pub fn set_path<T: Into<String>>(&mut self, path: T) -> &mut Self {
+        self.path = Some(path.into());
         self
     }
 
@@ -311,8 +311,8 @@ impl Cookie {
     }
 
     /// Set the value.
-    pub fn set_value(&mut self, value: String) -> &mut Self {
-        self.value = value;
+    pub fn set_value<T: Into<String>>(&mut self, value: T) -> &mut Self {
+        self.value = value.into();
         self
     }
 
