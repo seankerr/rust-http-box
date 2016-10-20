@@ -442,7 +442,7 @@ where F : FnMut(&[u8]) {
 ///
 /// **`field_fn`**
 ///
-/// A `FieldClosure` implementation.
+/// The `FieldClosure` implementation.
 ///
 /// # Returns
 ///
