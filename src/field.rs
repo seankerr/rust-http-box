@@ -32,7 +32,6 @@ use std::collections::HashMap;
 ///
 /// map.push("key", "value1");
 /// map.push("key", "value2");
-/// unsafe { map.push_slice(b"key", b"value3"); }
 ///
 /// assert_eq!(1, map.len());
 /// assert_eq!(3, map.field("key").unwrap().len());
@@ -121,8 +120,7 @@ impl FieldMap {
     ///
     /// # Unsafe
     ///
-    /// This function is unsafe because it does not verify the contents of `field` and `value` to
-    /// contain valid UTF-8 sequences.
+    /// This function is unsafe because it does not verify `field` and `value` are valid UTF-8.
     pub unsafe fn push_slice(&mut self, field: &[u8], value: &[u8]) -> &mut Self {
         {
             let mut f = String::with_capacity(field.len());
@@ -211,8 +209,7 @@ impl FieldValue {
     ///
     /// # Unsafe
     ///
-    /// This function is unsafe because it does not verify the contents of `value` to be valid
-    /// UTF-8 sequences.
+    /// This function is unsafe because it does not verify `value` is valid UTF-8.
     pub unsafe fn push_slice(&mut self, value: &[u8]) -> &mut Self {
         self.0.push({
             let mut s = String::with_capacity(value.len());
