@@ -94,12 +94,21 @@ impl Cookie {
     }
 
     /// Create a new `Cookie` from header data.
-    pub fn from_header(header: &str) -> Result<Cookie, Option<FieldError>> {
-        unsafe { Cookie::from_header_slice(header.as_bytes()) }
-    }
-
-    /// Create a new `Cookie` from a header slice.
-    pub unsafe fn from_header_slice(slice: &[u8]) -> Result<Self, Option<FieldError>> {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use http_box::Cookie;
+    ///
+    /// let cookie = Cookie::from_bytes("Cookie=value; domain=rust-lang.org; path=/").unwrap();
+    ///
+    /// assert_eq!("Cookie", cookie.name());
+    /// assert_eq!("value", cookie.value());
+    /// assert_eq!("rust-lang.org", cookie.domain().unwrap());
+    /// assert_eq!("/", cookie.path().unwrap());
+    /// ```
+    pub fn from_bytes<'a, T: AsRef<[u8]>>(header: T) -> Result<Cookie, Option<FieldError>> {
+        let bytes         = header.as_ref();
         let mut domain    = None;
         let mut expires   = None;
         let mut http_only = false;
@@ -111,7 +120,7 @@ impl Cookie {
 
         // parse the name and value separately from the rest of the cookie, because we are
         // normalizing the other field names, but the cookie name cannot be
-        let index = try!(util::parse_field(slice, b';', false,
+        let index = try!(util::parse_field(bytes, b';', false,
             (
                 |b: u8| {
                     // cookie value cannot contain a backslash or comma per the RFC
@@ -154,7 +163,7 @@ impl Cookie {
         }
 
         // parse the rest of the cookie details
-        try!(util::parse_field(&slice[index..], b';', true,
+        try!(util::parse_field(&bytes[index..], b';', true,
             |s: FieldSegment| {
                 match s {
                     FieldSegment::Name(name) => {

@@ -75,7 +75,7 @@ impl UrlEncodedHandler {
     }
 
     /// Retrieve `field` from the collection of fields.
-    pub fn field(&self, field: &str) -> Option<&FieldValue> {
+    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
         self.fields.field(field)
     }
 
@@ -95,7 +95,7 @@ impl UrlEncodedHandler {
     }
 
     /// Indicates that `field` exists within the collection of fields.
-    pub fn has_field(&self, field: &str) -> bool {
+    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
         self.fields.has_field(field)
     }
 

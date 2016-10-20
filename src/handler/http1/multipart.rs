@@ -150,8 +150,8 @@ impl MultipartHandler {
     }
 
     /// Retrieve `field` from the collection of fields.
-    pub fn field(&self, field: &str) -> Option<&FieldValue> {
-        self.fields.field(field)
+    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
+        self.fields.field(field.as_ref())
     }
 
     /// Retrieve the fields.
@@ -160,8 +160,8 @@ impl MultipartHandler {
     }
 
     /// Retrieve `file` from the collection of files.
-    pub fn file(&self, file: &str) -> Option<&File> {
-        if let Some(file) = self.files.get(file) {
+    pub fn file<T: AsRef<str>>(&self, file: T) -> Option<&File> {
+        if let Some(file) = self.files.get(file.as_ref()) {
             Some(&file)
         } else {
             None
@@ -234,33 +234,24 @@ impl MultipartHandler {
     }
 
     /// Indicates that `field` exists within the collection of fields.
-    pub fn has_field(&self, field: &str) -> bool {
-        self.fields.has_field(field)
+    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
+        self.fields.has_field(field.as_ref())
     }
 
     /// Indicates that `file` exists within the collection of files.
-    pub fn has_file(&self, file: &str) -> bool {
-        self.files.contains_key(file)
+    pub fn has_file<T: AsRef<str>>(&self, file: T) -> bool {
+        self.files.contains_key(file.as_ref())
     }
 
     /// Indicates that `header` exists within the collection of headers.
-    pub fn has_header(&self, header: &str) -> bool {
-        self.headers.contains_key(header)
+    pub fn has_header<T: AsRef<str>>(&self, header: T) -> bool {
+        self.headers.contains_key(header.as_ref())
     }
 
     /// Retrieve `header` from the collection of headers.
-    pub fn header(&self, header: &str) -> Option<&str> {
-        if let Some(header) = self.headers.get(header) {
+    pub fn header<T: AsRef<str>>(&self, header: T) -> Option<&str> {
+        if let Some(header) = self.headers.get(header.as_ref()) {
             Some(&header[..])
-        } else {
-            None
-        }
-    }
-
-    /// Retrieve `header` as a slice of bytes from the collection of headers.
-    pub fn header_as_bytes(&self, header: &str) -> Option<&[u8]> {
-        if let Some(header) = self.headers.get(header) {
-            Some(header.as_bytes())
         } else {
             None
         }
@@ -299,17 +290,17 @@ impl MultipartHandler {
     }
 
     /// Set the file upload path.
-    pub fn set_upload_path(&mut self, path: &str) {
-        self.upload_path = path.to_string();
+    pub fn set_upload_path<T: AsRef<str>>(&mut self, path: T) {
+        self.upload_path = path.as_ref().to_string();
     }
 }
 
 impl Http1Handler for MultipartHandler {
     fn content_length(&mut self) -> Option<usize> {
-        if let Some(content_length) = self.header_as_bytes("content-length") {
+        if let Some(content_length) = self.header("content-length") {
             let mut length: usize = 0;
 
-            for byte in content_length.iter() {
+            for byte in content_length.as_bytes().iter() {
                 if is_digit!(*byte) {
                     if let Some(num) = length.checked_mul(10) {
                         if let Some(num) = num.checked_add((*byte - b'0') as usize) {
@@ -371,7 +362,7 @@ impl Http1Handler for MultipartHandler {
             let mut filename = None;
             let mut name     = None;
 
-            util::parse_field(self.header_as_bytes("content-disposition").unwrap(),
+            util::parse_field(self.header("content-disposition").unwrap().as_bytes(),
                               b';', true,
                 |s: FieldSegment| {
                     match s {

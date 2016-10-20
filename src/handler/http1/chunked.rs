@@ -157,8 +157,8 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     }
 
     /// Retrieve `extension` from the collection of extensions.
-    pub fn extension(&self, extension: &str) -> Option<&str> {
-        if let Some(ref extension) = self.extensions.get(extension) {
+    pub fn extension<T: AsRef<str>>(&self, extension: T) -> Option<&str> {
+        if let Some(ref extension) = self.extensions.get(extension.as_ref()) {
             Some(&extension[..])
         } else {
             None
@@ -171,13 +171,13 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     }
 
     /// Indicates that `extension` exists within the collection of extensions.
-    pub fn has_extension(&self, extension: &str) -> bool {
-        self.extensions.contains_key(extension)
+    pub fn has_extension<T: AsRef<str>>(&self, extension: T) -> bool {
+        self.extensions.contains_key(extension.as_ref())
     }
 
     /// Indicates that `trailer` exists within the collection of trailers.
-    pub fn has_trailer(&self, trailer: &str) -> bool {
-        self.trailers.contains_key(trailer)
+    pub fn has_trailer<T: AsRef<str>>(&self, trailer: T) -> bool {
+        self.trailers.contains_key(trailer.as_ref())
     }
 
     /// Retrieve the current chunk index.
@@ -196,8 +196,8 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     }
 
     /// Retrieve `trailer` from the collection of trailers.
-    pub fn trailer(&self, trailer: &str) -> Option<&str> {
-        if let Some(ref trailer) = self.trailers.get(trailer) {
+    pub fn trailer<T: AsRef<str>>(&self, trailer: T) -> Option<&str> {
+        if let Some(ref trailer) = self.trailers.get(trailer.as_ref()) {
             Some(&trailer[..])
         } else {
             None

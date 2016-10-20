@@ -167,8 +167,8 @@ impl HeadersHandler {
     }
 
     /// Retrieve `cookie` from the collection of cookies.
-    pub fn cookie(&self, cookie: &str) -> Option<&Cookie> {
-        self.cookies.get(cookie)
+    pub fn cookie<T: AsRef<str>>(&self, cookie: T) -> Option<&Cookie> {
+        self.cookies.get(cookie.as_ref())
     }
 
     /// Retrieve the collection of cookies.
@@ -210,7 +210,7 @@ impl HeadersHandler {
             );
         } else if self.field_buffer == b"set-cookie" {
             unsafe {
-                match Cookie::from_header_slice(&self.value_buffer) {
+                match Cookie::from_bytes(self.value_buffer.as_slice()) {
                     Ok(cookie) => {
                         self.cookies.insert(cookie);
                     },
@@ -238,28 +238,19 @@ impl HeadersHandler {
     }
 
     /// Indicates that `cookie` exists within the collection of cookies.
-    pub fn has_cookie(&self, cookie: &str) -> bool {
-        self.cookies.contains(cookie)
+    pub fn has_cookie<T: AsRef<str>>(&self, cookie: T) -> bool {
+        self.cookies.contains(cookie.as_ref())
     }
 
     /// Indicates that `header` exists within the collection of headers.
-    pub fn has_header(&self, header: &str) -> bool {
-        self.headers.contains_key(header)
+    pub fn has_header<T: AsRef<str>>(&self, header: T) -> bool {
+        self.headers.contains_key(header.as_ref())
     }
 
     /// Retrieve `header` from the collection of headers.
-    pub fn header(&self, header: &str) -> Option<&str> {
-        if let Some(header) = self.headers.get(header) {
+    pub fn header<T: AsRef<str>>(&self, header: T) -> Option<&str> {
+        if let Some(header) = self.headers.get(header.as_ref()) {
             Some(&header[..])
-        } else {
-            None
-        }
-    }
-
-    /// Retrieve `header` as a slice of bytes from the collection of headers.
-    pub fn header_as_bytes(&self, header: &str) -> Option<&[u8]> {
-        if let Some(header) = self.headers.get(header) {
-            Some(header.as_bytes())
         } else {
             None
         }
@@ -281,13 +272,8 @@ impl HeadersHandler {
     }
 
     /// Retrieve the request method.
-    pub fn method(&self) -> &String {
+    pub fn method(&self) -> &str {
         &self.method
-    }
-
-    /// Retrieve the request method as a slice of bytes.
-    pub fn method_as_bytes(&self) -> &[u8] {
-        self.method.as_bytes()
     }
 
     /// Reset the handler back to its original state.
@@ -308,13 +294,8 @@ impl HeadersHandler {
     }
 
     /// Retrieve the response status.
-    pub fn status(&self) -> &String {
+    pub fn status(&self) -> &str {
         &self.status
-    }
-
-    /// Retrieve the response status as a slice of bytes.
-    pub fn status_as_bytes(&self) -> &[u8] {
-        self.status.as_bytes()
     }
 
     /// Retrieve the response status code.
@@ -323,13 +304,8 @@ impl HeadersHandler {
     }
 
     /// Retrieve the request URL.
-    pub fn url(&self) -> &String {
+    pub fn url(&self) -> &str {
         &self.url
-    }
-
-    /// Retrieve the request URL as a slice of bytes.
-    pub fn url_as_bytes(&self) -> &[u8] {
-        self.url.as_bytes()
     }
 
     /// Retrieve the HTTP major version.
@@ -345,10 +321,10 @@ impl HeadersHandler {
 
 impl Http1Handler for HeadersHandler {
     fn content_length(&mut self) -> Option<usize> {
-        if let Some(content_length) = self.header_as_bytes("content-length") {
+        if let Some(content_length) = self.header("content-length") {
             let mut length: usize = 0;
 
-            for byte in content_length.iter() {
+            for byte in content_length.as_bytes().iter() {
                 if is_digit!(*byte) {
                     if let Some(num) = length.checked_mul(10) {
                         if let Some(num) = num.checked_add((*byte - b'0') as usize) {

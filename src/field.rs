@@ -80,18 +80,18 @@ impl FieldMap {
     }
 
     /// Retrieve immutable `field` from the collection.
-    pub fn field(&self, field: &str) -> Option<&FieldValue> {
-        self.0.get(field)
+    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
+        self.0.get(field.as_ref())
     }
 
     /// Retrieve mutable `field` from the collection.
-    pub fn field_mut(&mut self, field: &str) -> Option<&mut FieldValue> {
-        self.0.get_mut(field)
+    pub fn field_mut<T: AsRef<str>>(&mut self, field: T) -> Option<&mut FieldValue> {
+        self.0.get_mut(field.as_ref())
     }
 
     /// Indicates that `field` exists within the collection.
-    pub fn has_field(&self, field: &str) -> bool {
-        self.0.contains_key(field)
+    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
+        self.0.contains_key(field.as_ref())
     }
 
     /// Indicates that the collection is empty.
@@ -138,8 +138,8 @@ impl FieldMap {
     }
 
     /// Remove `field` from the collection.
-    pub fn remove(&mut self, field: &str) -> Option<FieldValue> {
-        self.0.remove(field)
+    pub fn remove<T: AsRef<str>>(&mut self, field: T) -> Option<FieldValue> {
+        self.0.remove(field.as_ref())
     }
 }
 
