@@ -209,7 +209,7 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
         &self.trailers
     }
 
-    /// Reset the handler back to its original state.
+    /// Reset the handler to its original state.
     pub fn reset(&mut self) {
         self.finished = false;
         self.index    = 0;

@@ -267,7 +267,7 @@ impl MultipartHandler {
         self.finished
     }
 
-    /// Reset the handler back to its original state.
+    /// Reset the handler to its original state.
     pub fn reset(&mut self) {
         self.content_disposition = ContentDisposition::Unknown;
         self.finished            = false;
@@ -275,6 +275,7 @@ impl MultipartHandler {
 
         self.field_buffer.clear();
         self.fields.clear();
+        self.files.clear();
         self.headers.clear();
         self.value_buffer.clear();
     }
