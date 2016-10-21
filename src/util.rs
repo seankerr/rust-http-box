@@ -93,7 +93,7 @@ pub trait FieldClosure {
     fn validate(&mut self, byte: u8) -> bool;
 }
 
-impl<F: FnMut(FieldSegment) -> bool> FieldClosure for F {
+impl<T: FnMut(FieldSegment) -> bool> FieldClosure for T {
     fn run(&mut self, segment: FieldSegment) -> bool {
         self(segment)
     }
@@ -103,7 +103,7 @@ impl<F: FnMut(FieldSegment) -> bool> FieldClosure for F {
     }
 }
 
-impl<F1: FnMut(u8) -> bool, F2: FnMut(FieldSegment) -> bool> FieldClosure for (F1, F2) {
+impl<T1: FnMut(u8) -> bool, T2: FnMut(FieldSegment) -> bool> FieldClosure for (T1, T2) {
     fn run(&mut self, segment: FieldSegment) -> bool {
         self.1(segment)
     }
@@ -510,7 +510,7 @@ where F : FnMut(&[u8]) {
 ///     _ => panic!()
 /// }
 /// ```
-pub fn parse_field<F: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool, mut field_fn: F)
+pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool, mut field_fn: T)
 -> Result<usize, FieldError> {
     let mut context = ByteStream::new(field);
     let mut name    = Vec::new();
@@ -708,8 +708,8 @@ pub fn parse_field<F: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 ///     }
 /// );
 /// ```
-pub fn parse_query<F>(query: &[u8], delimiter: u8, mut segment_fn: F) -> Result<usize, QueryError>
-where F : FnMut(QuerySegment) -> bool {
+pub fn parse_query<T>(query: &[u8], delimiter: u8, mut segment_fn: T) -> Result<usize, QueryError>
+where T : FnMut(QuerySegment) -> bool {
     let mut context = ByteStream::new(query);
     let mut name    = Vec::new();
     let mut value   = Vec::new();
