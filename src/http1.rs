@@ -1104,9 +1104,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
     /// Main parser loop.
     #[inline]
-    fn parse(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
-        let mut context = ParserContext::new(handler, stream);
-
+    fn parse(&mut self, mut context: &mut ParserContext<T>) -> Result<Success, ParserError> {
         loop {
             match (self.state_function)(self, &mut context) {
                 Ok(ParserValue::Continue) => {
@@ -1173,7 +1171,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             self.state_function = Parser::chunk_length1;
         }
 
-        self.parse(handler, stream)
+        self.parse(&mut ParserContext::new(handler, stream))
     }
 
     /// Parse initial request/response line and all headers.
@@ -1231,7 +1229,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: usize)
     -> Result<Success, ParserError> {
         if max_length == 0 {
-            return self.parse(handler, stream);
+            return self.parse(&mut ParserContext::new(handler, stream));
         }
 
         if self.state == ParserState::StripDetect {
@@ -1243,7 +1241,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             stream = &stream[0..self.length];
         }
 
-        match self.parse(handler, stream) {
+        match self.parse(&mut ParserContext::new(handler, stream)) {
             Ok(ref success) => {
                 match *success {
                     Success::Eos(length) => {
@@ -1317,7 +1315,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             return Ok(Success::Finished(0));
         }
 
-        self.parse(handler, stream)
+        self.parse(&mut ParserContext::new(handler, stream))
     }
 
     /// Parse URL encoded data.
@@ -1365,17 +1363,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             stream = &stream[0..self.length];
         }
 
-        match self.parse(handler, stream) {
+        let mut context = ParserContext::new(handler, stream);
+
+        match self.parse(&mut context) {
             Ok(Success::Eos(length)) => {
                 if self.length - length == 0 {
-                    self.state          = ParserState::Finished;
-                    self.state_function = Parser::finished;
+                    self.state          = ParserState::BodyFinished;
+                    self.state_function = Parser::body_finished;
 
-                    if handler.on_body_finished() {
-                        Ok(Success::Finished(stream.len()))
-                    } else {
-                        Ok(Success::Callback(stream.len()))
-                    }
+                    self.parse(&mut context)
                 } else {
                     self.length -= length;
 
