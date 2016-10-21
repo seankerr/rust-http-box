@@ -632,12 +632,6 @@ pub enum ParserState {
     /// Parsing post boundary second hyphen.
     MultipartEnd,
 
-    /// Parsing carriage return after last boundary.
-    MultipartEndNewline1,
-
-    /// Parsing line feed after last boundary.
-    MultipartEndNewline2,
-
     // ---------------------------------------------------------------------------------------------
     // URL ENCODED
     // ---------------------------------------------------------------------------------------------
@@ -2832,38 +2826,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'-' {
-            set_state!(self, ParserState::MultipartEndNewline1, multipart_end_newline1);
-
-            transition!(self, context);
-        }
-
-        Err(ParserError::MultipartBoundary(context.byte))
-    }
-
-    #[inline]
-    fn multipart_end_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            transition_fast!(self, context,
-                             ParserState::MultipartEndNewline2, multipart_end_newline2);
-        }
-
-        Err(ParserError::MultipartBoundary(context.byte))
-    }
-
-    #[inline]
-    fn multipart_end_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\n' {
-            // end of multipart
-            transition_fast!(self, context,
-                             ParserState::BodyFinished, body_finished);
+            transition!(self, context,
+                        ParserState::BodyFinished, body_finished);
         }
 
         Err(ParserError::MultipartBoundary(context.byte))

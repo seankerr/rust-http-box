@@ -33,8 +33,8 @@ fn data_ok () {
                                 Header2: Value2\r\n\
                                 \r\n\
                                 DATA2\r\n\
-                                --XXDebugBoundaryXX--\r\n",
-                         ParserState::Finished, 117);
+                                --XXDebugBoundaryXX--",
+                         ParserState::Finished, 115);
 
     assert_eq!(h.multipart_data, b"DATA1DATA2");
     assert_eq!(h.header_field, b"header1header2");

@@ -30,8 +30,8 @@ fn content_length_non_byte_error() {
                                               Content-Length: 14F\r\n\
                                               \r\n\
                                               Multipart Data\r\n\
-                                              --BOUNDARY--\r\n") {
-        Ok(Success::Finished(65)) => {
+                                              --BOUNDARY--") {
+        Ok(Success::Finished(63)) => {
             assert_eq!(None, h.content_length());
             true
         },
@@ -73,8 +73,8 @@ fn content_length_multiple_ok() {
     assert!(match p.parse_multipart(&mut h, b"Content-Length: 13\r\n\
                                               \r\n\
                                               Hello, world!\r\n\
-                                              --BOUNDARY--\r\n") {
-        Ok(Success::Finished(51)) => {
+                                              --BOUNDARY--") {
+        Ok(Success::Finished(49)) => {
             assert_eq!(Some(13), h.content_length());
             true
         },
@@ -108,8 +108,8 @@ fn content_length_ok() {
     assert!(match p.parse_multipart(&mut h, b"Content-Length: 13\r\n\
                                               \r\n\
                                               Hello, world!\r\n\
-                                              --BOUNDARY--\r\n") {
-        Ok(Success::Finished(51)) => {
+                                              --BOUNDARY--") {
+        Ok(Success::Finished(49)) => {
             assert_eq!(Some(13), h.content_length());
             true
         },
