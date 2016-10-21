@@ -979,7 +979,7 @@ pub trait Http1Handler {
         true
     }
 
-    /// Callback that is executed when a URL encoded field or query string field has been located.
+    /// Callback that is executed when a URL encoded field has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -995,7 +995,7 @@ pub trait Http1Handler {
         true
     }
 
-    /// Callback that is executed when a URL encoded value or query string value has been located.
+    /// Callback that is executed when a URL encoded value has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -1326,7 +1326,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         self.parse(handler, stream)
     }
 
-    /// Parse URL encoded data or query string data.
+    /// Parse URL encoded data.
     ///
     /// # Arguments
     ///
@@ -1340,6 +1340,8 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// The stream of data to be parsed.
     ///
     /// **`length`**
+    ///
+    /// The length of URL encoded data in `stream` that needs parsed.
     ///
     /// # Callbacks
     ///
