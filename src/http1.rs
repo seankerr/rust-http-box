@@ -2877,6 +2877,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                context.byte == b'='
             || context.byte == b'%'
             || context.byte == b'&'
+            || context.byte == b';'
             || context.byte == b'+',
 
             // on end-of-stream
@@ -2895,7 +2896,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                                  ParserState::UrlEncodedFieldHex1,
                                                  url_encoded_field_hex1);
             },
-            b'&' => {
+            b'&' | b';' => {
                 callback_ignore_transition_fast!(self, context,
                                                  on_url_encoded_field,
                                                  ParserState::UrlEncodedFieldAmpersand,
@@ -2976,6 +2977,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             // stop on these bytes
                context.byte == b'%'
             || context.byte == b'&'
+            || context.byte == b';'
             || context.byte == b'+'
             || context.byte == b'=',
 
@@ -2989,7 +2991,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
                                                  on_url_encoded_value,
                                                  ParserState::UrlEncodedValueHex1, url_encoded_value_hex1);
             },
-            b'&' => {
+            b'&' | b';' => {
                 callback_ignore_transition!(self, context,
                                             on_url_encoded_value,
                                             ParserState::UrlEncodedField,
