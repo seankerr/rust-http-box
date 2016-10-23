@@ -19,9 +19,9 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing multipart
 //! form data.
 
-use field::{ FieldMap,
-             FieldValue };
 use http1::Http1Handler;
+use parameter::{ ParameterMap,
+                 ParameterValue };
 use util;
 use util::FieldSegment;
 
@@ -76,9 +76,9 @@ enum ContentDisposition {
 ///                     value 3\r\n\
 ///                     --ExampleBoundary--\r\n");
 ///
-/// assert_eq!("value 1", h.field("field1").unwrap().get(0).unwrap());
-/// assert_eq!("value 2", h.field("field1").unwrap().get(1).unwrap());
-/// assert_eq!("value 3", h.field("field2").unwrap().first().unwrap());
+/// assert_eq!("value 1", h.parameter("field1").unwrap().get(0).unwrap());
+/// assert_eq!("value 2", h.parameter("field1").unwrap().get(1).unwrap());
+/// assert_eq!("value 3", h.parameter("field2").unwrap().first().unwrap());
 /// assert!(h.is_finished());
 /// ```
 pub struct MultipartHandler {
@@ -90,9 +90,6 @@ pub struct MultipartHandler {
 
     /// Field buffer.
     field_buffer: Vec<u8>,
-
-    /// Fields.
-    fields: FieldMap,
 
     /// Files.
     files: HashMap<String, File>,
@@ -108,6 +105,9 @@ pub struct MultipartHandler {
 
     /// Maximum file size.
     max_file_size: usize,
+
+    /// Parameters.
+    parameters: ParameterMap,
 
     /// Field/value toggle.
     toggle: bool,
@@ -137,26 +137,16 @@ impl MultipartHandler {
             },
             content_disposition: ContentDisposition::Unknown,
             field_buffer:        Vec::new(),
-            fields:              FieldMap::new(),
             files:               HashMap::with_capacity(0),
             finished:            false,
             max_field_size:      std::usize::MAX,
             max_file_size:       std::usize::MAX,
             headers:             HashMap::with_capacity(1),
+            parameters:          ParameterMap::new(),
             toggle:              false,
             upload_path:         "/tmp".to_string(),
             value_buffer:        Vec::new()
         }
-    }
-
-    /// Retrieve `field` from the collection of fields.
-    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
-        self.fields.field(field.as_ref())
-    }
-
-    /// Retrieve the fields.
-    pub fn fields(&self) -> &FieldMap {
-        &self.fields
     }
 
     /// Retrieve `file` from the collection of files.
@@ -178,7 +168,7 @@ impl MultipartHandler {
         match self.content_disposition {
             ContentDisposition::Field => {
                 if !self.field_buffer.is_empty() {
-                    unsafe { self.fields.push_slice(&self.field_buffer, &self.value_buffer); }
+                    unsafe { self.parameters.push_slice(&self.field_buffer, &self.value_buffer); }
                 }
             },
             ContentDisposition::File(ref filename, ref file) => {
@@ -233,9 +223,9 @@ impl MultipartHandler {
         panic!("X");
     }
 
-    /// Indicates that `field` exists within the collection of fields.
-    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
-        self.fields.has_field(field.as_ref())
+    /// Indicates that `parameter` exists within the collection of parameters.
+    pub fn has_parameter<T: AsRef<str>>(&self, parameter: T) -> bool {
+        self.parameters.has_parameter(parameter.as_ref())
     }
 
     /// Indicates that `file` exists within the collection of files.
@@ -267,6 +257,16 @@ impl MultipartHandler {
         self.finished
     }
 
+    /// Retrieve `parameter` from the collection of parameters.
+    pub fn parameter<T: AsRef<str>>(&self, parameter: T) -> Option<&ParameterValue> {
+        self.parameters.parameter(parameter.as_ref())
+    }
+
+    /// Retrieve the collection of parameters.
+    pub fn parameters(&self) -> &ParameterMap {
+        &self.parameters
+    }
+
     /// Reset the handler to its original state.
     pub fn reset(&mut self) {
         self.content_disposition = ContentDisposition::Unknown;
@@ -274,9 +274,9 @@ impl MultipartHandler {
         self.toggle              = false;
 
         self.field_buffer.clear();
-        self.fields.clear();
         self.files.clear();
         self.headers.clear();
+        self.parameters.clear();
         self.value_buffer.clear();
     }
 

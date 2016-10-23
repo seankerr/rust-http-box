@@ -147,6 +147,36 @@ macro_rules! collect_visible {
     });
 }
 
+/// Consume all empty space.
+///
+/// Exit the collection loop when a non-space byte is found.
+macro_rules! consume_empty_space {
+    ($context:expr, $on_eos:expr) => ({
+        if bs_is_eos!($context) {
+            $on_eos
+        }
+
+        if bs_starts_with1!($context, b"\r") || bs_starts_with1!($context, b"\n")
+        || bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
+            loop {
+                if bs_is_eos!($context) {
+                    $on_eos
+                }
+
+                bs_next!($context);
+
+                if $context.byte == b'\r' || $context.byte == b'\n'
+                || $context.byte == b' ' || $context.byte == b'\t' {
+                } else {
+                    bs_replay!($context);
+
+                    break;
+                }
+            }
+        }
+    });
+}
+
 /// Consume all linear white space bytes.
 ///
 /// Exit the collection loop when a non-linear white space byte is found.

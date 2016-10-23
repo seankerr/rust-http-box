@@ -34,9 +34,9 @@ pub mod fsm;
 mod collect;
 
 pub mod cookie;
-pub mod field;
 pub mod handler;
 pub mod http1;
+pub mod parameter;
 pub mod util;
 
 #[cfg(test)]

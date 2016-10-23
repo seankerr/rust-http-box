@@ -24,7 +24,7 @@ use test::http1::*;
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b" \t", |byte| {
+    loop_non_tokens(b"\r\n\t ", |byte| {
         let mut h = DebugHttp1Handler::new();
         let mut p = Parser::new();
 

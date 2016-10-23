@@ -19,9 +19,9 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing
 //! URL encoded data.
 
-use field::{ FieldMap,
-             FieldValue };
 use http1::Http1Handler;
+use parameter::{ ParameterMap,
+                 ParameterValue };
 
 /// `UrlEncodedHandler` is a suitable handler for the following parser functions:
 ///
@@ -40,20 +40,20 @@ use http1::Http1Handler;
 ///                     b"Field1=Value%201&Field2=Value%202&Field1=Value%203",
 ///                     50);
 ///
-/// assert_eq!("Value 1", h.field("Field1").unwrap().first().unwrap());
-/// assert_eq!("Value 2", h.field("Field2").unwrap().first().unwrap());
-/// assert_eq!("Value 3", h.field("Field1").unwrap().get(1).unwrap());
+/// assert_eq!("Value 1", h.parameter("Field1").unwrap().first().unwrap());
+/// assert_eq!("Value 2", h.parameter("Field2").unwrap().first().unwrap());
+/// assert_eq!("Value 3", h.parameter("Field1").unwrap().get(1).unwrap());
 /// ```
 #[derive(Default)]
 pub struct UrlEncodedHandler {
     /// Field buffer.
     field_buffer: Vec<u8>,
 
-    /// Fields.
-    fields: FieldMap,
-
     /// Indicates that parsing has finished.
     finished: bool,
+
+    /// Parameters.
+    parameters: ParameterMap,
 
     /// Field/value toggle.
     toggle: bool,
@@ -67,41 +67,41 @@ impl UrlEncodedHandler {
     pub fn new() -> UrlEncodedHandler {
         UrlEncodedHandler {
             field_buffer: Vec::new(),
-            fields:       FieldMap::new(),
             finished:     false,
+            parameters:       ParameterMap::new(),
             toggle:       false,
             value_buffer: Vec::new()
         }
     }
 
-    /// Retrieve `field` from the collection of fields.
-    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
-        self.fields.field(field)
-    }
-
-    /// Retrieve the fields.
-    pub fn fields(&self) -> &FieldMap {
-        &self.fields
-    }
-
     /// Flush the most recent field/value.
     fn flush(&mut self) {
         if !self.field_buffer.is_empty() {
-            unsafe { self.fields.push_slice(&self.field_buffer, &self.value_buffer); }
+            unsafe { self.parameters.push_slice(&self.field_buffer, &self.value_buffer); }
         }
 
         self.field_buffer.clear();
         self.value_buffer.clear();
     }
 
-    /// Indicates that `field` exists within the collection of fields.
-    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
-        self.fields.has_field(field)
+    /// Indicates that `parameter` exists within the collection of parameters.
+    pub fn has_param<T: AsRef<str>>(&self, parameter: T) -> bool {
+        self.parameters.has_parameter(parameter)
     }
 
     /// Indicates that parsing has finished.
     pub fn is_finished(&self) -> bool {
         self.finished
+    }
+
+    /// Retrieve `parameter` from the collection of parameters.
+    pub fn parameter<T: AsRef<str>>(&self, parameter: T) -> Option<&ParameterValue> {
+        self.parameters.parameter(parameter)
+    }
+
+    /// Retrieve the parameters.
+    pub fn parameters(&self) -> &ParameterMap {
+        &self.parameters
     }
 
     /// Reset the handler to its original state.
@@ -110,7 +110,7 @@ impl UrlEncodedHandler {
         self.toggle   = false;
 
         self.field_buffer.clear();
-        self.fields.clear();
+        self.parameters.clear();
         self.value_buffer.clear();
     }
 }

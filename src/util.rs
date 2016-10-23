@@ -98,7 +98,7 @@ impl<T: FnMut(FieldSegment) -> bool> FieldClosure for T {
         self(segment)
     }
 
-    fn validate(&mut self, byte: u8) -> bool {
+    fn validate(&mut self, _: u8) -> bool {
         true
     }
 }

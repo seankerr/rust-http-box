@@ -639,7 +639,7 @@ pub enum ParserState {
     /// Parsing URL encoded field.
     UrlEncodedField,
 
-    /// Parsing URL encoded field ampersand.
+    /// Parsing URL encoded field ampersand or semicolon.
     UrlEncodedFieldAmpersand,
 
     /// Parsing URL encoded field hex sequence byte 1.
@@ -1410,7 +1410,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     #[inline]
     fn strip_detect(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(context,
+        consume_empty_space!(context,
             // on end-of-stream
             exit_eos!(self, context)
         );
