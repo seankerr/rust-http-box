@@ -16,59 +16,59 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Support for accessing field values in an easier fashion.
+//! Support for accessing parameter values in an easier fashion.
 
 use std::collections::HashMap;
 
-/// `FieldMap` is a wrapper around `HashMap<String, FieldValue>` that provides utility
-/// functions for accessing fields.
+/// `ParameterMap` is a wrapper around `HashMap<String, ParameterValue>` that provides utility
+/// functions for accessing parameters.
 ///
 /// # Examples
 ///
 /// ```
-/// use http_box::field::FieldMap;
+/// use http_box::parameter::ParameterMap;
 ///
-/// let mut map = FieldMap::new();
+/// let mut map = ParameterMap::new();
 ///
 /// map.push("key", "value1");
 /// map.push("key", "value2");
 ///
 /// assert_eq!(1, map.len());
-/// assert_eq!(2, map.field("key").unwrap().len());
+/// assert_eq!(2, map.parameter("key").unwrap().len());
 ///
-/// assert_eq!("value1", map.field("key").unwrap().first().unwrap());
-/// assert_eq!("value1", map.field("key").unwrap().get(0).unwrap());
-/// assert_eq!("value2", map.field("key").unwrap().get(1).unwrap());
+/// assert_eq!("value1", map.parameter("key").unwrap().first().unwrap());
+/// assert_eq!("value1", map.parameter("key").unwrap().get(0).unwrap());
+/// assert_eq!("value2", map.parameter("key").unwrap().get(1).unwrap());
 ///
-/// map.field_mut("key").unwrap().remove(1);
+/// map.parameter_mut("key").unwrap().remove(1);
 ///
-/// assert_eq!(1, map.field("key").unwrap().len());
+/// assert_eq!(1, map.parameter("key").unwrap().len());
 ///
 /// map.remove("key");
 ///
-/// assert_eq!(false, map.has_field("key"));
+/// assert_eq!(false, map.has_parameter("key"));
 /// ```
 #[derive(Default)]
-pub struct FieldMap(HashMap<String, FieldValue>);
+pub struct ParameterMap(HashMap<String, ParameterValue>);
 
-impl FieldMap {
-    /// Create a new `FieldMap`.
+impl ParameterMap {
+    /// Create a new `ParameterMap`.
     pub fn new() -> Self {
-        FieldMap(HashMap::new())
+        ParameterMap(HashMap::new())
     }
 
-    /// Create a new `FieldMap` with an initial capacity of `capacity`.
+    /// Create a new `ParameterMap` with an initial capacity of `capacity`.
     pub fn with_capacity(capacity: usize) -> Self {
-        FieldMap(HashMap::with_capacity(capacity))
+        ParameterMap(HashMap::with_capacity(capacity))
     }
 
     /// Retrieve the internal immutable collection.
-    pub fn as_map(&self) -> &HashMap<String, FieldValue> {
+    pub fn as_map(&self) -> &HashMap<String, ParameterValue> {
         &self.0
     }
 
     /// Retrieve the internal mutable collection.
-    pub fn as_mut_map(&mut self) -> &mut HashMap<String, FieldValue> {
+    pub fn as_mut_map(&mut self) -> &mut HashMap<String, ParameterValue> {
         &mut self.0
     }
 
@@ -77,19 +77,9 @@ impl FieldMap {
         self.0.clear();
     }
 
-    /// Retrieve immutable `field` from the collection.
-    pub fn field<T: AsRef<str>>(&self, field: T) -> Option<&FieldValue> {
-        self.0.get(field.as_ref())
-    }
-
-    /// Retrieve mutable `field` from the collection.
-    pub fn field_mut<T: AsRef<str>>(&mut self, field: T) -> Option<&mut FieldValue> {
-        self.0.get_mut(field.as_ref())
-    }
-
-    /// Indicates that `field` exists within the collection.
-    pub fn has_field<T: AsRef<str>>(&self, field: T) -> bool {
-        self.0.contains_key(field.as_ref())
+    /// Indicates that `parameter` exists within the collection.
+    pub fn has_parameter<T: AsRef<str>>(&self, parameter: T) -> bool {
+        self.0.contains_key(parameter.as_ref())
     }
 
     /// Indicates that the collection is empty.
@@ -97,17 +87,27 @@ impl FieldMap {
         self.0.is_empty()
     }
 
-    /// Retrieve the number of fields within the collection.
+    /// Retrieve the number of parameters within the collection.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    /// Append `field` with `value` onto the collection.
+    /// Retrieve immutable `parameter` from the collection.
+    pub fn parameter<T: AsRef<str>>(&self, parameter: T) -> Option<&ParameterValue> {
+        self.0.get(parameter.as_ref())
+    }
+
+    /// Retrieve mutable `parameter` from the collection.
+    pub fn parameter_mut<T: AsRef<str>>(&mut self, parameter: T) -> Option<&mut ParameterValue> {
+        self.0.get_mut(parameter.as_ref())
+    }
+
+    /// Append `parameter` with `value` onto the collection.
     ///
-    /// If `field` does not yet exist, add it.
-    pub fn push<T: Into<String>>(&mut self, field: T, value: T) -> &mut Self {
+    /// If `parameter` does not yet exist, add it.
+    pub fn push<T: Into<String>>(&mut self, parameter: T, value: T) -> &mut Self {
         {
-            let mut entry = self.0.entry(field.into()).or_insert(FieldValue::new());
+            let mut entry = self.0.entry(parameter.into()).or_insert(ParameterValue::new());
 
             (*entry).push(value.into());
         }
@@ -115,18 +115,18 @@ impl FieldMap {
         self
     }
 
-    /// Append `field` with `value` onto the collection.
+    /// Append `parameter` with `value` onto the collection.
     ///
     /// # Unsafe
     ///
-    /// This function is unsafe because it does not verify `field` and `value` are valid UTF-8.
-    pub unsafe fn push_slice(&mut self, field: &[u8], value: &[u8]) -> &mut Self {
+    /// This function is unsafe because it does not verify `parameter` and `value` are valid UTF-8.
+    pub unsafe fn push_slice(&mut self, parameter: &[u8], value: &[u8]) -> &mut Self {
         {
-            let mut f = String::with_capacity(field.len());
+            let mut f = String::with_capacity(parameter.len());
 
-            f.as_mut_vec().extend_from_slice(field);
+            f.as_mut_vec().extend_from_slice(parameter);
 
-            let mut entry = self.0.entry(f).or_insert(FieldValue::new());
+            let mut entry = self.0.entry(f).or_insert(ParameterValue::new());
 
             (*entry).push_slice(value);
         }
@@ -134,23 +134,23 @@ impl FieldMap {
         self
     }
 
-    /// Remove `field` from the collection.
-    pub fn remove<T: AsRef<str>>(&mut self, field: T) -> Option<FieldValue> {
-        self.0.remove(field.as_ref())
+    /// Remove `parameter` from the collection.
+    pub fn remove<T: AsRef<str>>(&mut self, parameter: T) -> Option<ParameterValue> {
+        self.0.remove(parameter.as_ref())
     }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-/// `FieldValue` is a wrapper around `Vec<String>` that provides utility functions for accessing
+/// `ParameterValue` is a wrapper around `Vec<String>` that provides utility functions for accessing
 /// values.
 #[derive(Default)]
-pub struct FieldValue(Vec<String>);
+pub struct ParameterValue(Vec<String>);
 
-impl FieldValue {
-    /// Create a new `FieldValue`.
+impl ParameterValue {
+    /// Create a new `ParameterValue`.
     pub fn new() -> Self {
-        FieldValue(Vec::new())
+        ParameterValue(Vec::new())
     }
 
     /// Retrieve all values from the collection.
