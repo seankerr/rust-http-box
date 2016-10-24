@@ -26,7 +26,7 @@ use util;
 
 use std::collections::{ HashMap,
                         HashSet };
-use std::slice;
+use std::str;
 
 #[derive(Default)]
 /// `HeadersHandler` is a suitable handler for the following parser functions:
@@ -131,7 +131,7 @@ pub struct HeadersHandler {
     /// Response status code.
     status_code: u16,
 
-    /// Header field/value toggle.
+    /// Field/value toggle.
     toggle: bool,
 
     /// Request URL.
@@ -152,15 +152,15 @@ impl HeadersHandler {
     pub fn new() -> HeadersHandler {
         HeadersHandler {
             cookies:       HashSet::new(),
-            field_buffer:  Vec::new(),
+            field_buffer:  Vec::with_capacity(10),
             finished:      false,
             headers:       HashMap::new(),
-            method:        String::new(),
-            status:        String::new(),
+            method:        String::with_capacity(0),
+            status:        String::with_capacity(0),
             status_code:   0,
             toggle:        false,
-            url:           String::new(),
-            value_buffer:  Vec::new(),
+            url:           String::with_capacity(0),
+            value_buffer:  Vec::with_capacity(10),
             version_major: 0,
             version_minor: 0
         }
@@ -184,20 +184,14 @@ impl HeadersHandler {
             util::parse_field(&buffer, b';', false,
                 |s: FieldSegment| {
                     match s {
-                        FieldSegment::NameValue(name, value) => {
-                            self.cookies.insert(unsafe {
-                                Cookie::new({
-                                    let mut s = String::with_capacity(name.len());
+                        FieldSegment::NameValue(n, v) => {
+                            let name  = str::from_utf8(n);
+                            let value = str::from_utf8(v);
 
-                                    s.as_mut_vec().extend_from_slice(name);
-                                    s
-                                }, {
-                                    let mut s = String::with_capacity(value.len());
-
-                                    s.as_mut_vec().extend_from_slice(value);
-                                    s
-                                })
-                            });
+                            if name.is_ok() && value.is_ok() {
+                                self.cookies.insert(Cookie::new(String::from(name.unwrap()),
+                                                                String::from(value.unwrap())));
+                            }
 
                             true
                         },
@@ -209,28 +203,22 @@ impl HeadersHandler {
                 }
             );
         } else if self.field_buffer == b"set-cookie" {
-            unsafe {
-                match Cookie::from_bytes(self.value_buffer.as_slice()) {
-                    Ok(cookie) => {
-                        self.cookies.insert(cookie);
-                    },
-                    _ => {
-                        // invalid cookie headder
-                    }
-                };
+            match Cookie::from_bytes(self.value_buffer.as_slice()) {
+                Ok(cookie) => {
+                    self.cookies.insert(cookie);
+                },
+                _ => {
+                    // invalid cookie headder
+                }
             }
         } else {
-            self.headers.insert(unsafe {
-                let mut s = String::with_capacity(self.field_buffer.len());
+            let name  = str::from_utf8(&self.field_buffer);
+            let value = str::from_utf8(&self.value_buffer);
 
-                s.as_mut_vec().extend_from_slice(&self.field_buffer);
-                s
-            }, unsafe {
-                let mut s = String::with_capacity(self.value_buffer.len());
-
-                s.as_mut_vec().extend_from_slice(&self.value_buffer);
-                s
-            });
+            if name.is_ok() && value.is_ok() {
+                self.headers.insert(String::from(name.unwrap()),
+                                    String::from(value.unwrap()));
+            }
         }
 
         self.field_buffer.clear();
@@ -268,7 +256,7 @@ impl HeadersHandler {
 
     /// Indicates that the parsed data is a request.
     pub fn is_request(&self) -> bool {
-        !self.method.is_empty()
+        self.status.is_empty()
     }
 
     /// Retrieve the request method.
@@ -280,7 +268,7 @@ impl HeadersHandler {
     pub fn reset(&mut self) {
         self.finished      = false;
         self.status_code   = 0;
-        self.toggle        = true;
+        self.toggle        = false;
         self.version_major = 0;
         self.version_minor = 0;
 
@@ -403,6 +391,7 @@ impl Http1Handler for HeadersHandler {
 
     fn on_status_code(&mut self, code: u16) -> bool {
         self.status_code = code;
+
         true
     }
 

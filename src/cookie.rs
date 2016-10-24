@@ -80,7 +80,6 @@ impl Cookie {
     /// assert_eq!("/", cookie.path().unwrap());
     /// assert!(cookie.is_secure());
     /// ```
-
     pub fn new<T: Into<String>>(name: T, value: T) -> Self {
         Cookie {
             domain:    None,

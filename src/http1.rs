@@ -400,9 +400,6 @@ impl fmt::Display for ParserType {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser states.
-///
-/// These states are in an order that can be compared so the progress can be checked by the parser
-/// functions.
 #[derive(Clone,Copy,Debug,PartialEq)]
 #[repr(u8)]
 pub enum ParserState {
@@ -489,14 +486,6 @@ pub enum ParserState {
     // ---------------------------------------------------------------------------------------------
     // HEADERS
     // ---------------------------------------------------------------------------------------------
-
-    // pre-header states:
-    //   These only exist purely to avoid the situation where a client can send an initial
-    //   request/response line then CRLF[SPACE], and the parser would have assumed the next
-    //   piece of content is the second line of a multiline header value.
-    //
-    //   In addition to this, multiline header value support has been deprecated, but we'll keep
-    //   support for now: https://tools.ietf.org/html/rfc7230#section-3.2.4
 
     /// Parsing pre-header line feed.
     PreHeaders1,
