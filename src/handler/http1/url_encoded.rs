@@ -23,6 +23,8 @@ use http1::Http1Handler;
 use parameter::{ ParameterMap,
                  ParameterValue };
 
+use std::str;
+
 /// `UrlEncodedHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
@@ -68,7 +70,7 @@ impl UrlEncodedHandler {
         UrlEncodedHandler {
             field_buffer: Vec::new(),
             finished:     false,
-            parameters:       ParameterMap::new(),
+            parameters:   ParameterMap::new(),
             toggle:       false,
             value_buffer: Vec::new()
         }
@@ -77,7 +79,27 @@ impl UrlEncodedHandler {
     /// Flush the most recent field/value.
     fn flush(&mut self) {
         if !self.field_buffer.is_empty() {
-            unsafe { self.parameters.push_slice(&self.field_buffer, &self.value_buffer); }
+            unsafe {
+                let mut name = match str::from_utf8(&self.field_buffer) {
+                    Ok(s) => Some(String::from(s)),
+                    _ => {
+                        // invalid name
+                        None
+                    }
+                };
+
+                let mut value = match str::from_utf8(&self.value_buffer) {
+                    Ok(s) => Some(String::from(s)),
+                    _ => {
+                        // invalid value
+                        None
+                    }
+                };
+
+                if name.is_some() && value.is_some() {
+                    self.parameters.push(name.unwrap(), value.unwrap());
+                }
+            }
         }
 
         self.field_buffer.clear();

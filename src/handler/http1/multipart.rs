@@ -36,11 +36,11 @@ enum ContentDisposition {
     /// Unknown content disposition.
     Unknown,
 
-    /// Field with value content disposition.
-    Field,
-
     /// Field with file data content disposition.
-    File(Vec<u8>, File)
+    File(Vec<u8>, File),
+
+    /// Parameter with value content disposition.
+    Parameter
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -100,11 +100,11 @@ pub struct MultipartHandler {
     /// Current multipart section headers.
     headers: HashMap<String, String>,
 
-    /// Maximum field size.
-    max_field_size: usize,
-
     /// Maximum file size.
     max_file_size: usize,
+
+    /// Maximum parameter size.
+    max_parameter_size: usize,
 
     /// Parameters.
     parameters: ParameterMap,
@@ -139,8 +139,8 @@ impl MultipartHandler {
             field_buffer:        Vec::new(),
             files:               HashMap::with_capacity(0),
             finished:            false,
-            max_field_size:      std::usize::MAX,
             max_file_size:       std::usize::MAX,
+            max_parameter_size:  std::usize::MAX,
             headers:             HashMap::with_capacity(1),
             parameters:          ParameterMap::new(),
             toggle:              false,
@@ -163,12 +163,32 @@ impl MultipartHandler {
         &self.files
     }
 
-    /// Flush the most recent field or file.
-    fn flush_field_file(&mut self) {
+    /// Flush the most recent parameter or file.
+    fn flush_parameter_file(&mut self) {
         match self.content_disposition {
-            ContentDisposition::Field => {
+            ContentDisposition::Parameter => {
                 if !self.field_buffer.is_empty() {
-                    unsafe { self.parameters.push_slice(&self.field_buffer, &self.value_buffer); }
+                    unsafe {
+                        let mut name = match str::from_utf8(&self.field_buffer) {
+                            Ok(s) => Some(String::from(s)),
+                            _ => {
+                                // invalid UTF-8 sequence in name
+                                None
+                            }
+                        };
+
+                        let mut value = match str::from_utf8(&self.value_buffer) {
+                            Ok(s) => Some(String::from(s)),
+                            _ => {
+                                // invalid UTF-8 sequence in value
+                                None
+                            }
+                        };
+
+                        if name.is_some() && value.is_some() {
+                            self.parameters.push(name.unwrap(), value.unwrap());
+                        }
+                    }
                 }
             },
             ContentDisposition::File(ref filename, ref file) => {
@@ -280,14 +300,14 @@ impl MultipartHandler {
         self.value_buffer.clear();
     }
 
-    /// Set the max field size.
-    pub fn set_max_field_size(&mut self, size: usize) {
-        self.max_field_size = size;
-    }
-
     /// Set the max file size.
     pub fn set_max_file_size(&mut self, size: usize) {
         self.max_file_size = size;
+    }
+
+    /// Set the max parameter size.
+    pub fn set_max_parameter_size(&mut self, size: usize) {
+        self.max_parameter_size = size;
     }
 
     /// Set the file upload path.
@@ -330,7 +350,7 @@ impl Http1Handler for MultipartHandler {
     }
 
     fn on_body_finished(&mut self) -> bool {
-        self.flush_field_file();
+        self.flush_parameter_file();
 
         self.finished = true;
 
@@ -400,7 +420,7 @@ impl Http1Handler for MultipartHandler {
             } else if let Some(name) = name {
                 self.field_buffer.extend_from_slice(&name);
 
-                ContentDisposition::Field
+                ContentDisposition::Parameter
             } else {
                 ContentDisposition::Unknown
             }
@@ -412,7 +432,7 @@ impl Http1Handler for MultipartHandler {
     }
 
     fn on_multipart_begin(&mut self) -> bool {
-        self.flush_field_file();
+        self.flush_parameter_file();
         self.headers.clear();
 
         true
@@ -420,7 +440,7 @@ impl Http1Handler for MultipartHandler {
 
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         match self.content_disposition {
-            ContentDisposition::Field => {
+            ContentDisposition::Parameter => {
                 self.value_buffer.extend_from_slice(data);
             },
             ContentDisposition::File(ref filename, ref file) => {

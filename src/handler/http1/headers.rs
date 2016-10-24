@@ -184,14 +184,24 @@ impl HeadersHandler {
             util::parse_field(&buffer, b';', false,
                 |s: FieldSegment| {
                     match s {
-                        FieldSegment::NameValue(n, v) => {
-                            let name  = str::from_utf8(n);
-                            let value = str::from_utf8(v);
+                        FieldSegment::NameValue(name, value) => {
+                            self.cookies.insert(Cookie::new(
+                                // name
+                                unsafe {
+                                    let mut s = String::with_capacity(name.len());
 
-                            if name.is_ok() && value.is_ok() {
-                                self.cookies.insert(Cookie::new(String::from(name.unwrap()),
-                                                                String::from(value.unwrap())));
-                            }
+                                    s.as_mut_vec().extend_from_slice(name);
+                                    s
+                                },
+
+                                // value
+                                unsafe {
+                                    let mut s = String::with_capacity(value.len());
+
+                                    s.as_mut_vec().extend_from_slice(value);
+                                    s
+                                }
+                            ));
 
                             true
                         },
@@ -212,13 +222,23 @@ impl HeadersHandler {
                 }
             }
         } else {
-            let name  = str::from_utf8(&self.field_buffer);
-            let value = str::from_utf8(&self.value_buffer);
+            self.headers.insert(
+                // name
+                unsafe {
+                    let mut s = String::with_capacity(self.field_buffer.len());
 
-            if name.is_ok() && value.is_ok() {
-                self.headers.insert(String::from(name.unwrap()),
-                                    String::from(value.unwrap()));
-            }
+                    s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                    s
+                },
+
+                // value
+                unsafe {
+                    let mut s = String::with_capacity(self.value_buffer.len());
+
+                    s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                    s
+                }
+            );
         }
 
         self.field_buffer.clear();

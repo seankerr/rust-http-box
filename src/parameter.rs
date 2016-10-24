@@ -115,25 +115,6 @@ impl ParameterMap {
         self
     }
 
-    /// Append `parameter` with `value` onto the collection.
-    ///
-    /// # Unsafe
-    ///
-    /// This function is unsafe because it does not verify `parameter` and `value` are valid UTF-8.
-    pub unsafe fn push_slice(&mut self, parameter: &[u8], value: &[u8]) -> &mut Self {
-        {
-            let mut f = String::with_capacity(parameter.len());
-
-            f.as_mut_vec().extend_from_slice(parameter);
-
-            let mut entry = self.0.entry(f).or_insert(ParameterValue::new());
-
-            (*entry).push_slice(value);
-        }
-
-        self
-    }
-
     /// Remove `parameter` from the collection.
     pub fn remove<T: AsRef<str>>(&mut self, parameter: T) -> Option<ParameterValue> {
         self.0.remove(parameter.as_ref())
@@ -201,22 +182,6 @@ impl ParameterValue {
     /// Append `value` onto the collection.
     pub fn push<T: Into<String>>(&mut self, value: T) -> &mut Self {
         self.0.push(value.into());
-        self
-    }
-
-    /// Append `value` onto the collection.
-    ///
-    /// # Unsafe
-    ///
-    /// This function is unsafe because it does not verify `value` is valid UTF-8.
-    pub unsafe fn push_slice(&mut self, value: &[u8]) -> &mut Self {
-        self.0.push({
-            let mut s = String::with_capacity(value.len());
-
-            s.as_mut_vec().extend_from_slice(value);
-            s
-        });
-
         self
     }
 

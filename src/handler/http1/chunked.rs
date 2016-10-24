@@ -119,17 +119,23 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     /// Flush the most recent extension name/value.
     fn flush_extension(&mut self) {
         if !self.field_buffer.is_empty() {
-            self.extensions.insert(unsafe {
-                let mut s = String::with_capacity(self.field_buffer.len());
+            self.extensions.insert(
+                // name
+                unsafe {
+                    let mut s = String::with_capacity(self.field_buffer.len());
 
-                s.as_mut_vec().extend_from_slice(&self.field_buffer);
-                s
-            }, unsafe {
-                let mut s = String::with_capacity(self.value_buffer.len());
+                    s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                    s
+                },
 
-                s.as_mut_vec().extend_from_slice(&self.value_buffer);
-                s
-            });
+                // value
+                unsafe {
+                    let mut s = String::with_capacity(self.value_buffer.len());
+
+                    s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                    s
+                }
+            );
         }
 
         self.field_buffer.clear();
@@ -139,17 +145,23 @@ impl<F> ChunkedHandler<F> where F : FnMut(&mut ChunkedHandler<F>, &[u8]) -> bool
     /// Flush the most recent trailer field/value.
     fn flush_trailer(&mut self) {
         if !self.field_buffer.is_empty() {
-            self.trailers.insert(unsafe {
-                let mut s = String::with_capacity(self.field_buffer.len());
+            self.trailers.insert(
+                // name
+                unsafe {
+                    let mut s = String::with_capacity(self.field_buffer.len());
 
-                s.as_mut_vec().extend_from_slice(&self.field_buffer);
-                s
-            }, unsafe {
-                let mut s = String::with_capacity(self.value_buffer.len());
+                    s.as_mut_vec().extend_from_slice(&self.field_buffer);
+                    s
+                },
 
-                s.as_mut_vec().extend_from_slice(&self.value_buffer);
-                s
-            });
+                // value
+                unsafe {
+                    let mut s = String::with_capacity(self.value_buffer.len());
+
+                    s.as_mut_vec().extend_from_slice(&self.value_buffer);
+                    s
+                }
+            );
         }
 
         self.field_buffer.clear();
