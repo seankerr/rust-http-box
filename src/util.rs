@@ -529,7 +529,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
             // stop on these bytes
                context.byte == b'='
             || context.byte == delimiter
-            || (context.byte > 0x40 && context.byte < 0x5B && normalize),
+            || (normalize && context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
             {
