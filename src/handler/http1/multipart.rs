@@ -410,11 +410,11 @@ impl Http1Handler for MultipartHandler {
             );
 
             if filename.is_some() && name.is_some() {
-                self.field_buffer.extend_from_slice(&name);
+                self.field_buffer.extend_from_slice(&name.unwrap());
 
                 ContentDisposition::Unknown//File(filename, self.fn_create())
             } else if name.is_some() {
-                self.field_buffer.extend_from_slice(&name);
+                self.field_buffer.extend_from_slice(&name.unwrap());
 
                 ContentDisposition::Parameter
             } else {
