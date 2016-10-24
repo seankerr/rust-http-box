@@ -4,13 +4,10 @@
 ![dev: 0.1.0](https://img.shields.io/badge/dev-0.1.0-ff69b4.svg)
 ![license: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
-rust-http-box is a fast push/callback oriented HTTP/1.1 (HTTP/2.0 coming soon) parser that works
-only with slices of data, and never copies parsed data. Because of this, it is
-possible to parse HTTP data one byte at a time. Parsing can be interrupted during any callback,
-and at the end of each parsed slice.
+rust-http-box is a fast push/callback oriented HTTP/1.1 parser that can be interrupted during any
+callback.
 
-This is purely an HTTP parsing library and is not tied to any networking framework. Use it to parse
-stored HTTP request logs, test data, or to write a server and/or client.
+This is purely a HTTP parsing library and is not tied to any networking framework.
 
 Errors are handled intelligently letting you know what state the parser was in and which byte
 triggered the error when it occurred.
