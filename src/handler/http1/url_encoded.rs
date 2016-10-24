@@ -83,7 +83,7 @@ impl UrlEncodedHandler {
                 let mut name = match str::from_utf8(&self.field_buffer) {
                     Ok(s) => Some(String::from(s)),
                     _ => {
-                        // invalid name
+                        // invalid UTF-8 sequence in name
                         None
                     }
                 };
@@ -91,7 +91,7 @@ impl UrlEncodedHandler {
                 let mut value = match str::from_utf8(&self.value_buffer) {
                     Ok(s) => Some(String::from(s)),
                     _ => {
-                        // invalid value
+                        // invalid UTF-8 sequence in value
                         None
                     }
                 };
@@ -107,7 +107,7 @@ impl UrlEncodedHandler {
     }
 
     /// Indicates that `parameter` exists within the collection of parameters.
-    pub fn has_param<T: AsRef<str>>(&self, parameter: T) -> bool {
+    pub fn has_parameter<T: AsRef<str>>(&self, parameter: T) -> bool {
         self.parameters.has_parameter(parameter)
     }
 

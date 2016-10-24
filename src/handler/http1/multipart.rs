@@ -243,11 +243,6 @@ impl MultipartHandler {
         panic!("X");
     }
 
-    /// Indicates that `parameter` exists within the collection of parameters.
-    pub fn has_parameter<T: AsRef<str>>(&self, parameter: T) -> bool {
-        self.parameters.has_parameter(parameter.as_ref())
-    }
-
     /// Indicates that `file` exists within the collection of files.
     pub fn has_file<T: AsRef<str>>(&self, file: T) -> bool {
         self.files.contains_key(file.as_ref())
@@ -256,6 +251,11 @@ impl MultipartHandler {
     /// Indicates that `header` exists within the collection of headers.
     pub fn has_header<T: AsRef<str>>(&self, header: T) -> bool {
         self.headers.contains_key(header.as_ref())
+    }
+
+    /// Indicates that `parameter` exists within the collection of parameters.
+    pub fn has_parameter<T: AsRef<str>>(&self, parameter: T) -> bool {
+        self.parameters.has_parameter(parameter.as_ref())
     }
 
     /// Retrieve `header` from the collection of headers.
@@ -409,15 +409,11 @@ impl Http1Handler for MultipartHandler {
                 }
             );
 
-            if let Some(filename) = filename {
-                if let Some(name) = name {
-                    self.field_buffer.extend_from_slice(&name);
+            if filename.is_some() && name.is_some() {
+                self.field_buffer.extend_from_slice(&name);
 
-                    ContentDisposition::Unknown//File(filename, self.fn_create())
-                } else {
-                    ContentDisposition::Unknown
-                }
-            } else if let Some(name) = name {
+                ContentDisposition::Unknown//File(filename, self.fn_create())
+            } else if name.is_some() {
                 self.field_buffer.extend_from_slice(&name);
 
                 ContentDisposition::Parameter
