@@ -5,9 +5,7 @@
 ![license: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
 rust-http-box is a fast push/callback oriented HTTP/1.1 parser that can be interrupted during any
-callback.
-
-This is purely a HTTP parsing library and is not tied to any networking framework.
+callback. This library is not tied to any networking framework.
 
 Errors are handled intelligently letting you know what state the parser was in and which byte
 triggered the error when it occurred.
