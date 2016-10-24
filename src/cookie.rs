@@ -160,7 +160,7 @@ impl Cookie {
             )
         ));
 
-        if let None = value {
+        if value.is_none() {
             // missing name and value
             return Err(None);
         }
