@@ -67,17 +67,17 @@ fn ending_hex() {
 
 #[test]
 fn ending_hex_error1() {
-    query_error!(b"Field%", b'%', QueryError::Field);
+    query_error!(b"Field%", b'%', QueryError::Name);
 }
 
 #[test]
 fn ending_hex_error2() {
-    query_error!(b"Field%2", b'2', QueryError::Field);
+    query_error!(b"Field%2", b'2', QueryError::Name);
 }
 
 #[test]
 fn ending_hex_error3() {
-    query_error!(b"Field%2G", b'G', QueryError::Field);
+    query_error!(b"Field%2G", b'G', QueryError::Name);
 }
 
 #[test]
@@ -91,12 +91,12 @@ fn ending_plus() {
 
 #[test]
 fn starting_ampersand_error() {
-    query_error!(b"&", b'&', QueryError::Field);
+    query_error!(b"&", b'&', QueryError::Name);
 }
 
 #[test]
 fn starting_equal_error() {
-    query_error!(b"=", b'=', QueryError::Field);
+    query_error!(b"=", b'=', QueryError::Name);
 }
 
 #[test]
@@ -110,17 +110,17 @@ fn starting_hex() {
 
 #[test]
 fn starting_hex_error1() {
-    query_error!(b"%", b'%', QueryError::Field);
+    query_error!(b"%", b'%', QueryError::Name);
 }
 
 #[test]
 fn starting_hex_error2() {
-    query_error!(b"%2", b'2', QueryError::Field);
+    query_error!(b"%2", b'2', QueryError::Name);
 }
 
 #[test]
 fn starting_hex_error3() {
-    query_error!(b"%2G", b'G', QueryError::Field);
+    query_error!(b"%2G", b'G', QueryError::Name);
 }
 
 #[test]

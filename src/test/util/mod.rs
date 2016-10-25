@@ -77,7 +77,7 @@ macro_rules! query {
         assert!(match parse_query($stream, b'&',
                                   |s| {
                                       match s {
-                                          QuerySegment::Field(x) => {
+                                          QuerySegment::Name(x) => {
                                               let mut f = String::new();
                                               let v = String::new();
 
@@ -87,9 +87,9 @@ macro_rules! query {
 
                                               $map.insert(f, v);
 
-                                              println!("{:?}", QuerySegment::Field(x));
+                                              println!("{:?}", QuerySegment::Name(x));
                                           },
-                                          QuerySegment::FieldValue(x,y) => {
+                                          QuerySegment::NameValue(x,y) => {
                                               let mut f = String::new();
                                               let mut v = String::new();
 
@@ -100,7 +100,7 @@ macro_rules! query {
 
                                               $map.insert(f, v);
 
-                                              println!("{:?}", QuerySegment::FieldValue(x,y));
+                                              println!("{:?}", QuerySegment::NameValue(x,y));
                                           }
                                       }
 

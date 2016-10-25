@@ -18,8 +18,8 @@
 
 //! Utility functions.
 //!
-//! This module provides support for decoding URL encoded data, parsing header fields, and parsing
-//! query strings.
+//! This module provides support for decoding URL encoded data, and parsing header fields and
+//! queries.
 
 use byte::is_token;
 use byte_slice::ByteStream;
@@ -29,7 +29,7 @@ use std::{ fmt,
 
 // -------------------------------------------------------------------------------------------------
 
-/// If the stream is EOS, exit with Ok status. Otherwise do nothing.
+/// Exit the stream with EOS, if the stream is EOS. Otherwise do nothing.
 macro_rules! exit_if_eos {
     ($context:expr) => ({
         if bs_is_eos!($context) {
@@ -221,8 +221,8 @@ impl<'a> fmt::Display for FieldSegment<'a> {
 
 /// Query errors.
 pub enum QueryError {
-    /// Invalid query field.
-    Field(u8),
+    /// Invalid query name.
+    Name(u8),
 
     /// Invalid query value.
     Value(u8)
@@ -231,8 +231,8 @@ pub enum QueryError {
 impl fmt::Debug for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            QueryError::Field(x) => {
-                write!(formatter, "QueryError::Field(Invalid query field on byte {})", x)
+            QueryError::Name(x) => {
+                write!(formatter, "QueryError::Name(Invalid query name on byte {})", x)
             },
             QueryError::Value(x) => {
                 write!(formatter, "QueryError::Value(Invalid query value on byte {})", x)
@@ -244,8 +244,8 @@ impl fmt::Debug for QueryError {
 impl fmt::Display for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            QueryError::Field(x) => {
-                write!(formatter, "Invalid query field on byte {}", x)
+            QueryError::Name(x) => {
+                write!(formatter, "Invalid query name on byte {}", x)
             },
             QueryError::Value(x) => {
                 write!(formatter, "Invalid query value on byte {}", x)
@@ -258,34 +258,34 @@ impl fmt::Display for QueryError {
 
 /// Query segments.
 pub enum QuerySegment<'a> {
-    /// Field without a value.
-    Field(&'a [u8]),
+    /// Name without a value.
+    Name(&'a [u8]),
 
-    /// Field and value pair.
-    FieldValue(&'a [u8], &'a [u8])
+    /// Name and value pair.
+    NameValue(&'a [u8], &'a [u8])
 }
 
 impl<'a> QuerySegment<'a> {
-    /// Retrieve the field.
-    pub fn field(&self) -> &'a [u8] {
-        match *self {
-            QuerySegment::Field(field) => field,
-            QuerySegment::FieldValue(field, _) => field
-        }
-    }
-
     /// Indicates that this [`QuerySegment`] contains a value.
     pub fn has_value(&self) -> bool {
         match *self {
-            QuerySegment::Field(_) => false,
+            QuerySegment::Name(_) => false,
             _ => true
+        }
+    }
+
+    /// Retrieve the name.
+    pub fn name(&self) -> &'a [u8] {
+        match *self {
+            QuerySegment::Name(name) => name,
+            QuerySegment::NameValue(name, _) => name
         }
     }
 
     /// Retrieve the value.
     pub fn value(&self) -> Option<&'a [u8]> {
         match *self {
-            QuerySegment::FieldValue(_, value) => Some(value),
+            QuerySegment::NameValue(_, value) => Some(value),
             _ => None
         }
     }
@@ -294,11 +294,11 @@ impl<'a> QuerySegment<'a> {
 impl<'a> fmt::Debug for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            QuerySegment::Field(x) => {
-                write!(formatter, "QuerySegment::Field({:?})", str::from_utf8(x).unwrap())
+            QuerySegment::Name(x) => {
+                write!(formatter, "QuerySegment::Name({:?})", str::from_utf8(x).unwrap())
             },
-            QuerySegment::FieldValue(x,y) => {
-                write!(formatter, "QuerySegment::FieldValue({:?}, {:?})",
+            QuerySegment::NameValue(x,y) => {
+                write!(formatter, "QuerySegment::NameValue({:?}, {:?})",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
             }
@@ -309,10 +309,10 @@ impl<'a> fmt::Debug for QuerySegment<'a> {
 impl<'a> fmt::Display for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            QuerySegment::Field(x) => {
+            QuerySegment::Name(x) => {
                 write!(formatter, "{:?}", str::from_utf8(x).unwrap())
             },
-            QuerySegment::FieldValue(x,y) => {
+            QuerySegment::NameValue(x,y) => {
                 write!(formatter, "{:?} = {:?}",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
@@ -686,7 +686,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 ///
 /// # Errors
 ///
-/// - [`QueryError::Field`](enum.QueryError.html#variant.Field)
+/// - [`QueryError::Name`](enum.QueryError.html#variant.Name)
 /// - [`QueryError::Value`](enum.QueryError.html#variant.Value)
 ///
 /// # Examples
@@ -698,10 +698,10 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 /// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
 ///     |s| {
 ///         if s.has_value() {
-///             s.field();
+///             s.name();
 ///             s.value().unwrap();
 ///         } else {
-///             s.field();
+///             s.name();
 ///         }
 ///
 ///         true
@@ -719,7 +719,7 @@ where T : FnMut(QuerySegment) -> bool {
         loop {
             bs_mark!(context);
 
-            collect_visible!(context, QueryError::Field,
+            collect_visible!(context, QueryError::Name,
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
@@ -732,7 +732,7 @@ where T : FnMut(QuerySegment) -> bool {
                         name.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::Field(&name));
+                    segment_fn(QuerySegment::Name(&name));
 
                     exit_ok!(context);
                 }
@@ -753,7 +753,7 @@ where T : FnMut(QuerySegment) -> bool {
                     } else if b'`' < context.byte && context.byte < b'g' {
                         (context.byte - 0x57) << 4
                     } else {
-                        return Err(QueryError::Field(context.byte));
+                        return Err(QueryError::Name(context.byte));
                     } as u8;
 
                     bs_next!(context);
@@ -765,7 +765,7 @@ where T : FnMut(QuerySegment) -> bool {
                     } else if b'`' < context.byte && context.byte < b'g' {
                         context.byte - 0x57
                     } else {
-                        return Err(QueryError::Field(context.byte));
+                        return Err(QueryError::Name(context.byte));
                     } as u8;
 
                     name.push(byte);
@@ -774,23 +774,23 @@ where T : FnMut(QuerySegment) -> bool {
                         bs_next!(context);
                     }
 
-                    return Err(QueryError::Field(context.byte));
+                    return Err(QueryError::Name(context.byte));
                 }
             } else if context.byte == b'+' {
                 name.push(b' ');
             } else if context.byte == b'=' {
                 if context.stream_index == 1 {
                     // first byte cannot be an equal sign
-                    return Err(QueryError::Field(context.byte));
+                    return Err(QueryError::Name(context.byte));
                 }
 
                 break;
             } else if context.stream_index == 1 {
                 // first byte cannot be an ampersand
-                return Err(QueryError::Field(context.byte));
+                return Err(QueryError::Name(context.byte));
             } else {
-                // field without a value
-                if segment_fn(QuerySegment::Field(&name)) {
+                // name without a value
+                if segment_fn(QuerySegment::Name(&name)) {
                     name.clear();
                 } else {
                     // callback exited
@@ -817,7 +817,7 @@ where T : FnMut(QuerySegment) -> bool {
                         value.extend_from_slice(bs_slice!(context));
                     }
 
-                    segment_fn(QuerySegment::FieldValue(&name, &value));
+                    segment_fn(QuerySegment::NameValue(&name, &value));
 
                     exit_ok!(context);
                 }
@@ -864,7 +864,7 @@ where T : FnMut(QuerySegment) -> bool {
             } else if context.byte == b'+' {
                 value.push(b' ');
             } else {
-                if segment_fn(QuerySegment::FieldValue(&name, &value)) {
+                if segment_fn(QuerySegment::NameValue(&name, &value)) {
                     name.clear();
                     value.clear();
                 } else {
