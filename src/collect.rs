@@ -18,16 +18,17 @@
 
 //! Stream collection macros.
 
-/// Collect and convert all digit bytes into a u32 variable.
+/// Collect and convert all digit bytes into a u16 variable.
 ///
 /// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
-/// `$max`.
-macro_rules! collect_digits32 {
+/// `$max`, or if an overflow would occur.
+macro_rules! collect_digits16 {
     ($context:expr, $error:expr, $digit:expr, $max:expr, $on_eos:expr) => ({
         bs_collect_digits32!($context, $digit,
             if $digit > $max {
                 return Err($error($context.byte));
             },
+            return Err($error($context.byte)),
             $on_eos
         );
     });

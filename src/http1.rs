@@ -2031,7 +2031,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
-        collect_digits32!(context, ParserError::Version, digit, 999, {
+        collect_digits16!(context, ParserError::Version, digit, 999, {
             set_lower14!(self, digit);
 
             exit_eos!(self, context);
@@ -2051,7 +2051,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper14!(self);
 
-        collect_digits32!(context, ParserError::Version, digit, 999, {
+        collect_digits16!(context, ParserError::Version, digit, 999, {
             set_upper14!(self, digit);
 
             exit_eos!(self, context);
@@ -2075,7 +2075,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
-        collect_digits32!(context, ParserError::Version, digit, 999, {
+        collect_digits16!(context, ParserError::Version, digit, 999, {
             set_lower14!(self, digit);
 
             exit_eos!(self, context);
@@ -2095,7 +2095,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper14!(self);
 
-        collect_digits32!(context, ParserError::Version, digit, 999, {
+        collect_digits16!(context, ParserError::Version, digit, 999, {
             set_upper14!(self, digit);
 
             exit_eos!(self, context);
@@ -2136,7 +2136,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
-        collect_digits32!(context, ParserError::StatusCode, digit, 999, {
+        collect_digits16!(context, ParserError::StatusCode, digit, 999, {
             set_lower14!(self, digit);
             exit_eos!(self, context);
         });
