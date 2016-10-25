@@ -57,11 +57,6 @@ should suffice.
 - [URL encoded](http://www.metatomic.io/docs/api/http_box/handler/struct.UrlEncodedHandler.html):
   - [Field/value](http://www.metatomic.io/docs/api/http_box/handler/struct.UrlEncodedHandler.html#method.fields)
 
-## Performance
-
-Currently rust-http-box is on par with the speeds seen from [fast-http](https://github.com/fukamachi/fast-http),
-a Common Lisp HTTP parser, and significantly faster than the Joyant/NodeJS HTTP parser.
-
 ## API Documentation and Examples
 
 http://metatomic.io/docs/api/http_box/index.html
