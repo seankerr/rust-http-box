@@ -448,7 +448,7 @@ where F : FnMut(&[u8]) {
 ///
 /// **`usize`**
 ///
-/// The amount of field data that was parsed.
+/// The amount of data that was parsed.
 ///
 /// # Errors
 ///
@@ -682,7 +682,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 ///
 /// **`usize`**
 ///
-/// The amount of query data that was parsed.
+/// The amount of data that was parsed.
 ///
 /// # Errors
 ///
