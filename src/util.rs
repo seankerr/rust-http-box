@@ -491,7 +491,7 @@ where F : FnMut(&[u8]) {
 /// use http_box::util;
 ///
 /// match util::parse_field(b"name-no-value; name1=value1; name2=\"value2\0\"", b';', true,
-///     ( // field value byte validation closure
+///     ( // byte validation closure
 ///      |b: u8| {
 ///          b != b'\0'
 ///      },
