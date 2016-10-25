@@ -442,7 +442,7 @@ where F : FnMut(&[u8]) {
 ///
 /// **`field_fn`**
 ///
-/// The `FieldClosure` implementation that receives instances of
+/// The [`FieldClosure`](trait.FieldClosure.html) implementation that receives instances of
 /// [`FieldSegment`](enum.FieldSegment.html)
 ///
 /// # Returns
