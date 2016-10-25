@@ -323,7 +323,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Decode a URL encoded slice of bytes.
+/// Decode URL encoded data.
 ///
 /// *Note:* `slice_fn` may be called multiple times in order to supply the entire piece of decoded
 ///         data.
