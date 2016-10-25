@@ -241,8 +241,7 @@ pub enum Success {
     /// # Arguments
     ///
     /// **(1)**: The amount of `stream` bytes that were processed before the callback was executed.
-    ///          When [`Success::Callback`] is returned, there's a good chance that this value will
-    ///          not match `stream.len()`.
+    ///          In most cases this will not match `stream.len()`.
     Callback(usize),
 
     /// Additional `stream` data is expected. Continue executing the parser function until
