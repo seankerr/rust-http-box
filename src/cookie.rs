@@ -60,7 +60,7 @@ impl Cookie {
     /// # Examples
     ///
     /// ```
-    /// use http_box::Cookie;
+    /// use http_box::cookie::Cookie;
     ///
     /// let mut cookie = Cookie::new("SessionId", ":N4('<TYqK%un_yd");
     ///
@@ -101,7 +101,7 @@ impl Cookie {
     /// # Examples
     ///
     /// ```
-    /// use http_box::Cookie;
+    /// use http_box::cookie::Cookie;
     ///
     /// let cookie = Cookie::from_bytes("Cookie=value; domain=rust-lang.org; path=/").unwrap();
     ///
@@ -234,7 +234,7 @@ impl Cookie {
     /// # Examples
     ///
     /// ```
-    /// use http_box::Cookie;
+    /// use http_box::cookie::Cookie;
     ///
     /// let cookie = Cookie::from_str("Cookie=value; domain=rust-lang.org; path=/").unwrap();
     ///

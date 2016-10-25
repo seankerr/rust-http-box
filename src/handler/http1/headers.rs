@@ -36,7 +36,7 @@ use std::str;
 /// # Request Examples
 ///
 /// ```
-/// use http_box::HeadersHandler;
+/// use http_box::handler::HeadersHandler;
 /// use http_box::http1::Parser;
 ///
 /// let mut h = HeadersHandler::new();
@@ -72,7 +72,7 @@ use std::str;
 /// # Response Examples
 ///
 /// ```
-/// use http_box::HeadersHandler;
+/// use http_box::handler::HeadersHandler;
 /// use http_box::http1::Parser;
 ///
 /// let mut h = HeadersHandler::new();

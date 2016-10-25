@@ -32,7 +32,7 @@ use std::str;
 /// # Examples
 ///
 /// ```
-/// use http_box::UrlEncodedHandler;
+/// use http_box::handler::UrlEncodedHandler;
 /// use http_box::http1::Parser;
 ///
 /// let mut h = UrlEncodedHandler::new();

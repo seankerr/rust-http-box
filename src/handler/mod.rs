@@ -18,7 +18,7 @@
 
 //! Handler implementations.
 
-mod http1;
+pub mod http1;
 
 pub use handler::http1::chunked::ChunkedHandler;
 pub use handler::http1::debug::DebugHttp1Handler;
