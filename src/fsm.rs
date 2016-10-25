@@ -243,7 +243,7 @@ pub enum Success {
     /// **(1)**: The amount of `stream` bytes that were processed before the callback was executed.
     Callback(usize),
 
-    /// Additional `stream` data is expectd. Continue executing the parser function until
+    /// Additional `stream` data is expected. Continue executing the parser function until
     /// `Success::Finished` is returned.
     ///
     /// # Arguments
