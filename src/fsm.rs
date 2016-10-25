@@ -241,6 +241,8 @@ pub enum Success {
     /// # Arguments
     ///
     /// **(1)**: The amount of `stream` bytes that were processed before the callback was executed.
+    ///          When [`Success::Callback`] is returned, there's a good chance that this value will
+    ///          not match `stream.len()`.
     Callback(usize),
 
     /// Additional `stream` data is expected. Continue executing the parser function until
@@ -248,11 +250,8 @@ pub enum Success {
     ///
     /// # Arguments
     ///
-    /// **(1)**: The amount of `stream` bytes that were processed. Under some circumstances this
-    ///          will be less than `stream.len()`. At that point it is essential to execute the
-    ///          parser function again, with a new stream of data that consists of the unprocessed
-    ///          data along with new data. If you execute the parser function again with just the
-    ///          remaining unprocessed data, it will yield the same result.
+    /// **(1)**: The amount of `stream` bytes that were processed. This value will always match
+    ///          `stream.len()`.
     Eos(usize),
 
     /// The parser function finished successfully.
