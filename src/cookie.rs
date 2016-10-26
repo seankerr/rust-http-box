@@ -244,9 +244,7 @@ impl Cookie {
     /// assert_eq!("/", cookie.path().unwrap());
     /// ```
     pub fn from_str<T: AsRef<str>>(string: T) -> Result<Self, Option<FieldError>> {
-        unsafe {
-            Cookie::from_bytes(string.as_ref())
-        }
+        Cookie::from_bytes(string.as_ref())
     }
 
     /// Retrieve the domain.

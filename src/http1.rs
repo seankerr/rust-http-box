@@ -2211,41 +2211,23 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     fn chunk_length2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
-        bs_next!(context);
 
-        let byte = if is_digit!(context.byte) {
-            context.byte - b'0'
-        } else if b'@' < context.byte && context.byte < b'G' {
-            context.byte - 0x37
-        } else if b'`' < context.byte && context.byte < b'g' {
-            context.byte - 0x57
-        } else {
-            bs_replay!(context);
+        let mut digit = self.length as u64;
 
-            transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
-        };
+        collect_hex64!(context, ParserError::MaxChunkLength, digit,
+            // on end-of-stream
+            {
+                self.length = digit as usize;
 
-        if let Some(length) = self.length.checked_mul(16) {
-            if let Some(length) = length.checked_add(byte as usize) {
-                self.length = length;
-            } else {
-                return Err(ParserError::MaxChunkLength);
+                exit_eos!(self, context);
             }
-        } else {
-            return Err(ParserError::MaxChunkLength);
-        }
+        );
 
-        /*
-        if (self.length << 4) + byte as usize > 0xFFFFFFF {
-            // limit chunk length to 28 bits
-            return Err(ParserError::MaxChunkLength);
-        }
+        self.length = digit as usize;
 
-        self.length <<= 4;
-        self.length  += byte as usize;
-        */
+        bs_replay!(context);
 
-        transition!(self, context, ParserState::ChunkLength2, chunk_length2);
+        transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
     }
 
     #[inline]

@@ -36,7 +36,7 @@ macro_rules! collect_digits16 {
 
 /// Collect an unquoted field value.
 macro_rules! collect_field {
-    ($context:expr, $error:expr, $delimiter:expr, $byte_error:expr, $eos:expr) => ({
+    ($context:expr, $error:expr, $delimiter:expr, $byte_error:expr, $on_eos:expr) => ({
         bs_collect!($context, {
                 if $context.byte == $delimiter {
                     break;
@@ -46,11 +46,11 @@ macro_rules! collect_field {
                     return Err($error($context.byte));
                 }
             },
-            $eos
+            $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $delimiter:expr, $eos:expr) => ({
+    ($context:expr, $error:expr, $delimiter:expr, $on_eos:expr) => ({
         bs_collect!($context, {
                 if $context.byte == $delimiter {
                     break;
@@ -61,8 +61,18 @@ macro_rules! collect_field {
 
                 return Err($error($context.byte));
             },
-            $eos
+            $on_eos
         );
+    });
+}
+
+/// Collect and convert all hex bytes into a u64 variable.
+///
+/// Exit the collection loop upon finding a non-hex byte. Return `$error` if an overflow would
+/// occur.
+macro_rules! collect_hex64 {
+    ($context:expr, $error:expr, $digit:expr, $on_eos:expr) => ({
+        bs_collect_hex64!($context, $digit, {}, return Err($error), $on_eos);
     });
 }
 

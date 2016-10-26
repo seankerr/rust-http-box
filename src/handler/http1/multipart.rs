@@ -168,30 +168,28 @@ impl MultipartHandler {
         match self.content_disposition {
             ContentDisposition::Parameter => {
                 if !self.field_buffer.is_empty() {
-                    unsafe {
-                        let mut name = match str::from_utf8(&self.field_buffer) {
-                            Ok(s) => Some(String::from(s)),
-                            _ => {
-                                // invalid UTF-8 sequence in name
-                                None
-                            }
-                        };
-
-                        let mut value = match str::from_utf8(&self.value_buffer) {
-                            Ok(s) => Some(String::from(s)),
-                            _ => {
-                                // invalid UTF-8 sequence in value
-                                None
-                            }
-                        };
-
-                        if name.is_some() && value.is_some() {
-                            self.parameters.push(name.unwrap(), value.unwrap());
+                    let name = match str::from_utf8(&self.field_buffer) {
+                        Ok(s) => Some(String::from(s)),
+                        _ => {
+                            // invalid UTF-8 sequence in name
+                            None
                         }
+                    };
+
+                    let value = match str::from_utf8(&self.value_buffer) {
+                        Ok(s) => Some(String::from(s)),
+                        _ => {
+                            // invalid UTF-8 sequence in value
+                            None
+                        }
+                    };
+
+                    if name.is_some() && value.is_some() {
+                        self.parameters.push(name.unwrap(), value.unwrap());
                     }
                 }
             },
-            ContentDisposition::File(ref filename, ref file) => {
+            ContentDisposition::File(ref _filename, ref _file) => {
                 // todo: flush file
             },
             ContentDisposition::Unknown => {
@@ -224,22 +222,22 @@ impl MultipartHandler {
     }
 
     /// Close a file.
-    fn fn_close(file: &mut File) -> Result<()> {
+    fn fn_close(_file: &mut File) -> Result<()> {
         panic!("X");
     }
 
     /// Create a file.
-    fn fn_create(filename: &[u8]) -> Result<File> {
+    fn fn_create(_filename: &[u8]) -> Result<File> {
         panic!("X");
     }
 
     /// Delete a file.
-    fn fn_delete(file: &mut File) -> Result<()> {
+    fn fn_delete(_file: &mut File) -> Result<()> {
         panic!("X");
     }
 
     /// Write to a file.
-    fn fn_write(file: &mut File, data: &[u8]) -> Result<()> {
+    fn fn_write(_file: &mut File, _data: &[u8]) -> Result<()> {
         panic!("X");
     }
 
@@ -439,7 +437,7 @@ impl Http1Handler for MultipartHandler {
             ContentDisposition::Parameter => {
                 self.value_buffer.extend_from_slice(data);
             },
-            ContentDisposition::File(ref filename, ref file) => {
+            ContentDisposition::File(ref _filename, ref _file) => {
             },
             ContentDisposition::Unknown => {
                 // nothing to do

@@ -79,26 +79,24 @@ impl UrlEncodedHandler {
     /// Flush the most recent field/value.
     fn flush(&mut self) {
         if !self.field_buffer.is_empty() {
-            unsafe {
-                let mut name = match str::from_utf8(&self.field_buffer) {
-                    Ok(s) => Some(String::from(s)),
-                    _ => {
-                        // invalid UTF-8 sequence in name
-                        None
-                    }
-                };
-
-                let mut value = match str::from_utf8(&self.value_buffer) {
-                    Ok(s) => Some(String::from(s)),
-                    _ => {
-                        // invalid UTF-8 sequence in value
-                        None
-                    }
-                };
-
-                if name.is_some() && value.is_some() {
-                    self.parameters.push(name.unwrap(), value.unwrap());
+            let name = match str::from_utf8(&self.field_buffer) {
+                Ok(s) => Some(String::from(s)),
+                _ => {
+                    // invalid UTF-8 sequence in name
+                    None
                 }
+            };
+
+            let value = match str::from_utf8(&self.value_buffer) {
+                Ok(s) => Some(String::from(s)),
+                _ => {
+                    // invalid UTF-8 sequence in value
+                    None
+                }
+            };
+
+            if name.is_some() && value.is_some() {
+                self.parameters.push(name.unwrap(), value.unwrap());
             }
         }
 
