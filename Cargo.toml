@@ -7,7 +7,7 @@ description = "Fast push/callback oriented HTTP parser"
 homepage    = "https://github.com/seankerr/rust-http-box"
 repository  = "https://github.com/seankerr/rust-http-box"
 readme      = "README.md"
-keywords    = ["http", "url", "parser", "encoder", "decoder"]
+keywords    = ["http", "parser", "callback", "push"]
 exclude     = [".gitignore"]
 
 [dependencies]
