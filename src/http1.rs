@@ -1209,6 +1209,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
     /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
     /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`Http1Handler::on_status_finished()`](trait.Http1Handler.html#method.on_status_finished)
     ///
     /// *Request:*
     ///
