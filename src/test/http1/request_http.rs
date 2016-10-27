@@ -41,7 +41,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"HTTP/1.0\r", ParserState::PreHeaders1, 9);
+    assert_callback(&mut p, &mut h, b"HTTP/1.0\r", ParserState::StatusEnd, 9);
 }
 
 #[test]

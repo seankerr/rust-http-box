@@ -74,6 +74,9 @@ pub struct DebugHttp1Handler {
     /// Response status code.
     pub status_code: u16,
 
+    /// Indicates that the status line has been parsed.
+    pub status_finished: bool,
+
     /// Request URL.
     pub url: Vec<u8>,
 
@@ -105,6 +108,7 @@ impl DebugHttp1Handler {
                            multipart_data:        Vec::new(),
                            status:                Vec::new(),
                            status_code:           0,
+                           status_finished:       false,
                            url:                   Vec::new(),
                            url_encoded_field:     Vec::new(),
                            url_encoded_value:     Vec::new(),
@@ -126,6 +130,7 @@ impl DebugHttp1Handler {
         self.multipart_data        = Vec::new();
         self.status                = Vec::new();
         self.status_code           = 0;
+        self.status_finished       = false;
         self.url                   = Vec::new();
         self.url_encoded_field     = Vec::new();
         self.url_encoded_value     = Vec::new();
@@ -224,6 +229,12 @@ impl Http1Handler for DebugHttp1Handler {
     fn on_status_code(&mut self, code: u16) -> bool {
         println!("on_status_code: {}", code);
         self.status_code = code;
+        true
+    }
+
+    fn on_status_finished(&mut self) -> bool {
+        println!("on_status_finished");
+        self.status_finished = true;
         true
     }
 

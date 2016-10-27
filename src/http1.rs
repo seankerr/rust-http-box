@@ -487,6 +487,9 @@ pub enum ParserState {
     // HEADERS
     // ---------------------------------------------------------------------------------------------
 
+    /// Parsing status line has finished.
+    StatusEnd,
+
     /// Parsing pre-header line feed.
     PreHeaders1,
 
@@ -941,6 +944,22 @@ pub trait Http1Handler {
     ///
     /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
+        true
+    }
+
+    /// Callback that is executed when parsing the status line has completed successfully.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    ///
+    /// After the status line has been parsed.
+    fn on_status_finished(&mut self) -> bool {
         true
     }
 
@@ -1532,6 +1551,18 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
+    fn status_end(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        set_state!(self, ParserState::PreHeaders1, pre_headers1);
+
+        if context.handler.on_status_finished() {
+            transition_fast!(self, context);
+        }
+
+        exit_callback!(self, context);
+    }
+
+    #[inline]
     fn pre_headers1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
@@ -1939,7 +1970,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
                 bs_jump!(context, $length);
-                set_state!(self, ParserState::PreHeaders1, pre_headers1);
+                set_state!(self, ParserState::StatusEnd, status_end);
 
                 if context.handler.on_version($major, $minor) {
                     transition_fast!(self, context);
@@ -2057,7 +2088,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
             exit_eos!(self, context);
         });
 
-        set_state!(self, ParserState::PreHeaders1, pre_headers1);
+        set_state!(self, ParserState::StatusEnd, status_end);
 
         if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
             transition_fast!(self, context);
@@ -2183,7 +2214,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         callback_ignore_transition_fast!(self, context,
                                          on_status,
-                                         ParserState::PreHeaders1, pre_headers1);
+                                         ParserState::StatusEnd, status_end);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2214,9 +2245,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
 
         collect_hex64!(context, ParserError::MaxChunkLength, self.length, usize,
             // on end-of-stream
-            {
-                exit_eos!(self, context);
-            }
+            exit_eos!(self, context)
         );
 
         bs_replay!(context);
