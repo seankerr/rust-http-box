@@ -2212,18 +2212,12 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        let mut digit = self.length as u64;
-
-        collect_hex64!(context, ParserError::MaxChunkLength, digit,
+        collect_hex64!(context, ParserError::MaxChunkLength, self.length, usize,
             // on end-of-stream
             {
-                self.length = digit as usize;
-
                 exit_eos!(self, context);
             }
         );
-
-        self.length = digit as usize;
 
         bs_replay!(context);
 

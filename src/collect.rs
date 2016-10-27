@@ -71,8 +71,8 @@ macro_rules! collect_field {
 /// Exit the collection loop upon finding a non-hex byte. Return `$error` if an overflow would
 /// occur.
 macro_rules! collect_hex64 {
-    ($context:expr, $error:expr, $digit:expr, $on_eos:expr) => ({
-        bs_collect_hex64!($context, $digit, {}, return Err($error), $on_eos);
+    ($context:expr, $error:expr, $digit:expr, $ty:ty, $on_eos:expr) => ({
+        bs_collect_hex64!($context, $digit, {}, return Err($error), $on_eos, $ty);
     });
 }
 
