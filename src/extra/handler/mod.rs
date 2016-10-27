@@ -20,8 +20,8 @@
 
 pub mod http1;
 
-pub use handler::http1::chunked::ChunkedHandler;
-pub use handler::http1::debug::DebugHttp1Handler;
-pub use handler::http1::headers::HeadersHandler;
-pub use handler::http1::multipart::MultipartHandler;
-pub use handler::http1::url_encoded::UrlEncodedHandler;
+pub use extra::handler::http1::chunked::ChunkedHandler;
+pub use extra::handler::http1::debug::DebugHttp1Handler;
+pub use extra::handler::http1::headers::HeadersHandler;
+pub use extra::handler::http1::multipart::MultipartHandler;
+pub use extra::handler::http1::url_encoded::UrlEncodedHandler;

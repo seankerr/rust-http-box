@@ -52,7 +52,7 @@ enum ContentDisposition {
 /// # Examples
 ///
 /// ```
-/// use http_box::handler::MultipartHandler;
+/// use http_box::extra::handler::MultipartHandler;
 /// use http_box::http1::Parser;
 ///
 /// let mut h = MultipartHandler::new(b"ExampleBoundary");

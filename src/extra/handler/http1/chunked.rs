@@ -30,7 +30,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```
-/// use http_box::handler::ChunkedHandler;
+/// use http_box::extra::handler::ChunkedHandler;
 /// use http_box::http1::Parser;
 ///
 /// let mut chunk_data = vec![];

@@ -16,8 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use extra::handler::*;
 use fsm::*;
-use handler::*;
 use http1::*;
 
 #[test]

@@ -34,7 +34,6 @@ pub mod fsm;
 mod collect;
 
 pub mod extra;
-pub mod handler;
 pub mod http1;
 pub mod util;
 
