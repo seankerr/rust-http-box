@@ -26,7 +26,7 @@ use std::collections::HashMap;
 /// # Examples
 ///
 /// ```
-/// use http_box::parameter::ParameterMap;
+/// use http_box::extra::parameter::ParameterMap;
 ///
 /// let mut map = ParameterMap::new();
 ///
