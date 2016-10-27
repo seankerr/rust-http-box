@@ -261,7 +261,7 @@ pub enum Success {
     ///          will be less than `stream.len()`. This indicates that there must be a transition
     ///          between the current parser function and the next one. For example, a typical HTTP
     ///          request would consist of a call to
-    ///          [Parser::parse_headers()](../http1/struct.Parser.html#method.parse_headers), and
+    ///          [Parser::parse_head()](../http1/struct.Parser.html#method.parse_head), and
     ///          depending on the content type you may need to transition to
     ///          [Parser::parse_chunked()](../http1/struct.Parser.html#method.parse_chunked),
     ///          [Parser::parse_multipart()](../http1/struct.Parser.html#method.parse_multipart), or

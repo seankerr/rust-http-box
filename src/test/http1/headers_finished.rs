@@ -62,7 +62,7 @@ fn max_headers_length_error() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    assert!(match p.parse_headers(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 31) {
+    assert!(match p.parse_head(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 31) {
         Err(ParserError::MaxHeadersLength) => {
             true
         },
@@ -77,7 +77,7 @@ fn max_headers_length_ok() {
     let mut h = DebugHttp1Handler::new();
     let mut p = Parser::new();
 
-    assert!(match p.parse_headers(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 32) {
+    assert!(match p.parse_head(&mut h, b"GET / HTTP/1.0\r\nField: Value\r\n\r\n", 32) {
         Ok(Success::Finished(32)) => {
             true
         },

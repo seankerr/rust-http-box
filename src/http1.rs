@@ -343,7 +343,7 @@ impl fmt::Display for ParserError {
 /// Parser types.
 ///
 /// The parser type will be `ParserType::Unknown` until
-/// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+/// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
 /// is executed, and either of the following has occurred:
 ///
 /// *Requests:*
@@ -804,7 +804,7 @@ pub trait Http1Handler {
     ///
     /// If trailers are present.
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// For standard HTTP headers.
     ///
@@ -830,7 +830,7 @@ pub trait Http1Handler {
     ///
     /// If trailers are supplied.
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// For standard HTTP headers.
     ///
@@ -854,7 +854,7 @@ pub trait Http1Handler {
     ///
     /// If trailers are supplied.
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// For standard HTTP headers.
     ///
@@ -876,7 +876,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// During the initial request line.
     fn on_method(&mut self, method: &[u8]) -> bool {
@@ -924,7 +924,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// During the initial response line.
     fn on_status(&mut self, status: &[u8]) -> bool {
@@ -940,7 +940,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
@@ -956,7 +956,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// After the status line has been parsed.
     fn on_status_finished(&mut self) -> bool {
@@ -974,7 +974,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// During the initial request line.
     fn on_url(&mut self, url: &[u8]) -> bool {
@@ -1022,7 +1022,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// During the initial request or response line.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
@@ -1103,7 +1103,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// outside of all callbacks, and outside of the following functions:
     ///
     /// - `parse_chunked()`
-    /// - `parse_headers()`
+    /// - `parse_head()`
     /// - `parse_multipart()`
     /// - `parse_url_encoded()`
     pub fn byte_count(&self) -> usize {
@@ -1235,7 +1235,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::Url`](enum.ParserError.html#variant.Url)
     /// - [`ParserError::Version`](enum.ParserError.html#variant.Version)
     #[inline]
-    pub fn parse_headers(&mut self, handler: &mut T, mut stream: &[u8], max_length: usize)
+    pub fn parse_head(&mut self, handler: &mut T, mut stream: &[u8], max_length: usize)
     -> Result<Success, ParserError> {
         if max_length == 0 {
             return self.parse(&mut ParserContext::new(handler, stream));

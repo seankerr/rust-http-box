@@ -35,7 +35,7 @@ fn content_length_non_byte_error() {
 
     setup!(p, h);
 
-    assert!(match p.parse_headers(&mut h, b"Content-Length: 938Q\r\n\
+    assert!(match p.parse_head(&mut h, b"Content-Length: 938Q\r\n\
                                             \r\n", 0) {
         Ok(Success::Finished(24)) => {
             assert_eq!(None, h.content_length());
@@ -52,7 +52,7 @@ fn content_length_ok() {
 
     setup!(p, h);
 
-    assert!(match p.parse_headers(&mut h, b"Content-Length: 9382\r\n\
+    assert!(match p.parse_head(&mut h, b"Content-Length: 9382\r\n\
                                             \r\n", 0) {
         Ok(Success::Finished(24)) => {
             assert_eq!(Some(9382), h.content_length());

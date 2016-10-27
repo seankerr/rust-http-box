@@ -31,7 +31,7 @@ use std::str;
 #[derive(Default)]
 /// `HeadersHandler` is a suitable handler for the following parser functions:
 ///
-/// - [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+/// - [`Parser::parse_head()`](../http1/struct.Parser.html#method.parse_head)
 ///
 /// # Request Examples
 ///
@@ -42,7 +42,7 @@ use std::str;
 /// let mut h = HeadersHandler::new();
 /// let mut p = Parser::new();
 ///
-/// p.parse_headers(&mut h,
+/// p.parse_head(&mut h,
 ///                 b"GET / HTTP/1.1\r\n\
 ///                   Header1: value1\r\n\
 ///                   Header2: value2\r\n\
@@ -78,7 +78,7 @@ use std::str;
 /// let mut h = HeadersHandler::new();
 /// let mut p = Parser::new();
 ///
-/// p.parse_headers(&mut h,
+/// p.parse_head(&mut h,
 ///                 b"HTTP/1.1 200 OK\r\n\
 ///                   Header1: value1\r\n\
 ///                   Header2: value2\r\n\

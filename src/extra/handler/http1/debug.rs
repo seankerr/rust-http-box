@@ -27,7 +27,7 @@ use std::str;
 /// `DebugHttp1Handler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_chunked()`](../../../http1/struct.Parser.html#method.parse_chunked)
-/// - [`Parser::parse_headers()`](../../../http1/struct.Parser.html#method.parse_headers)
+/// - [`Parser::parse_head()`](../../../http1/struct.Parser.html#method.parse_head)
 /// - [`Parser::parse_multipart()`](../../../http1/struct.Parser.html#method.parse_multipart)
 /// - [`Parser::parse_url_encoded()`](../../../http1/struct.Parser.html#method.parse_url_encoded)
 ///
