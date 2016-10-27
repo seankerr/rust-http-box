@@ -675,7 +675,7 @@ pub trait Http1Handler {
     ///
     /// **Called From::**
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn content_length(&mut self) -> Option<usize> {
         None
     }
@@ -684,7 +684,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn multipart_boundary(&mut self) -> Option<&[u8]> {
         None
     }
@@ -698,15 +698,15 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     ///
     /// Once all chunked data has been parsed.
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     ///
     /// Once all multipart data has been parsed.
     ///
-    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
     ///
     /// Once all URL encoded data has been parsed.
     fn on_body_finished(&mut self) -> bool {
@@ -724,7 +724,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         true
     }
@@ -740,7 +740,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
         true
     }
@@ -756,7 +756,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
         true
     }
@@ -770,7 +770,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extensions_finished(&mut self) -> bool {
         true
     }
@@ -784,7 +784,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_length(&mut self, size: usize) -> bool {
         true
     }
@@ -800,15 +800,15 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     ///
     /// If trailers are present.
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// For standard HTTP headers.
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     ///
     /// For headers before each multipart section.
     fn on_header_field(&mut self, field: &[u8]) -> bool {
@@ -826,15 +826,15 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     ///
     /// If trailers are supplied.
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// For standard HTTP headers.
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     ///
     /// For headers before each multipart section.
     fn on_header_value(&mut self, value: &[u8]) -> bool {
@@ -850,15 +850,15 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_chunked()`](../http1/struct.Parser.html#method.parse_chunked)
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     ///
     /// If trailers are supplied.
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// For standard HTTP headers.
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     ///
     /// For headers before each multipart section.
     fn on_headers_finished(&mut self) -> bool {
@@ -876,7 +876,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// During the initial request line.
     fn on_method(&mut self, method: &[u8]) -> bool {
@@ -892,7 +892,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn on_multipart_begin(&mut self) -> bool {
         true
     }
@@ -908,7 +908,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_multipart()`](../http1/struct.Parser.html#method.parse_multipart)
+    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         true
     }
@@ -924,7 +924,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// During the initial response line.
     fn on_status(&mut self, status: &[u8]) -> bool {
@@ -940,7 +940,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
@@ -956,7 +956,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// After the status line has been parsed.
     fn on_status_finished(&mut self) -> bool {
@@ -974,7 +974,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_headers)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// During the initial request line.
     fn on_url(&mut self, url: &[u8]) -> bool {
@@ -992,7 +992,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
         true
     }
@@ -1008,7 +1008,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_url_encoded()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         true
     }
@@ -1022,7 +1022,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](../http1/struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_url_encoded)
     ///
     /// During the initial request or response line.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
