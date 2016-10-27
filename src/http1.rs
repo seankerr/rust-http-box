@@ -1022,7 +1022,7 @@ pub trait Http1Handler {
     ///
     /// **Called From:**
     ///
-    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_url_encoded)
+    /// [`Parser::parse_headers()`](struct.Parser.html#method.parse_headers)
     ///
     /// During the initial request or response line.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
