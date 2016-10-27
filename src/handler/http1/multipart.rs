@@ -19,9 +19,9 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing multipart
 //! form data.
 
+use extra::parameter::{ ParameterMap,
+                        ParameterValue };
 use http1::Http1Handler;
-use parameter::{ ParameterMap,
-                 ParameterValue };
 use util;
 use util::FieldSegment;
 

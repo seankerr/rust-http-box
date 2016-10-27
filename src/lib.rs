@@ -33,10 +33,10 @@ pub mod fsm;
 #[macro_use]
 mod collect;
 
+pub mod extra;
 pub mod cookie;
 pub mod handler;
 pub mod http1;
-pub mod parameter;
 pub mod util;
 
 #[cfg(test)]
