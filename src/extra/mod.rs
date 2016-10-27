@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+//! Implementations for non-parsing HTTP features such as Cookies and Parameters.
+
 pub mod cookie;
 pub mod handler;
 pub mod parameter;
