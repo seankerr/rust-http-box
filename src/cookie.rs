@@ -93,7 +93,7 @@ impl Cookie {
         }
     }
 
-    /// Create a new `Cookie` from a slice of bytes.
+    /// Parse a `Cookie` from a slice of bytes.
     ///
     /// The cookie name and value are the only required fields in order for parsing to succeed. If
     /// the cookie name or value are not present, the error will be `None`.
@@ -131,27 +131,22 @@ impl Cookie {
                 },
 
                 |s: FieldSegment| {
-                    match s {
-                        FieldSegment::NameValue(n, v) => {
-                            name = unsafe {
-                                let mut s = String::with_capacity(n.len());
+                    if let FieldSegment::NameValue(n, v) = s {
+                        name = unsafe {
+                            let mut s = String::with_capacity(n.len());
 
-                                s.as_mut_vec().extend_from_slice(n);
+                            s.as_mut_vec().extend_from_slice(n);
 
-                                Some(s)
-                            };
+                            Some(s)
+                        };
 
-                            value = unsafe {
-                                let mut s = String::with_capacity(v.len());
+                        value = unsafe {
+                            let mut s = String::with_capacity(v.len());
 
-                                s.as_mut_vec().extend_from_slice(v);
+                            s.as_mut_vec().extend_from_slice(v);
 
-                                Some(s)
-                            };
-                        },
-                        _ => {
-                            // missing value
-                        }
+                            Some(s)
+                        };
                     }
 
                     // exit parser
@@ -229,21 +224,21 @@ impl Cookie {
         })
     }
 
-    /// Create a new `Cookie` from a string.
+    /// Parse a `Cookie` from a string.
     ///
     /// # Examples
     ///
     /// ```
     /// use http_box::cookie::Cookie;
     ///
-    /// let cookie = Cookie::from_str("Cookie=value; domain=rust-lang.org; path=/").unwrap();
+    /// let cookie = Cookie::from_string("Cookie=value; domain=rust-lang.org; path=/").unwrap();
     ///
     /// assert_eq!("Cookie", cookie.name());
     /// assert_eq!("value", cookie.value());
     /// assert_eq!("rust-lang.org", cookie.domain().unwrap());
     /// assert_eq!("/", cookie.path().unwrap());
     /// ```
-    pub fn from_str<T: AsRef<str>>(string: T) -> Result<Self, Option<FieldError>> {
+    pub fn from_string<T: AsRef<str>>(string: T) -> Result<Self, Option<FieldError>> {
         Cookie::from_bytes(string.as_ref())
     }
 
@@ -384,12 +379,5 @@ impl hash::Hash for Cookie {
     #[inline]
     fn hash<H>(&self, state: &mut H) where H : hash::Hasher {
         self.name.hash(state)
-    }
-}
-
-impl PartialEq<str> for Cookie {
-    #[inline]
-    fn eq(&self, other: &str) -> bool {
-        self.name == other
     }
 }
