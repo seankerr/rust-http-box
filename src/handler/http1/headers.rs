@@ -19,7 +19,7 @@
 //! [`Http1Handler`](../../../http1/trait.Http1Handler.html) implementation for processing the
 //! initial request/response line, and headers.
 
-use cookie::Cookie;
+use extra::cookie::Cookie;
 use http1::Http1Handler;
 use util::FieldSegment;
 use util;

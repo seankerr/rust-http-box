@@ -16,4 +16,5 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+pub mod cookie;
 pub mod parameter;
