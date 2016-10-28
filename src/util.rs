@@ -16,10 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Utility functions.
-//!
-//! This module provides support for decoding URL encoded data, and parsing header fields and
-//! queries.
+//! Utility functions for decoding URL encoded values, queries, and header values.
 
 use byte::is_token;
 use byte_slice::ByteStream;
@@ -209,7 +206,7 @@ impl<'a> fmt::Display for FieldSegment<'a> {
                 write!(formatter, "{:?}", str::from_utf8(x).unwrap())
             },
             FieldSegment::NameValue(x,y) => {
-                write!(formatter, "{:?} = {:?}",
+                write!(formatter, "{:?}={:?}",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
             }
@@ -313,7 +310,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
                 write!(formatter, "{:?}", str::from_utf8(x).unwrap())
             },
             QuerySegment::NameValue(x,y) => {
-                write!(formatter, "{:?} = {:?}",
+                write!(formatter, "{:?}={:?}",
                        str::from_utf8(x).unwrap(),
                        str::from_utf8(y).unwrap())
             }
@@ -342,7 +339,7 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 ///
 /// **`usize`**
 ///
-/// The amount of data that was parsed.
+/// The amount of data that was decoded.
 ///
 /// # Errors
 ///
@@ -354,11 +351,16 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 /// ```
 /// use http_box::util;
 ///
-/// util::decode(b"fancy%20url%20encoded%20data%2E",
+/// let mut v = vec![];
+///
+/// util::decode(b"fancy%20url%20encoded%20data",
 ///     |s| {
 ///         // `s` is the most current slice of decoded data
+///         v.extend_from_slice(s);
 ///     }
 /// );
+///
+/// assert_eq!(b"fancy url encoded data", &v[..]);
 /// ```
 pub fn decode<F>(bytes: &[u8], mut slice_fn: F) -> Result<usize, DecodeError>
 where F : FnMut(&[u8]) {
@@ -422,6 +424,46 @@ where F : FnMut(&[u8]) {
             return Err(DecodeError::HexSequence(context.byte));
         }
     }
+}
+
+/// Decode URL encoded data into a vector.
+///
+/// **`bytes`**
+///
+/// The data to decode.
+///
+/// **`vec`**
+///
+/// The buffer where decoded data will be written.
+///
+/// # Returns
+///
+/// **`usize`**
+///
+/// The amount of data that was decoded.
+///
+/// # Errors
+///
+/// - [`DecodeError::Byte`](enum.DecodeError.html#variant.Byte)
+/// - [`DecodeError::HexSequence`](enum.DecodeError.html#variant.HexSequence)
+///
+/// # Examples
+///
+/// ```
+/// use http_box::util;
+///
+/// let mut v = vec![];
+///
+/// util::decode_into_vec(b"fancy%20url%20encoded%20data", &mut v);
+///
+/// assert_eq!(b"fancy url encoded data", &v[..]);
+/// ```
+pub fn decode_into_vec(bytes: &[u8], vec: &mut Vec<u8>) -> Result<usize, DecodeError> {
+    decode(bytes,
+        |s| {
+            vec.extend_from_slice(s);
+        }
+    )
 }
 
 /// Parse the content of a header field.
