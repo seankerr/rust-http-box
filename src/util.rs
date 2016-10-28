@@ -432,7 +432,7 @@ where F : FnMut(&[u8]) {
 ///
 /// The data to decode.
 ///
-/// **`vec`**
+/// **`buffer`**
 ///
 /// The buffer where decoded data will be written.
 ///
@@ -458,10 +458,10 @@ where F : FnMut(&[u8]) {
 ///
 /// assert_eq!(b"fancy url encoded data", &v[..]);
 /// ```
-pub fn decode_into_vec(bytes: &[u8], vec: &mut Vec<u8>) -> Result<usize, DecodeError> {
+pub fn decode_into_vec(bytes: &[u8], buffer: &mut Vec<u8>) -> Result<usize, DecodeError> {
     decode(bytes,
         |s| {
-            vec.extend_from_slice(s);
+            buffer.extend_from_slice(s);
         }
     )
 }
