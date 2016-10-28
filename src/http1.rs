@@ -414,9 +414,6 @@ pub enum ParserError {
     /// Maximum chunk length has been met.
     MaxChunkLength,
 
-    /// Maximum headers length has been met.
-    MaxHeadersLength,
-
     /// Invalid request method on byte `u8`.
     Method(u8),
 
@@ -476,9 +473,6 @@ impl fmt::Debug for ParserError {
             },
             ParserError::MaxChunkLength => {
                 write!(formatter, "ParserError::MaxChunkLength(Maximum chunk length has been met)")
-            },
-            ParserError::MaxHeadersLength => {
-                write!(formatter, "ParserError::MaxHeadersLength(Maximum headers length has been met)")
             },
             ParserError::Method(byte) => {
                 write!(formatter, "ParserError::Method(Invalid method on byte {})", byte)
@@ -544,9 +538,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::MaxChunkLength => {
                 write!(formatter, "Maximum chunk length has been met")
-            },
-            ParserError::MaxHeadersLength => {
-                write!(formatter, "Maximum headers length has been met")
             },
             ParserError::Method(byte) => {
                 write!(formatter, "Invalid method on byte {}", byte)
@@ -1439,13 +1430,6 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// The stream of data to be parsed.
     ///
-    /// **`max_length`**
-    ///
-    /// The maximum byte count to process before returning
-    /// [`ParserError::MaxHeadersLength`](enum.ParserError.html#variant.MaxHeadersLength).
-    ///
-    /// Set this to `0` to disable it.
-    ///
     /// # Callbacks
     ///
     /// *Request & Response:*
@@ -1472,53 +1456,15 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
     /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
-    /// - [`ParserError::MaxHeadersLength`](enum.ParserError.html#variant.MaxHeadersLength)
     /// - [`ParserError::Method`](enum.ParserError.html#variant.Method)
     /// - [`ParserError::Status`](enum.ParserError.html#variant.Status)
     /// - [`ParserError::StatusCode`](enum.ParserError.html#variant.StatusCode)
     /// - [`ParserError::Url`](enum.ParserError.html#variant.Url)
     /// - [`ParserError::Version`](enum.ParserError.html#variant.Version)
     #[inline]
-    pub fn parse_head(&mut self, handler: &mut T, mut stream: &[u8], max_length: usize)
+    pub fn parse_head(&mut self, handler: &mut T, mut stream: &[u8])
     -> Result<Success, ParserError> {
-        if max_length == 0 {
-            return self.parse(&mut ParserContext::new(handler, stream));
-        }
-
-        if self.state == ParserState::StripDetect {
-            self.length = max_length;
-        }
-
-        if self.length < stream.len() {
-            // amount of data to process is less than the stream length
-            stream = &stream[0..self.length];
-        }
-
-        match self.parse(&mut ParserContext::new(handler, stream)) {
-            Ok(ref success) => {
-                match *success {
-                    Success::Eos(length) => {
-                        self.length -= length;
-                    },
-                    Success::Finished(length) => {
-                        self.length -= length;
-                    },
-                    Success::Callback(length) => {
-                        self.length -= length;
-                    }
-                }
-
-                if self.length > 0 || has_flag!(self, F_HEADERS_FINISHED) {
-                    Ok(*success)
-                } else {
-                    // maximum headers length has been met
-                    Err(ParserError::MaxHeadersLength)
-                }
-            },
-            error => {
-                error
-            }
-        }
+        self.parse(&mut ParserContext::new(handler, stream))
     }
 
     /// Parse multipart data.
