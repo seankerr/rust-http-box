@@ -144,19 +144,16 @@ type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
 
 // -------------------------------------------------------------------------------------------------
 
-/// `DebugHandler` is a suitable handler for the following parser functions:
+/// `DebugHandler` works with all `Parser` parsing methods.
 ///
-/// - [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
-/// - [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-/// - [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-/// - [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
+/// When in use, all parsed bytes will be printed, along with the callback name and length
+/// of parsed data.
 ///
-/// If you're debugging large requests or responses, it's a good idea to pass fairly small chunks
+/// If you're debugging large sets of data, it's a good idea to pass fairly small chunks
 /// of stream data at a time, about *4096* bytes or so. And in between parser function calls, if
 /// you don't need to retain the data, execute
-/// [`DebugHandler::reset()`](struct.DebugHandler.html#method.reset) so that vectors
-/// collecting the data don't consume too much memory. This is especially the case with chunk
-/// encoded and multipart data.
+/// [`reset()`](struct.DebugHandler.html#method.reset) so that vectors
+/// collecting the data don't consume too much memory.
 #[derive(Default)]
 pub struct DebugHandler {
     /// Indicates that the body has successfully been parsed.
@@ -195,7 +192,7 @@ pub struct DebugHandler {
     /// Response status code.
     pub status_code: u16,
 
-    /// Indicates that the status line has been parsed.
+    /// Indicates that the status line has successfully been parsed.
     pub status_finished: bool,
 
     /// Request URL.
@@ -218,23 +215,23 @@ impl DebugHandler {
     /// Create a new `DebugHandler`.
     pub fn new() -> DebugHandler {
         DebugHandler{ body_finished:         false,
-                           chunk_data:            Vec::new(),
-                           chunk_extension_name:  Vec::new(),
-                           chunk_extension_value: Vec::new(),
-                           chunk_length:          0,
-                           header_field:          Vec::new(),
-                           header_value:          Vec::new(),
-                           headers_finished:      false,
-                           method:                Vec::new(),
-                           multipart_data:        Vec::new(),
-                           status:                Vec::new(),
-                           status_code:           0,
-                           status_finished:       false,
-                           url:                   Vec::new(),
-                           url_encoded_field:     Vec::new(),
-                           url_encoded_value:     Vec::new(),
-                           version_major:         0,
-                           version_minor:         0 }
+                      chunk_data:            Vec::new(),
+                      chunk_extension_name:  Vec::new(),
+                      chunk_extension_value: Vec::new(),
+                      chunk_length:          0,
+                      header_field:          Vec::new(),
+                      header_value:          Vec::new(),
+                      headers_finished:      false,
+                      method:                Vec::new(),
+                      multipart_data:        Vec::new(),
+                      status:                Vec::new(),
+                      status_code:           0,
+                      status_finished:       false,
+                      url:                   Vec::new(),
+                      url_encoded_field:     Vec::new(),
+                      url_encoded_value:     Vec::new(),
+                      version_major:         0,
+                      version_minor:         0 }
     }
 
     /// Reset the handler to its original state.
@@ -260,7 +257,7 @@ impl DebugHandler {
     }
 }
 
-impl Http1Handler for DebugHandler {
+impl HttpHandler for DebugHandler {
     fn content_length(&mut self) -> Option<usize> {
         None
     }
@@ -336,8 +333,16 @@ impl Http1Handler for DebugHandler {
     }
 
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
-        println!("on_multipart_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
         self.multipart_data.extend_from_slice(data);
+
+        for byte in data {
+            if !is_visible_7bit!(*byte) {
+                println!("on_multipart_data [{}]: *hidden*", data.len());
+                return true;
+            }
+        }
+
+        println!("on_multipart_data [{}]: {:?}", data.len(), str::from_utf8(data).unwrap());
         true
     }
 
@@ -583,11 +588,11 @@ impl fmt::Display for ParserError {
 ///
 /// *Requests:*
 ///
-/// [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method) has been executed.
+/// [`HttpHandler::on_method()`](trait.HttpHandler.html#method.on_method) has been executed.
 ///
 /// *Responses:*
 ///
-/// [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version) has been executed.
+/// [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version) has been executed.
 #[derive(Clone,Copy)]
 pub enum ParserType {
     /// Parser is parsing a request.
@@ -905,7 +910,7 @@ pub enum ParserState {
 
 /// Type that handles HTTP/1.1 parser events.
 #[allow(unused_variables)]
-pub trait Http1Handler {
+pub trait HttpHandler {
     /// Retrieve the content length.
     ///
     /// **Called From::**
@@ -1268,7 +1273,7 @@ pub trait Http1Handler {
 // -------------------------------------------------------------------------------------------------
 
 /// Parser context data.
-struct ParserContext<'a, T: Http1Handler + 'a> {
+struct ParserContext<'a, T: HttpHandler + 'a> {
     // Current byte.
     byte: u8,
 
@@ -1285,7 +1290,7 @@ struct ParserContext<'a, T: Http1Handler + 'a> {
     stream_index: usize
 }
 
-impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
+impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
     /// Create a new `ParserContext`.
     pub fn new(handler: &'a mut T, stream: &'a [u8])
     -> ParserContext<'a, T> {
@@ -1300,7 +1305,7 @@ impl<'a, T: Http1Handler + 'a> ParserContext<'a, T> {
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 1.1 parser.
-pub struct Parser<'a, T: Http1Handler> {
+pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
@@ -1317,7 +1322,7 @@ pub struct Parser<'a, T: Http1Handler> {
     state_function: StateFunction<'a, T>
 }
 
-impl<'a, T: Http1Handler> Parser<'a, T> {
+impl<'a, T: HttpHandler> Parser<'a, T> {
     /// Create a new `Parser`.
     ///
     /// The initial state `Parser` is set to is a type detection state that determines if the
@@ -1378,7 +1383,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1387,14 +1392,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
-    /// - [`Http1Handler::on_chunk_data()`](trait.Http1Handler.html#method.on_chunk_data)
-    /// - [`Http1Handler::on_chunk_extension_name()`](trait.Http1Handler.html#method.on_chunk_extension_name)
-    /// - [`Http1Handler::on_chunk_extension_value()`](trait.Http1Handler.html#method.on_chunk_extension_value)
-    /// - [`Http1Handler::on_chunk_length()`](trait.Http1Handler.html#method.on_chunk_length)
-    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
-    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
-    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
+    /// - [`HttpHandler::on_chunk_data()`](trait.HttpHandler.html#method.on_chunk_data)
+    /// - [`HttpHandler::on_chunk_extension_name()`](trait.HttpHandler.html#method.on_chunk_extension_name)
+    /// - [`HttpHandler::on_chunk_extension_value()`](trait.HttpHandler.html#method.on_chunk_extension_value)
+    /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
+    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
+    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
     ///
     /// # Errors
     ///
@@ -1423,7 +1428,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1434,22 +1439,22 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// *Request & Response:*
     ///
-    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
-    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
-    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
-    /// - [`Http1Handler::on_status_finished()`](trait.Http1Handler.html#method.on_status_finished)
+    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
+    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
+    /// - [`HttpHandler::on_status_finished()`](trait.HttpHandler.html#method.on_status_finished)
     ///
     /// *Request:*
     ///
-    /// - [`Http1Handler::on_method()`](trait.Http1Handler.html#method.on_method)
-    /// - [`Http1Handler::on_url()`](trait.Http1Handler.html#method.on_url)
-    /// - [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
+    /// - [`HttpHandler::on_method()`](trait.HttpHandler.html#method.on_method)
+    /// - [`HttpHandler::on_url()`](trait.HttpHandler.html#method.on_url)
+    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
     ///
     /// *Response:*
     ///
-    /// - [`Http1Handler::on_status()`](trait.Http1Handler.html#method.on_status)
-    /// - [`Http1Handler::on_status_code()`](trait.Http1Handler.html#method.on_status_code)
-    /// - [`Http1Handler::on_version()`](trait.Http1Handler.html#method.on_version)
+    /// - [`HttpHandler::on_status()`](trait.HttpHandler.html#method.on_status)
+    /// - [`HttpHandler::on_status_code()`](trait.HttpHandler.html#method.on_status_code)
+    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
     ///
     /// # Errors
     ///
@@ -1473,7 +1478,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1482,14 +1487,14 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`Http1Handler::content_length()`](trait.Http1Handler.html#method.content_length)
-    /// - [`Http1Handler::multipart_boundary()`](trait.Http1Handler.html#method.multipart_boundary)
-    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
-    /// - [`Http1Handler::on_header_field()`](trait.Http1Handler.html#method.on_header_field)
-    /// - [`Http1Handler::on_header_value()`](trait.Http1Handler.html#method.on_header_value)
-    /// - [`Http1Handler::on_headers_finished()`](trait.Http1Handler.html#method.on_headers_finished)
-    /// - [`Http1Handler::on_multipart_begin()`](trait.Http1Handler.html#method.on_multipart_begin)
-    /// - [`Http1Handler::on_multipart_data()`](trait.Http1Handler.html#method.on_multipart_data)
+    /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
+    /// - [`HttpHandler::multipart_boundary()`](trait.HttpHandler.html#method.multipart_boundary)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
+    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
+    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
+    /// - [`HttpHandler::on_multipart_begin()`](trait.HttpHandler.html#method.on_multipart_begin)
+    /// - [`HttpHandler::on_multipart_data()`](trait.HttpHandler.html#method.on_multipart_data)
     ///
     /// # Errors
     ///
@@ -1523,7 +1528,7 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// **`handler`**
     ///
-    /// An implementation of [`Http1Handler`](trait.Http1Handler.html) that provides zero or more of
+    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
     /// the callbacks used by this function.
     ///
     /// **`stream`**
@@ -1536,9 +1541,9 @@ impl<'a, T: Http1Handler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`Http1Handler::on_body_finished()`](trait.Http1Handler.html#method.on_body_finished)
-    /// - [`Http1Handler::on_url_encoded_field()`](trait.Http1Handler.html#method.on_url_encoded_field)
-    /// - [`Http1Handler::on_url_encoded_value()`](trait.Http1Handler.html#method.on_url_encoded_value)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
+    /// - [`HttpHandler::on_url_encoded_field()`](trait.HttpHandler.html#method.on_url_encoded_field)
+    /// - [`HttpHandler::on_url_encoded_value()`](trait.HttpHandler.html#method.on_url_encoded_value)
     ///
     /// # Errors
     ///

@@ -111,7 +111,7 @@ fn first_boundary_no_match () {
 fn missing_boundary() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
     }
 
     let mut h = X{};

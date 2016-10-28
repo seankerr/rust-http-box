@@ -58,7 +58,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_chunk_extension_name(&mut self, _name: &[u8]) -> bool {
             false
         }

@@ -29,7 +29,7 @@ macro_rules! setup {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_version(&mut self, _major: u16, _minor: u16) -> bool {
             false
         }

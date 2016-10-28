@@ -57,7 +57,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_status_code(&mut self, _code: u16) -> bool {
             false
         }

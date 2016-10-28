@@ -31,7 +31,7 @@ macro_rules! setup {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_headers_finished(&mut self) -> bool {
             false
         }

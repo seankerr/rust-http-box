@@ -50,7 +50,7 @@ mod status_finished;
 mod url_encoded_field;
 mod url_encoded_value;
 
-pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                        state: ParserState, length: usize) {
     assert!(match parser.parse_head(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
@@ -62,7 +62,7 @@ pub fn assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
     });
 }
 
-pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                   state: ParserState, length: usize) {
     assert!(match parser.parse_head(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
@@ -74,7 +74,7 @@ pub fn assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stre
     });
 }
 
-pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
+pub fn assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
     match parser.parse_head(handler, stream) {
         Err(error) => {
@@ -88,7 +88,7 @@ pub fn assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
     }
 }
 
-pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                        state: ParserState, length: usize) {
     assert!(match parser.parse_head(handler, stream) {
         Ok(Success::Finished(byte_count)) => {
@@ -100,7 +100,7 @@ pub fn assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
     });
 }
 
-pub fn chunked_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn chunked_assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                stream: &[u8], state: ParserState, length: usize) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
@@ -112,7 +112,7 @@ pub fn chunked_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler:
     });
 }
 
-pub fn chunked_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn chunked_assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                           state: ParserState, length: usize) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
@@ -124,7 +124,7 @@ pub fn chunked_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut
     });
 }
 
-pub fn chunked_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
+pub fn chunked_assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
     match parser.parse_chunked(handler, stream) {
         Err(error) => {
@@ -138,7 +138,7 @@ pub fn chunked_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
     }
 }
 
-pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn chunked_setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                     state: ParserState) {
     assert!(match parser.parse_chunked(handler, stream) {
         Ok(Success::Eos(length)) => {
@@ -150,7 +150,7 @@ pub fn chunked_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, st
     });
 }
 
-pub fn multipart_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn multipart_assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                   stream: &[u8], state: ParserState, length: usize) {
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Callback(byte_count)) => {
@@ -162,7 +162,7 @@ pub fn multipart_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handle
     });
 }
 
-pub fn multipart_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn multipart_assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                              state: ParserState, length: usize) {
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Eos(byte_count)) => {
@@ -174,7 +174,7 @@ pub fn multipart_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &m
     });
 }
 
-pub fn multipart_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
+pub fn multipart_assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
     match parser.parse_multipart(handler, stream) {
         Err(error) => {
@@ -188,7 +188,7 @@ pub fn multipart_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: 
     }
 }
 
-pub fn multipart_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn multipart_assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                                   state: ParserState, length: usize) {
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Finished(byte_count)) => {
@@ -200,7 +200,7 @@ pub fn multipart_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handle
     });
 }
 
-pub fn multipart_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
+pub fn multipart_setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
     assert!(match parser.parse_multipart(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
@@ -211,7 +211,7 @@ pub fn multipart_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, 
     });
 }
 
-pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
+pub fn setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
     assert!(match parser.parse_head(handler, stream) {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
@@ -222,7 +222,7 @@ pub fn setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[
     });
 }
 
-pub fn url_encoded_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn url_encoded_assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                     stream: &[u8], state: ParserState, data_length: usize,
                                                     length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
@@ -235,7 +235,7 @@ pub fn url_encoded_assert_callback<T: Http1Handler>(parser: &mut Parser<T>, hand
     });
 }
 
-pub fn url_encoded_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn url_encoded_assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                               stream: &[u8], state: ParserState, data_length: usize,
                                               length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
@@ -248,7 +248,7 @@ pub fn url_encoded_assert_eos<T: Http1Handler>(parser: &mut Parser<T>, handler: 
     });
 }
 
-pub fn url_encoded_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn url_encoded_assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                  stream: &[u8], data_length: usize)
 -> Option<ParserError> {
     match parser.parse_url_encoded(handler, stream, data_length) {
@@ -263,7 +263,7 @@ pub fn url_encoded_assert_error<T: Http1Handler>(parser: &mut Parser<T>, handler
     }
 }
 
-pub fn url_encoded_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, handler: &mut T,
+pub fn url_encoded_assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                     stream: &[u8], data_length: usize,
                                                     length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
@@ -276,7 +276,7 @@ pub fn url_encoded_assert_finished<T: Http1Handler>(parser: &mut Parser<T>, hand
     });
 }
 
-pub fn url_encoded_setup<T:Http1Handler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
+pub fn url_encoded_setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                          state: ParserState, data_length: usize) {
     assert!(match parser.parse_url_encoded(handler, stream, data_length) {
         Ok(Success::Eos(length)) => {

@@ -50,7 +50,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_url_encoded_field(&mut self, _field: &[u8]) -> bool {
             false
         }

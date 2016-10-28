@@ -57,7 +57,7 @@ fn byte_check() {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_url(&mut self, _url: &[u8]) -> bool {
             false
         }

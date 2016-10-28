@@ -315,7 +315,7 @@ fn by_name_www_authenticate() {
 fn callback_exit() {
     struct X;
 
-    impl Http1Handler for X {
+    impl HttpHandler for X {
         fn on_header_field(&mut self, _field: &[u8]) -> bool {
             false
         }
