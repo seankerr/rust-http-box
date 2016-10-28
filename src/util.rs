@@ -426,7 +426,7 @@ where F : FnMut(&[u8]) {
     }
 }
 
-/// Decode URL encoded data into a vector.
+/// Decode URL encoded data into a buffer.
 ///
 /// **`bytes`**
 ///
