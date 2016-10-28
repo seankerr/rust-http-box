@@ -21,7 +21,7 @@ use test::http1::*;
 
 #[test]
 fn first_boundary_hyphen1_error () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     if let ParserError::MultipartBoundary(x) = multipart_assert_error(&mut p,
@@ -35,7 +35,7 @@ fn first_boundary_hyphen1_error () {
 
 #[test]
 fn first_boundary_hyphen2_error () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     if let ParserError::MultipartBoundary(x) = multipart_assert_error(&mut p,
@@ -49,7 +49,7 @@ fn first_boundary_hyphen2_error () {
 
 #[test]
 fn first_boundary_match () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
@@ -91,7 +91,7 @@ fn first_boundary_match () {
 
 #[test]
 fn first_boundary_no_match () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
@@ -127,7 +127,7 @@ fn missing_boundary() {
 
 #[test]
 fn second_boundary_match () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
@@ -142,7 +142,7 @@ fn second_boundary_match () {
 
 #[test]
 fn second_false_boundary () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,
@@ -157,7 +157,7 @@ fn second_false_boundary () {
 
 #[test]
 fn second_false_third_boundary_match () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_eos(&mut p, &mut h,

@@ -30,7 +30,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\t ", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -44,7 +44,7 @@ fn byte_check() {
 
     // valid bytes
     loop_tokens(b"", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -73,7 +73,7 @@ fn callback_exit() {
 
 #[test]
 fn multiple() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -86,7 +86,7 @@ fn multiple() {
 
 #[test]
 fn single() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

@@ -31,7 +31,7 @@ macro_rules! setup {
 fn byte_check_unquoted() {
     // invalid bytes
     loop_non_tokens(b"\r;=\"", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -46,7 +46,7 @@ fn byte_check_unquoted() {
 
     // valid bytes
     loop_tokens(b"", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -57,7 +57,7 @@ fn byte_check_unquoted() {
 
 #[test]
 fn basic() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -86,7 +86,7 @@ fn callback_exit() {
 
 #[test]
 fn repeat() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

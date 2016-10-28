@@ -24,7 +24,7 @@ use test::http1::*;
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         if let ParserError::UrlEncodedField(x) = url_encoded_assert_error(&mut p,
@@ -39,7 +39,7 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(b"=%&", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         url_encoded_assert_finished(&mut p, &mut h, &[byte], 1, 1);
@@ -64,7 +64,7 @@ fn callback_exit() {
 
 #[test]
 fn basic() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field", ParserState::UrlEncodedField, 1000, 5);
@@ -73,7 +73,7 @@ fn basic() {
 
 #[test]
 fn ending_ampersand() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field1&", ParserState::UrlEncodedField, 1000, 7);
@@ -82,7 +82,7 @@ fn ending_ampersand() {
 
 #[test]
 fn ending_equal() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field=", ParserState::UrlEncodedValue, 1000, 6);
@@ -91,7 +91,7 @@ fn ending_equal() {
 
 #[test]
 fn ending_percent() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedFieldHex1, 1000, 6);
@@ -100,7 +100,7 @@ fn ending_percent() {
 
 #[test]
 fn ending_plus() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field+", ParserState::UrlEncodedField, 1000, 6);
@@ -109,7 +109,7 @@ fn ending_plus() {
 
 #[test]
 fn hex() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field%21", ParserState::UrlEncodedField, 1000, 8);
@@ -118,7 +118,7 @@ fn hex() {
 
 #[test]
 fn hex_error() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     if let ParserError::UrlEncodedField(x) = url_encoded_assert_error(&mut p, &mut h,

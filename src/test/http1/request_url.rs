@@ -30,7 +30,7 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b" \t", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -44,7 +44,7 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(b"", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -73,7 +73,7 @@ fn callback_exit() {
 
 #[test]
 fn with_schema() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -85,7 +85,7 @@ fn with_schema() {
 
 #[test]
 fn without_schema() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

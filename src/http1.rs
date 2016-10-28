@@ -144,7 +144,7 @@ type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
 
 // -------------------------------------------------------------------------------------------------
 
-/// `DebugHttp1Handler` is a suitable handler for the following parser functions:
+/// `DebugHandler` is a suitable handler for the following parser functions:
 ///
 /// - [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
 /// - [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
@@ -154,11 +154,11 @@ type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
 /// If you're debugging large requests or responses, it's a good idea to pass fairly small chunks
 /// of stream data at a time, about *4096* bytes or so. And in between parser function calls, if
 /// you don't need to retain the data, execute
-/// [`DebugHttp1Handler::reset()`](struct.DebugHttp1Handler.html#method.reset) so that vectors
+/// [`DebugHandler::reset()`](struct.DebugHandler.html#method.reset) so that vectors
 /// collecting the data don't consume too much memory. This is especially the case with chunk
 /// encoded and multipart data.
 #[derive(Default)]
-pub struct DebugHttp1Handler {
+pub struct DebugHandler {
     /// Indicates that the body has successfully been parsed.
     pub body_finished: bool,
 
@@ -214,10 +214,10 @@ pub struct DebugHttp1Handler {
     pub version_minor: u16
 }
 
-impl DebugHttp1Handler {
-    /// Create a new `DebugHttp1Handler`.
-    pub fn new() -> DebugHttp1Handler {
-        DebugHttp1Handler{ body_finished:         false,
+impl DebugHandler {
+    /// Create a new `DebugHandler`.
+    pub fn new() -> DebugHandler {
+        DebugHandler{ body_finished:         false,
                            chunk_data:            Vec::new(),
                            chunk_extension_name:  Vec::new(),
                            chunk_extension_value: Vec::new(),
@@ -260,7 +260,7 @@ impl DebugHttp1Handler {
     }
 }
 
-impl Http1Handler for DebugHttp1Handler {
+impl Http1Handler for DebugHandler {
     fn content_length(&mut self) -> Option<usize> {
         None
     }

@@ -21,7 +21,7 @@ use test::http1::*;
 
 #[test]
 fn data_ok () {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     multipart_assert_finished(&mut p, &mut h,

@@ -47,7 +47,7 @@ fn callback_exit() {
 
 #[test]
 fn finished() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

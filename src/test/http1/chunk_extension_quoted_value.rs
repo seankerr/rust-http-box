@@ -29,7 +29,7 @@ macro_rules! setup {
 
 #[test]
 fn basic() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -42,7 +42,7 @@ fn basic() {
 fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -59,7 +59,7 @@ fn byte_check() {
 
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         setup!(p, h);
@@ -90,7 +90,7 @@ fn callback_exit() {
 
 #[test]
 fn escaped() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);
@@ -103,7 +103,7 @@ fn escaped() {
 
 #[test]
 fn repeat() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     setup!(p, h);

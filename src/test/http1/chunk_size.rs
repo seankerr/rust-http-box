@@ -24,7 +24,7 @@ use test::http1::*;
 fn byte_check() {
     // invalid bytes
     loop_non_hex(b"", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         if let ParserError::ChunkLength(x) = chunked_assert_error(&mut p, &mut h,
@@ -37,14 +37,14 @@ fn byte_check() {
 
     // valid bytes
     loop_hex(b"0", |byte| {
-        let mut h = DebugHttp1Handler::new();
+        let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
         chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkLength2, 1);
     });
 
     // starting 0 (end chunk)
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     chunked_assert_eos(&mut p, &mut h, b"0", ParserState::ChunkLengthEnd, 1);
@@ -68,7 +68,7 @@ fn callback_exit() {
 
 #[test]
 fn missing_length() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     if let ParserError::ChunkLength(x) = chunked_assert_error(&mut p, &mut h,
@@ -81,7 +81,7 @@ fn missing_length() {
 
 #[test]
 fn length1() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     chunked_assert_eos(&mut p, &mut h, b"F\r", ParserState::ChunkLengthNewline, 2);
@@ -90,7 +90,7 @@ fn length1() {
 
 #[test]
 fn length2() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     chunked_assert_eos(&mut p, &mut h, b"FF\r", ParserState::ChunkLengthNewline, 3);
@@ -99,7 +99,7 @@ fn length2() {
 
 #[test]
 fn length3() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     chunked_assert_eos(&mut p, &mut h, b"FFF\r", ParserState::ChunkLengthNewline, 4);
@@ -108,7 +108,7 @@ fn length3() {
 
 #[test]
 fn too_long() {
-    let mut h = DebugHttp1Handler::new();
+    let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
     if let ParserError::MaxChunkLength = chunked_assert_error(&mut p, &mut h,
