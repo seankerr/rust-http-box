@@ -33,7 +33,6 @@ pub mod fsm;
 #[macro_use]
 mod collect;
 
-pub mod extra;
 pub mod http1;
 pub mod util;
 

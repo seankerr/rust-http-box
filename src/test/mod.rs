@@ -19,7 +19,6 @@
 use byte::is_token;
 use std::fmt::Debug;
 
-mod extra;
 mod http1;
 mod util;
 
