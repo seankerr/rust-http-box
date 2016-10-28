@@ -146,10 +146,10 @@ type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
 
 /// `DebugHttp1Handler` is a suitable handler for the following parser functions:
 ///
-/// - [`Parser::parse_chunked()`](../../../http1/struct.Parser.html#method.parse_chunked)
-/// - [`Parser::parse_head()`](../../../http1/struct.Parser.html#method.parse_head)
-/// - [`Parser::parse_multipart()`](../../../http1/struct.Parser.html#method.parse_multipart)
-/// - [`Parser::parse_url_encoded()`](../../../http1/struct.Parser.html#method.parse_url_encoded)
+/// - [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
+/// - [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
+/// - [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
+/// - [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
 ///
 /// If you're debugging large requests or responses, it's a good idea to pass fairly small chunks
 /// of stream data at a time, about *4096* bytes or so. And in between parser function calls, if
