@@ -3,7 +3,9 @@
 Query data is often passed as part of the URL for a GET request. In order to parse it, the
 `util::parse_query()` function can be used.
 
-[parse_query() API documentation](http://www.metatomic.io/docs/api/http_box/util/fn.parse_query.html)
+## API Documentation
+
+[parse_query()](http://www.metatomic.io/docs/api/http_box/util/fn.parse_query.html)
 
 ## Example
 
