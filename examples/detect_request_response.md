@@ -1,6 +1,6 @@
 # Detecting Request or Response
 
-`HttpHandler` has 6 callback functions that are related to the status line.
+`HttpHandler` has 6 callback functions that are related to the status line:
 
 **Request Callbacks**
 
