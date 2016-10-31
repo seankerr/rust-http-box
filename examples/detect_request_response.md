@@ -1,12 +1,30 @@
 # Detecting Request or Response
 
+`HttpHandler` has 6 callback functions that are related to the status line.
+
+**Request Callbacks**
+
+- `on_method(&mut self, &[u8])` -- Receive method details
+- `on_url(&mut self, &[u8])` -- Receive URL details
+
+**Response Callbacks**
+- `on_status(&mut self, &[u8])` -- Receive status details
+- `on_status_code(&mut self, u16)` -- Receive status code
+
+**Shared Callbacks**
+
+- `on_version(&mut self, u16, u16)` -- Receive HTTP major and minor version
+- `on_status_finished(&mut self)` -- Indicates status line has finished parsing
+
+## Example
+
 Once the first line of a request or response is processed, the `on_status_finished()` callback
 will be executed. At this point it will be possible to detect whether or not the HTTP type is
 a request or response by checking the callback data that was stored.
 
 For all intents and purposes, the only data we need to store in order to determine the HTTP type
 is a boolean. However, the safest route to detection is to store a boolean that indicates status
-line parsing has finished. We can provide a method that allows us to check the boolean, and then
+line parsing has finished. We can provide a function that allows us to check the boolean, and then
 another method to check the request method length.
 
 ```rust
