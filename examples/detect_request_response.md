@@ -1,6 +1,6 @@
 # Detecting Request or Response
 
-Once the first line of a request or response is processed, the callback *on_status_finished()*
+Once the first line of a request or response is processed, the *on_status_finished()* callback
 will be executed. At this point it will be possible to detect whether or not the HTTP type is
 a request or response by checking the callback data that was stored.
 
