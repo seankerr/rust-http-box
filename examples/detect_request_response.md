@@ -63,6 +63,7 @@ impl HttpHandler for Handler {
     }
 }
 
+// init handler and parser
 let mut h = Handler{ method: Vec::new(),
                      status: Vec::new(),
                      status_code: 0,
@@ -80,15 +81,4 @@ assert_eq!(true, h.is_status_finished());
 assert_eq!(true, h.is_request());
 assert_eq!(h.method, b"GET");
 assert_eq!(h.url, b"/url");
-
-// reset parser
-p.reset();
-
-// parse response
-p.parse_head(&mut h, b"HTTP/1.1 200 OK\r\n");
-
-assert_eq!(true, h.is_status_finished());
-assert_eq!(false, h.is_request());
-assert_eq!(h.status, b"OK");
-assert_eq!(h.status_code, 200);
 ```
