@@ -14,7 +14,7 @@ achieved with a bit of finesse.
 You will notice that the header name used to retrieve the header from the `HashMap` is lower-cased.
 This is because header names are normalized to lower-case automatically.
 
-# Example
+## Example
 
 ```rust
 extern crate http_box;

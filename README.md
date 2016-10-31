@@ -38,6 +38,7 @@ separate from frameworks that use it.
 
 - [Detecting Request or Response](examples/detect_request_response.md)
 - [Headers](examples/headers.md)
+- [Query Strings](examples/query.md)
 
 ## API Documentation
 

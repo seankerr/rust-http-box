@@ -2,3 +2,4 @@
 
 - [Detecting Request or Response](detect_request_response.md)
 - [Headers](headers.md)
+- [Query Strings](query.md)
