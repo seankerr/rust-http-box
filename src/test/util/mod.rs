@@ -74,7 +74,7 @@ macro_rules! field_error {
 #[macro_export]
 macro_rules! query {
     ($map:expr, $stream:expr, $length:expr) => ({
-        assert!(match parse_query($stream, b'&',
+        assert!(match parse_query($stream,
                                   |s| {
                                       match s {
                                           QuerySegment::Name(x) => {
@@ -117,7 +117,7 @@ macro_rules! query {
 #[macro_export]
 macro_rules! query_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_query($stream, b'&', |_|{true}) {
+        assert!(match parse_query($stream, |_|{true}) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true

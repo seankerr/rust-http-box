@@ -713,10 +713,6 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 ///
 /// The query data to be parsed.
 ///
-/// **`delimiter`**
-///
-/// The delimiting byte.
-///
 /// **`segment_fn`**
 ///
 /// A closure that receives instances of [`QuerySegment`](enum.QuerySegment.html).
@@ -738,7 +734,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 /// use http_box::util::QuerySegment;
 /// use http_box::util;
 ///
-/// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203", b'&',
+/// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203",
 ///     |s| {
 ///         if s.has_value() {
 ///             s.name();
@@ -751,7 +747,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 ///     }
 /// );
 /// ```
-pub fn parse_query<T>(query: &[u8], delimiter: u8, mut segment_fn: T) -> Result<usize, QueryError>
+pub fn parse_query<T>(query: &[u8], mut segment_fn: T) -> Result<usize, QueryError>
 where T : FnMut(QuerySegment) -> bool {
     let mut context = ByteStream::new(query);
     let mut name    = Vec::new();
@@ -767,7 +763,8 @@ where T : FnMut(QuerySegment) -> bool {
                    context.byte == b'%'
                 || context.byte == b'+'
                 || context.byte == b'='
-                || context.byte == delimiter,
+                || context.byte == b'&'
+                || context.byte == b';',
 
                 // on end-of-stream
                 {
@@ -829,7 +826,7 @@ where T : FnMut(QuerySegment) -> bool {
 
                 break;
             } else if context.stream_index == 1 {
-                // first byte cannot be an ampersand
+                // first byte cannot be a delimiter
                 return Err(QueryError::Name(context.byte));
             } else {
                 // name without a value
@@ -852,7 +849,8 @@ where T : FnMut(QuerySegment) -> bool {
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
-                || context.byte == delimiter,
+                || context.byte == b'&'
+                || context.byte == b';',
 
                 // on end-of-stream
                 {
@@ -907,6 +905,7 @@ where T : FnMut(QuerySegment) -> bool {
             } else if context.byte == b'+' {
                 value.push(b' ');
             } else {
+                // name with a value
                 if segment_fn(QuerySegment::NameValue(&name, &value)) {
                     name.clear();
                     value.clear();
