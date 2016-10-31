@@ -1,4 +1,4 @@
-# Queries
+# Query Strings
 
 Query data is often passed as part of the URL for a GET request. In order to parse it, the
 `util::parse_query()` function can be used.
