@@ -1,9 +1,8 @@
 # Queries
 
 Query data is often passed as part of the URL for a GET request. In order to parse it, the
-`util::parse_query()` function can be used. The signature is easy to work with, and flexible.
+`util::parse_query()` function can be used.
 
-Queries are automatically split on `&` and `;`.
 ## Example
 
 ```rust
