@@ -9,12 +9,17 @@ repository  = "https://github.com/seankerr/rust-http-box"
 readme      = "README.md"
 keywords    = ["http", "parser", "callback", "push"]
 exclude     = [".gitignore"]
+build       = "build.rs"
 
 [dependencies]
 byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
 
+[build-dependencies]
+skeptic = "*"
+
 [dev-dependencies]
 byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
 clippy     = "*"
+skeptic    = "*"
