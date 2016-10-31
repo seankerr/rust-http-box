@@ -1,29 +1,21 @@
 # Detecting Request or Response
 
-`HttpHandler` has 6 callback functions that are related to the status line:
+[HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html) has 6 callback
+functions related to the status line:
 
-**Request Callbacks**
+**Request**
 
-- `on_method(&mut self, &[u8])`: Receive method details
-- `on_url(&mut self, &[u8])`: Receive URL details
+- [on_method()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_method): Receive method details
+- [on_url()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_url): Receive URL details
 
-**Response Callbacks**
-- `on_status(&mut self, &[u8])`: Receive status details
-- `on_status_code(&mut self, u16)`: Receive status code
+**Response**
 
-**Shared Callbacks**
+- [on_status()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status): Receive status details
+- [on_status_code()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_code): Receive status code details
 
-- `on_version(&mut self, u16, u16)`: Receive HTTP major and minor version
-- `on_status_finished(&mut self)`: Indicates status line has finished parsing
-
-## API Documentation
-
-- [on_method()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_method)
-- [on_status()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status)
-- [on_status_code()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_code)
-- [on_status_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_finished)
-- [on_url()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_url)
-- [on_version()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_version)
+**Request and Response**
+- [on_status_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_finished): Indicates that the status line has finished parsing successfully
+- [on_version()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_version): Receive HTTP major and minor version
 
 ## Example
 

@@ -1,10 +1,10 @@
 # Headers
 
-`HttpHandler` has 3 callback functions that are related to headers:
+[HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html) has 3 callback functions that are related to headers:
 
-- `on_header_field(&mut self, &[u8])`: Receive header field details
-- `on_header_value(&mut self, &[u8])`: Receive header value details
-- `on_headers_finished(&mut self)`: Indicates headers have finished parsing
+- [on_header_field()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_field): Receive header field details
+- [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value): Receive header value details
+- [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished): Indicates headers have finished parsing
 
 Similar to status line parsing, when the headers are finished parsing, the `on_headers_finished()`
 callback will be executed. You may be wondering how to detect when a new header field or value
@@ -13,12 +13,6 @@ achieved with a bit of finesse.
 
 You will notice that the header name used to retrieve the header from the `HashMap` is lower-cased.
 This is because header names are normalized to lower-case automatically.
-
-## API Documentation
-
-- [on_header_field()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_field)
-- [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value)
-- [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished)
 
 ## Example
 
