@@ -5,7 +5,7 @@ will be executed. At this point it will be possible to detect whether or not the
 a request or response by checking the callback data that was stored.
 
 For all intents and purposes, the only data we need to store in order to determine the HTTP type
-is a boolean. We could simply set the boolean value to true if the `on_method()` callback was
+is a boolean. We could simply set the boolean value to `true` if the `on_method()` callback was
 executed. However, here is a more verbose example that stores all status details.
 
 ```rust
