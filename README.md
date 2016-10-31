@@ -37,6 +37,7 @@ separate from frameworks that use it.
 ## Examples
 
 - [Detecting Request or Response](examples/detect_request_response.md)
+- [Headers](examples/headers.md)
 
 ## API Documentation
 
