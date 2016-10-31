@@ -34,6 +34,10 @@ separate from frameworks that use it.
 - DoS protection is easily supported.
 - Fast!
 
-## API Documentation and Examples
+## Examples
+
+- [Detecting Request or Response](examples/detect_request_response.md)
+
+## API Documentation
 
 http://metatomic.io/docs/api/http_box/index.html
