@@ -14,6 +14,12 @@ achieved with a bit of finesse.
 You will notice that the header name used to retrieve the header from the `HashMap` is lower-cased.
 This is because header names are normalized to lower-case automatically.
 
+## API Documentation
+
+- [on_header_field()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_field)
+- [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value)
+- [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished)
+
 ## Example
 
 ```rust

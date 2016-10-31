@@ -16,6 +16,15 @@
 - `on_version(&mut self, u16, u16)`: Receive HTTP major and minor version
 - `on_status_finished(&mut self)`: Indicates status line has finished parsing
 
+## API Documentation
+
+- [on_method()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_method)
+- [on_status()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status)
+- [on_status_code()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_code)
+- [on_status_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_finished)
+- [on_url()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_url)
+- [on_version()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_version)
+
 ## Example
 
 Once the first line of a request or response is processed, the `on_status_finished()` callback
