@@ -85,6 +85,17 @@ fn callback_exit() {
 }
 
 #[test]
+fn linear_space() {
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
+
+    setup!(p, h);
+
+    chunked_assert_eos(&mut p, &mut h, b"   \t\t\tvalid-value\r", ParserState::ChunkLengthNewline, 18);
+    assert_eq!(h.chunk_extension_value, b"valid-value");
+}
+
+#[test]
 fn repeat() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
