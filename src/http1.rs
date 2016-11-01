@@ -1412,6 +1412,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     /// - [`HttpHandler::on_chunk_data()`](trait.HttpHandler.html#method.on_chunk_data)
+    /// - [`HttpHandler::on_chunk_extension_begin()`](trait.HttpHandler.html#method.on_chunk_extension_begin)
     /// - [`HttpHandler::on_chunk_extension_name()`](trait.HttpHandler.html#method.on_chunk_extension_name)
     /// - [`HttpHandler::on_chunk_extension_value()`](trait.HttpHandler.html#method.on_chunk_extension_value)
     /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
