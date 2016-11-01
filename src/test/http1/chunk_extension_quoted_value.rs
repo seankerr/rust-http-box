@@ -23,7 +23,7 @@ use test::http1::*;
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         chunked_setup(&mut $parser, &mut $handler, b"F;extension1=",
-                      ParserState::ChunkExtensionValue);
+                      ParserState::StripChunkExtensionValue);
     });
 }
 

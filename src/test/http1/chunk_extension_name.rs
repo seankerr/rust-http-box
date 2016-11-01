@@ -107,6 +107,6 @@ fn valid() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-extension=", ParserState::ChunkExtensionValue, 16);
+    chunked_assert_eos(&mut p, &mut h, b"valid-extension=", ParserState::StripChunkExtensionValue, 16);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
 }

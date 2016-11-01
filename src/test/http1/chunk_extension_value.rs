@@ -23,14 +23,14 @@ use test::http1::*;
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
         chunked_setup(&mut $parser, &mut $handler, b"F;extension=",
-                      ParserState::ChunkExtensionValue);
+                      ParserState::StripChunkExtensionValue);
     });
 }
 
 #[test]
 fn byte_check_unquoted() {
     // invalid bytes
-    loop_non_tokens(b"\r;=\"", |byte| {
+    loop_non_tokens(b" \t\r;=\"", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
@@ -45,7 +45,7 @@ fn byte_check_unquoted() {
     });
 
     // valid bytes
-    loop_tokens(b"", |byte| {
+    loop_tokens(b" \t", |byte| {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 

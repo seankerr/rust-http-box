@@ -2547,7 +2547,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'=' {
             callback_ignore_transition_fast!(self, context,
                                              on_chunk_extension_name,
-                                             ParserState::ChunkExtensionValue, chunk_extension_value);
+                                             ParserState::StripChunkExtensionValue,
+                                             strip_chunk_extension_value);
         } else if context.byte == b'\r' || context.byte == b';' {
             // extension name without a value
             bs_replay!(context);
