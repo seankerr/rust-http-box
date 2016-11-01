@@ -285,6 +285,10 @@ impl HttpHandler for DebugHandler {
         true
     }
 
+    fn on_chunk_extension_begin(&mut self) -> bool {
+        true
+    }
+
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
         println!("on_chunk_extension_name [{}]: {:?}", name.len(), str::from_utf8(name).unwrap());
         self.chunk_extension_name.extend_from_slice(name);
@@ -966,6 +970,20 @@ pub trait HttpHandler {
     ///
     /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
+        true
+    }
+
+    /// Callback that is executed when a new chunk extension has been located.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
+    fn on_chunk_extension_begin(&mut self) -> bool {
         true
     }
 
@@ -2485,8 +2503,13 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
-        transition_fast!(self, context,
-                         ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
+        set_state!(self, ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
+
+        if context.handler.on_chunk_extension_begin() {
+            transition_fast!(self, context);
+        } else {
+            exit_callback!(self, context);
+        }
     }
 
     #[inline]
