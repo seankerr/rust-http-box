@@ -32,6 +32,7 @@ mod header_quoted_value;
 mod header_value;
 mod headers_finished;
 
+mod multipart_begin;
 mod multipart_boundary;
 mod multipart_data;
 mod multipart_header;
