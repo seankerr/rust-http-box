@@ -1020,7 +1020,7 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when chunk extension parsing has completed successfully.
+    /// Callback that is executed when parsing all chunk extensions has completed successfully.
     ///
     /// **Returns:**
     ///

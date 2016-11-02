@@ -24,6 +24,7 @@ mod chunk_extension_finished;
 mod chunk_extension_name;
 mod chunk_extension_quoted_value;
 mod chunk_extension_value;
+mod chunk_extensions_finished;
 mod chunk_size;
 mod chunk_trailer;
 
