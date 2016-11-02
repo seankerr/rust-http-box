@@ -24,7 +24,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_chunk_extension_begin(&mut self) -> bool {
+        fn on_chunk_extension_finished(&mut self) -> bool {
             false
         }
     }
@@ -32,8 +32,8 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    chunked_setup(&mut p, &mut h, b"F",
-                  ParserState::ChunkLength2);
-    chunked_assert_callback(&mut p, &mut h, b";extension",
+    chunked_setup(&mut p, &mut h, b"F;extension=value",
+                  ParserState::ChunkExtensionValue);
+    chunked_assert_callback(&mut p, &mut h, b";",
                             ParserState::UpperChunkExtensionName, 1);
 }
