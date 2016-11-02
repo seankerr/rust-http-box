@@ -20,7 +20,7 @@ use http1::*;
 use fsm::*;
 
 mod chunk_data;
-mod chunk_extension_begin;
+mod chunk_extension_finished;
 mod chunk_extension_name;
 mod chunk_extension_quoted_value;
 mod chunk_extension_value;

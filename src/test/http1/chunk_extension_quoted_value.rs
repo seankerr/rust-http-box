@@ -34,7 +34,7 @@ fn basic() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"\"valid-value\"", ParserState::ChunkExtensionSemiColon, 13);
+    chunked_assert_eos(&mut p, &mut h, b"\"valid-value\"", ParserState::ChunkExtensionQuotedValueFinished, 13);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -85,7 +85,7 @@ fn callback_exit() {
     setup!(p, h);
 
     assert_callback(&mut p, &mut h, b"\"ExtensionValue\"",
-                    ParserState::ChunkExtensionSemiColon, 16);
+                    ParserState::ChunkExtensionQuotedValueFinished, 16);
 }
 
 #[test]
