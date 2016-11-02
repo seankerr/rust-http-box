@@ -78,9 +78,9 @@ fn multiline() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value1\r\n", ParserState::Newline3, 8);
+    assert_eos(&mut p, &mut h, b"Value1\r\n", ParserState::HeaderNewline3, 8);
     assert_eq!(h.header_value, b"Value1");
-    assert_eos(&mut p, &mut h, b" Value2\r", ParserState::Newline2, 8);
+    assert_eos(&mut p, &mut h, b" Value2\r", ParserState::HeaderNewline2, 8);
     assert_eq!(h.header_value, b"Value1 Value2");
 }
 
@@ -93,7 +93,7 @@ fn multiple() {
 
     assert_eos(&mut p, &mut h, b"Value", ParserState::HeaderValue, 5);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"Time\r", ParserState::Newline2, 5);
+    assert_eos(&mut p, &mut h, b"Time\r", ParserState::HeaderNewline2, 5);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -104,7 +104,7 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"ValueTime\r", ParserState::Newline2, 10);
+    assert_eos(&mut p, &mut h, b"ValueTime\r", ParserState::HeaderNewline2, 10);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -115,6 +115,6 @@ fn space() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value Time\r", ParserState::Newline2, 11);
+    assert_eos(&mut p, &mut h, b"Value Time\r", ParserState::HeaderNewline2, 11);
     assert_eq!(h.header_value, b"Value Time");
 }
