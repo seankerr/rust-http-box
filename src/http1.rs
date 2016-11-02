@@ -262,10 +262,6 @@ impl HttpHandler for DebugHandler {
         None
     }
 
-    fn multipart_boundary(&mut self) -> Option<&[u8]> {
-        Some(b"XXDebugBoundaryXX")
-    }
-
     fn on_body_finished(&mut self) -> bool {
         println!("on_body_finished");
         true
@@ -432,9 +428,6 @@ pub enum ParserError {
     /// Invalid multipart boundary.
     MultipartBoundary(u8),
 
-    /// Expected multipart boundary.
-    MultipartBoundaryExpected,
-
     /// Invalid status on byte `u8`.
     Status(u8),
 
@@ -493,9 +486,6 @@ impl fmt::Debug for ParserError {
             ParserError::MultipartBoundary(byte) => {
                 write!(formatter, "ParserError::MultipartBoundary(Invalid multipart boundary on byte {})",
                        byte)
-            },
-            ParserError::MultipartBoundaryExpected => {
-                write!(formatter, "ParserError::MultipartBoundaryExpected(Expected multipart boundary)")
             },
             ParserError::Status(byte) => {
                 write!(formatter, "ParserError::Status(Invalid status on byte {})", byte)
@@ -556,9 +546,6 @@ impl fmt::Display for ParserError {
             },
             ParserError::MultipartBoundary(byte) => {
                 write!(formatter, "Invalid multipart boundary on byte {}", byte)
-            },
-            ParserError::MultipartBoundaryExpected => {
-                write!(formatter, "Expected multipart boundary")
             },
             ParserError::Status(byte) => {
                 write!(formatter, "Invalid status on byte {}", byte)
@@ -921,15 +908,6 @@ pub trait HttpHandler {
     ///
     /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn content_length(&mut self) -> Option<usize> {
-        None
-    }
-
-    /// Retrieve the multipart boundary.
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-    fn multipart_boundary(&mut self) -> Option<&[u8]> {
         None
     }
 
@@ -1328,6 +1306,9 @@ pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
+    /// Multipart boundary.
+    boundary: Option<&'a [u8]>,
+
     /// Total byte count processed for headers, and body.
     byte_count: usize,
 
@@ -1348,6 +1329,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// stream is a HTTP request or HTTP response.
     pub fn new() -> Parser<'a, T> {
         Parser{ bit_data:       0,
+                boundary:       None,
                 byte_count:     0,
                 length:         0,
                 state:          ParserState::StripDetect,
@@ -1508,7 +1490,6 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// # Callbacks
     ///
     /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
-    /// - [`HttpHandler::multipart_boundary()`](trait.HttpHandler.html#method.multipart_boundary)
     /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
@@ -1522,10 +1503,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     #[inline]
-    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8])
+    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8], boundary: &'a [u8])
     -> Result<Success, ParserError> {
         if self.state == ParserState::StripDetect {
             self.bit_data       = 0;
+            self.boundary       = Some(boundary);
             self.length         = 0;
             self.state          = ParserState::MultipartHyphen1;
             self.state_function = Parser::multipart_hyphen1;
@@ -1616,6 +1598,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// Reset the parser to its initial state.
     pub fn reset(&mut self) {
         self.bit_data       = 0;
+        self.boundary       = None;
         self.byte_count     = 0;
         self.length         = 0;
         self.state          = ParserState::Detect1;
@@ -2794,39 +2777,39 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        let (length, callback_data, finished) =
-            if let Some(boundary) = context.handler.multipart_boundary() {
-                let slice = if boundary.len() -
-                               get_upper14!(self) as usize <= bs_available!(context) {
-                    // compare remainder of boundary
-                    &boundary[get_upper14!(self) as usize..]
-                } else {
-                    // compare remainder of stream
-                    &boundary[get_upper14!(self) as usize..
-                              get_upper14!(self) as usize + bs_available!(context)]
-                };
+        let (length, callback_data, finished) = {
+            let boundary = self.boundary.unwrap();
 
-                if bs_starts_with!(context, slice) {
-                    // matches
-                    (slice.len(), None, get_upper14!(self) as usize + slice.len() == boundary.len())
-                } else {
-                    // does not match, so we need to provide all the data that has been
-                    // compared as the boundary up to this point
-                    let mut v = Vec::with_capacity(// \r\n--
-                                                   4 as usize +
-
-                                                   // old boundary data
-                                                   get_upper14!(self) as usize);
-
-                    v.extend_from_slice(b"\r\n--");
-                    v.extend_from_slice(&boundary[..get_upper14!(self) as usize]);
-
-                    (0, Some(v), false)
-                }
+            let slice = if boundary.len() -
+                           get_upper14!(self) as usize <= bs_available!(context) {
+                // compare remainder of boundary
+                &boundary[get_upper14!(self) as usize..]
             } else {
-                // no boundary available
-                return Err(ParserError::MultipartBoundaryExpected);
+                // compare remainder of stream
+                &boundary[get_upper14!(self) as usize..
+                          get_upper14!(self) as usize + bs_available!(context)]
             };
+
+            if bs_starts_with!(context, slice) {
+                // matches
+                (slice.len(),
+                 None,
+                 get_upper14!(self) as usize + slice.len() == boundary.len())
+            } else {
+                // does not match, so we need to provide all the data that has been
+                // compared as the boundary up to this point
+                let mut v = Vec::with_capacity(// \r\n--
+                                               4 as usize +
+
+                                               // old boundary data
+                                               get_upper14!(self) as usize);
+
+                v.extend_from_slice(b"\r\n--");
+                v.extend_from_slice(&boundary[..get_upper14!(self) as usize]);
+
+                (0, Some(v), false)
+            }
+        };
 
         // due to the borrow checker holding 'boundary', we must transition down here
         bs_jump!(context, length);

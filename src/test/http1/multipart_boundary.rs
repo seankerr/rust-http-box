@@ -108,24 +108,6 @@ fn first_boundary_no_match () {
 }
 
 #[test]
-fn missing_boundary() {
-    struct X;
-
-    impl HttpHandler for X {
-    }
-
-    let mut h = X{};
-    let mut p = Parser::new();
-
-    if let ParserError::MultipartBoundaryExpected = multipart_assert_error(&mut p,
-                                                                           &mut h,
-                                                                           b"--X").unwrap() {
-    } else {
-        panic!();
-    }
-}
-
-#[test]
 fn second_boundary_match () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();

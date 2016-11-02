@@ -155,7 +155,7 @@ pub fn chunked_setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, str
 
 pub fn multipart_assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T,
                                                   stream: &[u8], state: ParserState, length: usize) {
-    assert!(match parser.parse_multipart(handler, stream) {
+    assert!(match parser.parse_multipart(handler, stream, b"XXDebugBoundaryXX") {
         Ok(Success::Callback(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.state(), state);
@@ -167,7 +167,7 @@ pub fn multipart_assert_callback<T: HttpHandler>(parser: &mut Parser<T>, handler
 
 pub fn multipart_assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                              state: ParserState, length: usize) {
-    assert!(match parser.parse_multipart(handler, stream) {
+    assert!(match parser.parse_multipart(handler, stream, b"XXDebugBoundaryXX") {
         Ok(Success::Eos(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.state(), state);
@@ -179,7 +179,7 @@ pub fn multipart_assert_eos<T: HttpHandler>(parser: &mut Parser<T>, handler: &mu
 
 pub fn multipart_assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8])
 -> Option<ParserError> {
-    match parser.parse_multipart(handler, stream) {
+    match parser.parse_multipart(handler, stream, b"XXDebugBoundaryXX") {
         Err(error) => {
             assert_eq!(parser.state(), ParserState::Dead);
             Some(error)
@@ -193,7 +193,7 @@ pub fn multipart_assert_error<T: HttpHandler>(parser: &mut Parser<T>, handler: &
 
 pub fn multipart_assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8],
                                                   state: ParserState, length: usize) {
-    assert!(match parser.parse_multipart(handler, stream) {
+    assert!(match parser.parse_multipart(handler, stream, b"XXDebugBoundaryXX") {
         Ok(Success::Finished(byte_count)) => {
             assert_eq!(byte_count, length);
             assert_eq!(parser.state(), state);
@@ -204,7 +204,7 @@ pub fn multipart_assert_finished<T: HttpHandler>(parser: &mut Parser<T>, handler
 }
 
 pub fn multipart_setup<T:HttpHandler>(parser: &mut Parser<T>, handler: &mut T, stream: &[u8], state: ParserState) {
-    assert!(match parser.parse_multipart(handler, stream) {
+    assert!(match parser.parse_multipart(handler, stream, b"XXDebugBoundaryXX") {
         Ok(Success::Eos(length)) => {
             assert_eq!(length, stream.len());
             assert_eq!(parser.state(), state);

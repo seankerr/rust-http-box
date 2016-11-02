@@ -24,10 +24,6 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn multipart_boundary(&mut self) -> Option<&[u8]> {
-            Some(b"XXDebugBoundaryXX")
-        }
-
         fn on_multipart_begin(&mut self) -> bool {
             false
         }
