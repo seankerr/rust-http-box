@@ -80,7 +80,7 @@ fn multiple() {
 
     assert_eos(&mut p, &mut h, b"NOT ", ParserState::ResponseStatus, 4);
     assert_eq!(h.status, b"NOT ");
-    assert_eos(&mut p, &mut h, b"FOUND\r", ParserState::PreHeaders1, 6);
+    assert_eos(&mut p, &mut h, b"FOUND\r", ParserState::PreHeadersLf1, 6);
     assert_eq!(h.status, b"NOT FOUND");
 }
 
@@ -91,6 +91,6 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"NOT FOUND\r", ParserState::PreHeaders1, 10);
+    assert_eos(&mut p, &mut h, b"NOT FOUND\r", ParserState::PreHeadersLf1, 10);
     assert_eq!(h.status, b"NOT FOUND");
 }

@@ -50,7 +50,7 @@ fn http_1_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.0\r", ParserState::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/1.0\r", ParserState::PreHeadersLf1, 9);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -62,7 +62,7 @@ fn http_1_1 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.1\r", ParserState::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/1.1\r", ParserState::PreHeadersLf1, 9);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -74,7 +74,7 @@ fn http_2_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/2.0\r", ParserState::PreHeaders1, 9);
+    assert_eos(&mut p, &mut h, b"HTTP/2.0\r", ParserState::PreHeadersLf1, 9);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }

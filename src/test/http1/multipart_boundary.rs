@@ -74,11 +74,11 @@ fn first_boundary_match () {
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\r",
-                         ParserState::PreHeaders1, 1);
+                         ParserState::PreHeadersLf1, 1);
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\n",
-                         ParserState::PreHeaders2, 1);
+                         ParserState::PreHeadersCr2, 1);
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\r",
@@ -117,7 +117,7 @@ fn second_boundary_match () {
                            \r\n\
                            DATA1\r\n\
                            --XXDebugBoundaryXX\r\n",
-                         ParserState::PreHeaders2, 51);
+                         ParserState::PreHeadersCr2, 51);
 
     assert_eq!(h.multipart_data, b"DATA1");
 }

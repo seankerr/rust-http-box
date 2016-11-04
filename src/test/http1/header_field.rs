@@ -22,7 +22,7 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n", ParserState::PreHeaders2);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n", ParserState::PreHeadersCr2);
     });
 }
 

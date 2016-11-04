@@ -34,6 +34,6 @@ fn callback_exit() {
 
     multipart_assert_callback(&mut p, &mut h,
                               b"--XXDebugBoundaryXX\r",
-                              ParserState::PreHeaders1, 20);
+                              ParserState::PreHeadersLf1, 20);
 
 }

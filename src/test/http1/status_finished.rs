@@ -42,5 +42,5 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"\r", ParserState::PreHeaders1, 1);
+    assert_callback(&mut p, &mut h, b"\r", ParserState::PreHeadersLf1, 1);
 }
