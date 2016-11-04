@@ -47,7 +47,7 @@ fn byte_check() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"0", ParserState::ChunkLengthEnd, 1);
+    chunked_assert_eos(&mut p, &mut h, b"0", ParserState::ChunkLengthCr, 1);
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    chunked_assert_callback(&mut p, &mut h, b"F\r", ParserState::ChunkLengthNewline, 2);
+    chunked_assert_callback(&mut p, &mut h, b"F\r", ParserState::ChunkLengthLf, 2);
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn length1() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"F\r", ParserState::ChunkLengthNewline, 2);
+    chunked_assert_eos(&mut p, &mut h, b"F\r", ParserState::ChunkLengthLf, 2);
     assert_eq!(h.chunk_length, 15);
 }
 
@@ -93,7 +93,7 @@ fn length2() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FF\r", ParserState::ChunkLengthNewline, 3);
+    chunked_assert_eos(&mut p, &mut h, b"FF\r", ParserState::ChunkLengthLf, 3);
     assert_eq!(h.chunk_length, 255);
 }
 
@@ -102,7 +102,7 @@ fn length3() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFF\r", ParserState::ChunkLengthNewline, 4);
+    chunked_assert_eos(&mut p, &mut h, b"FFF\r", ParserState::ChunkLengthLf, 4);
     assert_eq!(h.chunk_length, 4095);
 }
 

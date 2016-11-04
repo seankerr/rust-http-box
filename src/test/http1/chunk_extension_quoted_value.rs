@@ -95,7 +95,7 @@ fn escaped() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", ParserState::ChunkLengthNewline,
+    chunked_assert_eos(&mut p, &mut h, b"\"valid \\\"value\\\" here\"\r", ParserState::ChunkLengthLf,
                        23);
 
     assert_eq!(h.chunk_extension_value, b"valid \"value\" here");

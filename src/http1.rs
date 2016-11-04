@@ -719,7 +719,7 @@ pub enum ParserState {
     // ---------------------------------------------------------------------------------------------
 
     /// Parsing status line has finished.
-    StatusEnd,
+    StatusLineEnd,
 
     /// Parsing pre-header line feed.
     PreHeaders1,
@@ -752,16 +752,16 @@ pub enum ParserState {
     HeaderEscapedValue,
 
     /// Parsing first carriage return after status line or header value.
-    HeaderNewline1,
+    HeaderCr1,
 
     /// Parsing first line feed after status line or header value.
-    HeaderNewline2,
+    HeaderLf1,
 
     /// Parsing second carriage return after status line or header value.
-    HeaderNewline3,
+    HeaderCr2,
 
     /// Parsing second line feed after status line or header value.
-    HeaderNewline4,
+    HeaderLf2,
 
     // ---------------------------------------------------------------------------------------------
     // CHUNKED TRANSFER
@@ -773,8 +773,8 @@ pub enum ParserState {
     /// Parsing chunk length byte 2.
     ChunkLength2,
 
-    /// Parsing chunk length end (when chunk length is 0).
-    ChunkLengthEnd,
+    /// Parsing chunk length carriage return or semi-colon.
+    ChunkLengthCr,
 
     /// Stripping linear white space before chunk extension name.
     StripChunkExtensionName,
@@ -804,7 +804,7 @@ pub enum ParserState {
     ChunkExtensionFinished,
 
     /// Parsing line feed after chunk length.
-    ChunkLengthNewline,
+    ChunkLengthLf,
 
     /// Parsing chunk data.
     ChunkData,
@@ -838,21 +838,21 @@ pub enum ParserState {
     MultipartDataByLength,
 
     /// Parsing carriage return after data by length.
-    MultipartDataNewline1,
+    MultipartDataByLengthCr,
 
     /// Parsing line feed after data by length.
-    MultipartDataNewline2,
+    MultipartDataByLengthLf,
 
     /// Parsing potential line feed after data by byte.
-    MultipartDataNewline3,
+    MultipartDataByByteLf,
 
     /// Parsing post boundary carriage return or hyphen.
-    MultipartNewline1,
+    MultipartBoundaryCr,
 
     /// Parsing post boundary line feed.
-    MultipartNewline2,
+    MultipartBoundaryLf,
 
-    /// Parsing post boundary second hyphen.
+    /// Parsing last boundary second hyphen that indicates end of multipart body.
     MultipartEnd,
 
     // ---------------------------------------------------------------------------------------------
@@ -1385,7 +1385,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// **`handler`**
     ///
     /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks used by this function.
+    /// the callbacks expected by this function.
     ///
     /// **`stream`**
     ///
@@ -1431,7 +1431,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// **`handler`**
     ///
     /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks used by this function.
+    /// the callbacks expected by this function.
     ///
     /// **`stream`**
     ///
@@ -1481,7 +1481,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// **`handler`**
     ///
     /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks used by this function.
+    /// the callbacks expected by this function.
     ///
     /// **`stream`**
     ///
@@ -1531,7 +1531,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// **`handler`**
     ///
     /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks used by this function.
+    /// the callbacks expected by this function.
     ///
     /// **`stream`**
     ///
@@ -1603,6 +1603,23 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.length         = 0;
         self.state          = ParserState::Detect1;
         self.state_function = Parser::detect1;
+    }
+
+    /// Resume parsing.
+    ///
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
+    /// the callbacks expected by `Parser`.
+    ///
+    /// **`stream`**
+    ///
+    /// The stream of data to be parsed.
+    #[inline]
+    pub fn resume(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
+        self.parse(&mut ParserContext::new(handler, stream))
     }
 
     /// Retrieve the current state.
@@ -1750,7 +1767,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn status_end(&mut self, context: &mut ParserContext<T>)
+    fn status_line_end(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         set_state!(self, ParserState::PreHeaders1, pre_headers1);
 
@@ -1781,7 +1798,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            transition_fast!(self, context, ParserState::HeaderNewline4, header_newline4);
+            transition_fast!(self, context, ParserState::HeaderLf2, header_lf2);
         } else {
             bs_replay!(context);
 
@@ -1954,7 +1971,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         callback_ignore_transition_fast!(self, context,
                                          on_header_value,
-                                         ParserState::HeaderNewline2, header_newline2);
+                                         ParserState::HeaderLf1, header_lf1);
     }
 
     #[inline]
@@ -1970,7 +1987,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'"' {
             callback_ignore_transition_fast!(self, context,
                                              on_header_value,
-                                             ParserState::HeaderNewline1, header_newline1);
+                                             ParserState::HeaderCr1, header_cr1);
         } else {
             callback_ignore_transition_fast!(self, context,
                                              on_header_value,
@@ -1990,45 +2007,45 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_newline1(&mut self, context: &mut ParserContext<T>)
+    fn header_cr1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         if bs_has_bytes!(context, 2) && bs_starts_with2!(context, b"\r\n") {
             bs_jump!(context, 2);
 
-            transition_fast!(self, context, ParserState::HeaderNewline3, header_newline3);
+            transition_fast!(self, context, ParserState::HeaderCr2, header_cr2);
         }
 
         exit_if_eos!(self, context);
         bs_next!(context);
 
         if context.byte == b'\r' {
-            transition_fast!(self, context, ParserState::HeaderNewline2, header_newline2);
+            transition_fast!(self, context, ParserState::HeaderLf1, header_lf1);
         }
 
         Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
-    fn header_newline2(&mut self, context: &mut ParserContext<T>)
+    fn header_lf1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
         if context.byte == b'\n' {
-            transition_fast!(self, context, ParserState::HeaderNewline3, header_newline3);
+            transition_fast!(self, context, ParserState::HeaderCr2, header_cr2);
         }
 
         Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
-    fn header_newline3(&mut self, context: &mut ParserContext<T>)
+    fn header_cr2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
         if context.byte == b'\r' {
-            transition_fast!(self, context, ParserState::HeaderNewline4, header_newline4);
+            transition_fast!(self, context, ParserState::HeaderLf2, header_lf2);
         } else if context.byte == b' ' || context.byte == b'\t' {
             // multiline header value
             callback_transition!(self, context,
@@ -2041,7 +2058,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_newline4(&mut self, context: &mut ParserContext<T>)
+    fn header_lf2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2169,7 +2186,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
                 bs_jump!(context, $length);
-                set_state!(self, ParserState::StatusEnd, status_end);
+                set_state!(self, ParserState::StatusLineEnd, status_line_end);
 
                 if context.handler.on_version($major, $minor) {
                     transition_fast!(self, context);
@@ -2287,13 +2304,17 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             exit_eos!(self, context);
         });
 
-        set_state!(self, ParserState::StatusEnd, status_end);
+        if context.byte == b'\r' {
+            set_state!(self, ParserState::StatusLineEnd, status_line_end);
 
-        if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
-            transition_fast!(self, context);
-        } else {
-            exit_callback!(self, context);
+            if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
+                transition_fast!(self, context);
+            } else {
+                exit_callback!(self, context);
+            }
         }
+
+        Err(ParserError::Version(context.byte))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2413,7 +2434,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         callback_ignore_transition_fast!(self, context,
                                          on_status,
-                                         ParserState::StatusEnd, status_end);
+                                         ParserState::StatusLineEnd, status_line_end);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2427,7 +2448,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'0' {
-            transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
+            transition_fast!(self, context, ParserState::ChunkLengthCr, chunk_length_cr);
         } else if !is_hex!(context.byte) {
             return Err(ParserError::ChunkLength(context.byte));
         }
@@ -2449,11 +2470,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         bs_replay!(context);
 
-        transition_fast!(self, context, ParserState::ChunkLengthEnd, chunk_length_end);
+        transition_fast!(self, context, ParserState::ChunkLengthCr, chunk_length_cr);
     }
 
     #[inline]
-    fn chunk_length_end(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length_cr(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2462,12 +2483,12 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             if self.length == 0 {
                 callback_transition_fast!(self, context,
                                           on_chunk_length, self.length,
-                                          ParserState::HeaderNewline2, header_newline2);
+                                          ParserState::HeaderLf1, header_lf1);
             }
 
             callback_transition_fast!(self, context,
                                       on_chunk_length, self.length,
-                                      ParserState::ChunkLengthNewline, chunk_length_newline);
+                                      ParserState::ChunkLengthLf, chunk_length_lf);
         } else if context.byte == b';' {
             set_flag!(self, F_CHUNK_EXTENSIONS);
 
@@ -2478,6 +2499,29 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
 
         Err(ParserError::ChunkLength(context.byte))
+    }
+
+    #[inline]
+    fn chunk_length_lf(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            set_state!(self, ParserState::ChunkData, chunk_data);
+
+            if has_flag!(self, F_CHUNK_EXTENSIONS) {
+                if context.handler.on_chunk_extensions_finished() {
+                    transition!(self, context);
+                } else {
+                    exit_callback!(self, context);
+                }
+            } else {
+                transition!(self, context);
+            }
+        }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2645,7 +2689,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, ParserState::ChunkLengthNewline, chunk_length_newline);
+            set_state!(self, ParserState::ChunkLengthLf, chunk_length_lf);
         } else {
             set_state!(self, ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
         }
@@ -2655,29 +2699,6 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
 
         exit_callback!(self, context);
-    }
-
-    #[inline]
-    fn chunk_length_newline(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\n' {
-            set_state!(self, ParserState::ChunkData, chunk_data);
-
-            if has_flag!(self, F_CHUNK_EXTENSIONS) {
-                if context.handler.on_chunk_extensions_finished() {
-                    transition!(self, context);
-                } else {
-                    exit_callback!(self, context);
-                }
-            } else {
-                transition!(self, context);
-            }
-        }
-
-        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2844,13 +2865,49 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             set_upper14!(self, 0);
 
             transition!(self, context,
-                        ParserState::MultipartNewline1, multipart_newline1);
+                        ParserState::MultipartBoundaryCr, multipart_boundary_cr);
         }
 
         // boundary comparison not finished
         inc_upper14!(self, length);
 
         exit_eos!(self, context);
+    }
+
+    #[inline]
+    fn multipart_boundary_cr(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            set_state!(self, ParserState::PreHeaders1, pre_headers1);
+
+            if context.handler.on_multipart_begin() {
+                transition!(self, context);
+            } else {
+                exit_callback!(self, context);
+            }
+        } else if context.byte == b'-' {
+            transition_fast!(self, context,
+                             ParserState::MultipartEnd, multipart_end);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_boundary_lf(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            transition!(self, context,
+                        ParserState::StripHeaderField, strip_header_field);
+        }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2888,7 +2945,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
             callback_transition!(self, context,
                                  on_multipart_data,
-                                 ParserState::MultipartDataNewline1, multipart_data_newline1);
+                                 ParserState::MultipartDataByLengthCr, multipart_data_by_length_cr);
         }
 
         // collect remaining stream data
@@ -2899,6 +2956,38 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         callback_transition!(self, context,
                              on_multipart_data,
                              ParserState::MultipartDataByLength, multipart_data_by_length);
+    }
+
+    #[inline]
+    fn multipart_data_by_length_cr(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(self, context,
+                             ParserState::MultipartDataByLengthLf, multipart_data_by_length_lf);
+        }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
+    }
+
+    #[inline]
+    fn multipart_data_by_length_lf(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\n' {
+            transition_fast!(self, context,
+                             ParserState::MultipartHyphen1, multipart_hyphen1);
+        }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2914,43 +3003,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         callback_ignore_transition_fast!(self, context,
                                          on_multipart_data,
-                                         ParserState::MultipartDataNewline3, multipart_data_newline3)
+                                         ParserState::MultipartDataByByteLf, multipart_data_by_byte_lf)
     }
 
     #[inline]
-    fn multipart_data_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            transition_fast!(self, context,
-                             ParserState::MultipartDataNewline2, multipart_data_newline2);
-        }
-
-        // this state is only used after multipart_data_by_length, so we can error if we don't
-        // find the carriage return
-        Err(ParserError::MultipartBoundary(context.byte))
-    }
-
-    #[inline]
-    fn multipart_data_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\n' {
-            transition_fast!(self, context,
-                             ParserState::MultipartHyphen1, multipart_hyphen1);
-        }
-
-        // this state is only used after multipart_data_by_length, so we can error if we don't
-        // find the carriage return
-        Err(ParserError::MultipartBoundary(context.byte))
-    }
-
-    #[inline]
-    fn multipart_data_newline3(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_byte_lf(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2963,42 +3020,6 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         callback_transition!(self, context,
                              on_multipart_data, &[b'\r', context.byte],
                              ParserState::MultipartDataByByte, multipart_data_by_byte);
-    }
-
-    #[inline]
-    fn multipart_newline1(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            set_state!(self, ParserState::PreHeaders1, pre_headers1);
-
-            if context.handler.on_multipart_begin() {
-                transition!(self, context);
-            } else {
-                exit_callback!(self, context);
-            }
-        } else if context.byte == b'-' {
-            transition_fast!(self, context,
-                             ParserState::MultipartEnd, multipart_end);
-        }
-
-        Err(ParserError::MultipartBoundary(context.byte))
-    }
-
-    #[inline]
-    fn multipart_newline2(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\n' {
-            transition!(self, context,
-                        ParserState::StripHeaderField, strip_header_field);
-        }
-
-        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]

@@ -91,7 +91,7 @@ fn linear_space() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"   \t\t\tvalid-value\r", ParserState::ChunkLengthNewline, 18);
+    chunked_assert_eos(&mut p, &mut h, b"   \t\t\tvalid-value\r", ParserState::ChunkLengthLf, 18);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -102,6 +102,6 @@ fn repeat() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", ParserState::ChunkLengthNewline, 12);
+    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", ParserState::ChunkLengthLf, 12);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }

@@ -70,7 +70,7 @@ fn first_boundary_match () {
 
     multipart_assert_eos(&mut p, &mut h,
                          b"XX",
-                         ParserState::MultipartNewline1, 2);
+                         ParserState::MultipartBoundaryCr, 2);
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\r",
@@ -82,7 +82,7 @@ fn first_boundary_match () {
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\r",
-                         ParserState::HeaderNewline4, 1);
+                         ParserState::HeaderLf2, 1);
 
     multipart_assert_eos(&mut p, &mut h,
                          b"\n",

@@ -33,7 +33,7 @@ fn callback_exit() {
     let mut p = Parser::new();
 
     chunked_setup(&mut p, &mut h, b"F;extension=value\r",
-                  ParserState::ChunkLengthNewline);
+                  ParserState::ChunkLengthLf);
     chunked_assert_callback(&mut p, &mut h, b"\nDATA",
                             ParserState::ChunkData, 1);
 }

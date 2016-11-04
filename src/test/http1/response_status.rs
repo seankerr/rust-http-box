@@ -68,7 +68,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", ParserState::StatusEnd, 14);
+    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", ParserState::StatusLineEnd, 14);
 }
 
 #[test]
