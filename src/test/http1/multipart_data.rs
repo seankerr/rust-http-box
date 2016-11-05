@@ -36,7 +36,7 @@ fn data_ok () {
                          ParserState::Finished, 115);
 
     assert_eq!(h.multipart_data, b"DATA1DATA2");
-    assert_eq!(h.header_field, b"header1header2");
+    assert_eq!(h.header_name, b"header1header2");
     assert_eq!(h.header_value, b"Value1Value2");
 }
 

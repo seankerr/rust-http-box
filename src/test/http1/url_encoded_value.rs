@@ -141,7 +141,7 @@ fn value_ending_ampersand() {
 
     setup!(p, h, 1000);
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Value&", ParserState::UrlEncodedField, 1000, 6);
+    url_encoded_assert_eos(&mut p, &mut h, b"Value&", ParserState::UrlEncodedName, 1000, 6);
     assert_eq!(h.url_encoded_value, b"Value");
 }
 

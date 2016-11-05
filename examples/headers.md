@@ -2,13 +2,13 @@
 
 [HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html) has 3 callback functions that are related to headers:
 
-- [on_header_field()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_field): Receive header field details
+- [on_header_name()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_name): Receive header name details
 - [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value): Receive header value details
 - [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished): Indicates headers have finished parsing
 
 Similar to status line parsing, when the headers are finished parsing, the `on_headers_finished()`
-callback will be executed. You may be wondering how to detect when a new header field or value
-is received, and how to keep it separate from the recent header field and value. This can be
+callback will be executed. You may be wondering how to detect when a new header name or value
+is received, and how to keep it separate from the recent header name and value. This can be
 achieved with a bit of finesse.
 
 You will notice that the header name used to retrieve the header from the `HashMap` is lower-cased.
@@ -24,29 +24,29 @@ use std::collections::HashMap;
 
 pub struct Handler {
     pub headers: HashMap<String,String>,
-    pub field: Vec<u8>,
+    pub name: Vec<u8>,
     pub value: Vec<u8>
 }
 
 impl Handler {
     fn flush_header(&mut self) {
-        if self.field.len() > 0 && self.value.len() > 0 {
-            self.headers.insert(String::from_utf8(self.field.clone()).unwrap(),
+        if self.name.len() > 0 && self.value.len() > 0 {
+            self.headers.insert(String::from_utf8(self.name.clone()).unwrap(),
                                 String::from_utf8(self.value.clone()).unwrap());
         }
 
-        self.field.clear();
+        self.name.clear();
         self.value.clear();
     }
 }
 
 impl HttpHandler for Handler {
-    fn on_header_field(&mut self, data: &[u8]) -> bool {
+    fn on_header_name(&mut self, data: &[u8]) -> bool {
         if self.value.len() > 0 {
             self.flush_header();
         }
 
-        self.field.extend_from_slice(data);
+        self.name.extend_from_slice(data);
         true
     }
 
@@ -64,7 +64,7 @@ impl HttpHandler for Handler {
 fn main() {
     // init handler and parser
     let mut h = Handler{ headers: HashMap::new(),
-                         field: Vec::new(),
+                         name: Vec::new(),
                          value: Vec::new() };
 
     let mut p = Parser::new();

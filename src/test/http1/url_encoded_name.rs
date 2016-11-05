@@ -27,7 +27,7 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
-        if let ParserError::UrlEncodedField(x) = url_encoded_assert_error(&mut p,
+        if let ParserError::UrlEncodedName(x) = url_encoded_assert_error(&mut p,
                                                                           &mut h,
                                                                           &[byte],
                                                                           1).unwrap() {
@@ -51,7 +51,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_url_encoded_field(&mut self, _field: &[u8]) -> bool {
+        fn on_url_encoded_name(&mut self, _field: &[u8]) -> bool {
             false
         }
     }
@@ -59,7 +59,7 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    url_encoded_assert_callback(&mut p, &mut h, b"Field", ParserState::UrlEncodedField, 5, 5);
+    url_encoded_assert_callback(&mut p, &mut h, b"Field", ParserState::UrlEncodedName, 5, 5);
 }
 
 #[test]
@@ -67,8 +67,8 @@ fn basic() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field", ParserState::UrlEncodedField, 1000, 5);
-    assert_eq!(h.url_encoded_field, b"Field");
+    url_encoded_assert_eos(&mut p, &mut h, b"Field", ParserState::UrlEncodedName, 1000, 5);
+    assert_eq!(h.url_encoded_name, b"Field");
 }
 
 #[test]
@@ -76,8 +76,8 @@ fn ending_ampersand() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field1&", ParserState::UrlEncodedField, 1000, 7);
-    assert_eq!(h.url_encoded_field, b"Field1");
+    url_encoded_assert_eos(&mut p, &mut h, b"Field1&", ParserState::UrlEncodedName, 1000, 7);
+    assert_eq!(h.url_encoded_name, b"Field1");
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn ending_equal() {
     let mut p = Parser::new();
 
     url_encoded_assert_eos(&mut p, &mut h, b"Field=", ParserState::UrlEncodedValue, 1000, 6);
-    assert_eq!(h.url_encoded_field, b"Field");
+    assert_eq!(h.url_encoded_name, b"Field");
 }
 
 #[test]
@@ -94,8 +94,8 @@ fn ending_percent() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedFieldHex1, 1000, 6);
-    assert_eq!(h.url_encoded_field, b"Field");
+    url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedNameHex1, 1000, 6);
+    assert_eq!(h.url_encoded_name, b"Field");
 }
 
 #[test]
@@ -103,8 +103,8 @@ fn ending_plus() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field+", ParserState::UrlEncodedField, 1000, 6);
-    assert_eq!(h.url_encoded_field, b"Field ");
+    url_encoded_assert_eos(&mut p, &mut h, b"Field+", ParserState::UrlEncodedName, 1000, 6);
+    assert_eq!(h.url_encoded_name, b"Field ");
 }
 
 #[test]
@@ -112,8 +112,8 @@ fn hex() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field%21", ParserState::UrlEncodedField, 1000, 8);
-    assert_eq!(h.url_encoded_field, b"Field!");
+    url_encoded_assert_eos(&mut p, &mut h, b"Field%21", ParserState::UrlEncodedName, 1000, 8);
+    assert_eq!(h.url_encoded_name, b"Field!");
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn hex_error() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::UrlEncodedField(x) = url_encoded_assert_error(&mut p, &mut h,
+    if let ParserError::UrlEncodedName(x) = url_encoded_assert_error(&mut p, &mut h,
                                                                       b"%2z", 3).unwrap() {
         assert_eq!(x, b'z');
     } else {

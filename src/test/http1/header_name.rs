@@ -35,7 +35,7 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::HeaderField(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
+        if let ParserError::HeaderName(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -50,7 +50,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
         }
     });
 
@@ -62,7 +62,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
         }
     });
 
@@ -74,7 +74,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderField, 1);
+            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
         }
     });
 }
@@ -316,7 +316,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_header_field(&mut self, _field: &[u8]) -> bool {
+        fn on_header_name(&mut self, _field: &[u8]) -> bool {
             false
         }
     }
@@ -326,7 +326,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", ParserState::LowerHeaderField, 1);
+    assert_callback(&mut p, &mut h, b"F", ParserState::LowerHeaderName, 1);
 }
 
 #[test]
@@ -336,24 +336,24 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"F", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"f");
-    assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fi");
-    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fie");
-    assert_eos(&mut p, &mut h, b"l", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fiel");
-    assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"field");
-    assert_eos(&mut p, &mut h, b"N", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fieldn");
-    assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fieldna");
-    assert_eos(&mut p, &mut h, b"m", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fieldnam");
-    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderField, 1);
-    assert_eq!(h.header_field, b"fieldname");
+    assert_eos(&mut p, &mut h, b"F", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"f");
+    assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fi");
+    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fie");
+    assert_eos(&mut p, &mut h, b"l", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fiel");
+    assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"field");
+    assert_eos(&mut p, &mut h, b"N", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fieldn");
+    assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fieldna");
+    assert_eos(&mut p, &mut h, b"m", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fieldnam");
+    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderName, 1);
+    assert_eq!(h.header_name, b"fieldname");
     assert_eos(&mut p, &mut h, b":", ParserState::StripHeaderValue, 1);
 }
 
@@ -364,8 +364,8 @@ fn normalize() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HEADER-FIELD", ParserState::LowerHeaderField, 12);
-    assert_eq!(h.header_field, b"header-field");
+    assert_eos(&mut p, &mut h, b"HEADER-FIELD", ParserState::LowerHeaderName, 12);
+    assert_eq!(h.header_name, b"header-field");
 }
 
 #[test]
@@ -376,5 +376,5 @@ fn single() {
     setup!(p, h);
 
     assert_eos(&mut p, &mut h, b"FieldName:", ParserState::StripHeaderValue, 10);
-    assert_eq!(h.header_field, b"fieldname");
+    assert_eq!(h.header_name, b"fieldname");
 }

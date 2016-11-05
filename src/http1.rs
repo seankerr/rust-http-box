@@ -171,8 +171,8 @@ pub struct DebugHandler {
     /// Chunk length.
     pub chunk_length: usize,
 
-    /// Header field.
-    pub header_field: Vec<u8>,
+    /// Header name.
+    pub header_name: Vec<u8>,
 
     /// Header value.
     pub header_value: Vec<u8>,
@@ -198,8 +198,8 @@ pub struct DebugHandler {
     /// Request URL.
     pub url: Vec<u8>,
 
-    /// URL encoded field.
-    pub url_encoded_field: Vec<u8>,
+    /// URL encoded name.
+    pub url_encoded_name: Vec<u8>,
 
     /// URL encoded value.
     pub url_encoded_value: Vec<u8>,
@@ -219,7 +219,7 @@ impl DebugHandler {
                       chunk_extension_name:  Vec::new(),
                       chunk_extension_value: Vec::new(),
                       chunk_length:          0,
-                      header_field:          Vec::new(),
+                      header_name:          Vec::new(),
                       header_value:          Vec::new(),
                       headers_finished:      false,
                       method:                Vec::new(),
@@ -228,7 +228,7 @@ impl DebugHandler {
                       status_code:           0,
                       status_finished:       false,
                       url:                   Vec::new(),
-                      url_encoded_field:     Vec::new(),
+                      url_encoded_name:     Vec::new(),
                       url_encoded_value:     Vec::new(),
                       version_major:         0,
                       version_minor:         0 }
@@ -241,7 +241,7 @@ impl DebugHandler {
         self.chunk_extension_name  = Vec::new();
         self.chunk_extension_value = Vec::new();
         self.chunk_length          = 0;
-        self.header_field          = Vec::new();
+        self.header_name          = Vec::new();
         self.header_value          = Vec::new();
         self.headers_finished      = false;
         self.method                = Vec::new();
@@ -250,7 +250,7 @@ impl DebugHandler {
         self.status_code           = 0;
         self.status_finished       = false;
         self.url                   = Vec::new();
-        self.url_encoded_field     = Vec::new();
+        self.url_encoded_name     = Vec::new();
         self.url_encoded_value     = Vec::new();
         self.version_major         = 0;
         self.version_minor         = 0;
@@ -303,9 +303,9 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_header_field(&mut self, field: &[u8]) -> bool {
-        println!("on_header_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
-        self.header_field.extend_from_slice(field);
+    fn on_header_name(&mut self, name: &[u8]) -> bool {
+        println!("on_header_name [{}]: {:?}", name.len(), str::from_utf8(name).unwrap());
+        self.header_name.extend_from_slice(name);
         true
     }
 
@@ -370,9 +370,9 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
-        println!("on_url_encoded_field [{}]: {:?}", field.len(), str::from_utf8(field).unwrap());
-        self.url_encoded_field.extend_from_slice(field);
+    fn on_url_encoded_name(&mut self, name: &[u8]) -> bool {
+        println!("on_url_encoded_name [{}]: {:?}", name.len(), str::from_utf8(name).unwrap());
+        self.url_encoded_name.extend_from_slice(name);
         true
     }
 
@@ -410,8 +410,8 @@ pub enum ParserError {
     /// Parsing has failed.
     Dead,
 
-    /// Invalid header field on byte `u8`.
-    HeaderField(u8),
+    /// Invalid header name on byte `u8`.
+    HeaderName(u8),
 
     /// Invalid header value on byte `u8`.
     HeaderValue(u8),
@@ -437,8 +437,8 @@ pub enum ParserError {
     /// Invalid URL character on byte `u8`.
     Url(u8),
 
-    /// Invalid URL encoded field on byte `u8`.
-    UrlEncodedField(u8),
+    /// Invalid URL encoded name on byte `u8`.
+    UrlEncodedName(u8),
 
     /// Invalid URL encoded value on byte `u8`.
     UrlEncodedValue(u8),
@@ -467,8 +467,8 @@ impl fmt::Debug for ParserError {
             ParserError::Dead => {
                 write!(formatter, "ParserError::Dead(Parser is dead)")
             },
-            ParserError::HeaderField(byte) => {
-                write!(formatter, "ParserError::HeaderField(Invalid header field on byte {})", byte)
+            ParserError::HeaderName(byte) => {
+                write!(formatter, "ParserError::HeaderName(Invalid header name on byte {})", byte)
             },
             ParserError::HeaderValue(byte) => {
                 write!(formatter, "ParserError::HeaderValue(Invalid header value on byte {})", byte)
@@ -496,8 +496,8 @@ impl fmt::Debug for ParserError {
             ParserError::Url(byte) => {
                 write!(formatter, "ParserError::Url(Invalid URL on byte {})", byte)
             },
-            ParserError::UrlEncodedField(byte) => {
-                write!(formatter, "ParserError::UrlEncodedField(Invalid URL encoded field on byte {})",
+            ParserError::UrlEncodedName(byte) => {
+                write!(formatter, "ParserError::UrlEncodedName(Invalid URL encoded name on byte {})",
                        byte)
             },
             ParserError::UrlEncodedValue(byte) => {
@@ -529,8 +529,8 @@ impl fmt::Display for ParserError {
             ParserError::Dead => {
                 write!(formatter, "Parser is dead")
             },
-            ParserError::HeaderField(byte) => {
-                write!(formatter, "Invalid header field on byte {}", byte)
+            ParserError::HeaderName(byte) => {
+                write!(formatter, "Invalid header name on byte {}", byte)
             },
             ParserError::HeaderValue(byte) => {
                 write!(formatter, "Invalid header value on byte {}", byte)
@@ -556,8 +556,8 @@ impl fmt::Display for ParserError {
             ParserError::Url(byte) => {
                 write!(formatter, "Invalid URL on byte {}", byte)
             },
-            ParserError::UrlEncodedField(byte) => {
-                write!(formatter, "Invalid URL encoded field on byte {}", byte)
+            ParserError::UrlEncodedName(byte) => {
+                write!(formatter, "Invalid URL encoded name on byte {}", byte)
             },
             ParserError::UrlEncodedValue(byte) => {
                 write!(formatter, "Invalid URL encoded value on byte {}", byte)
@@ -727,17 +727,17 @@ pub enum ParserState {
     /// Parsing pre-header potential second carriage return.
     PreHeadersCr2,
 
-    /// Stripping linear white space before header field.
-    StripHeaderField,
+    /// Stripping linear white space before header name.
+    StripHeaderName,
 
-    /// Parsing first byte of header field.
-    FirstHeaderField,
+    /// Parsing first byte of header name.
+    FirstHeaderName,
 
-    /// Parsing upper-cased header field.
-    UpperHeaderField,
+    /// Parsing upper-cased header name.
+    UpperHeaderName,
 
-    /// Parsing lower-cased header field.
-    LowerHeaderField,
+    /// Parsing lower-cased header name.
+    LowerHeaderName,
 
     /// Stripping linear white space before header value.
     StripHeaderValue,
@@ -859,20 +859,20 @@ pub enum ParserState {
     // URL ENCODED
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing URL encoded field.
-    UrlEncodedField,
+    /// Parsing URL encoded name.
+    UrlEncodedName,
 
-    /// Parsing URL encoded field ampersand or semicolon.
-    UrlEncodedFieldAmpersand,
+    /// Parsing URL encoded name ampersand or semicolon.
+    UrlEncodedNameAmpersand,
 
-    /// Parsing URL encoded field hex sequence byte 1.
-    UrlEncodedFieldHex1,
+    /// Parsing URL encoded name hex sequence byte 1.
+    UrlEncodedNameHex1,
 
-    /// Parsing URL encoded field hex sequence byte 2.
-    UrlEncodedFieldHex2,
+    /// Parsing URL encoded name hex sequence byte 2.
+    UrlEncodedNameHex2,
 
-    /// Parsing URL encoded field plus sign.
-    UrlEncodedFieldPlus,
+    /// Parsing URL encoded name plus sign.
+    UrlEncodedNamePlus,
 
     /// Parsing URL encoded value.
     UrlEncodedValue,
@@ -1026,7 +1026,7 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when a header field has been located.
+    /// Callback that is executed when a header name has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -1048,7 +1048,7 @@ pub trait HttpHandler {
     /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     ///
     /// For headers before each multipart section.
-    fn on_header_field(&mut self, field: &[u8]) -> bool {
+    fn on_header_name(&mut self, name: &[u8]) -> bool {
         true
     }
 
@@ -1218,7 +1218,7 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when a URL encoded field has been located.
+    /// Callback that is executed when a URL encoded name has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -1230,7 +1230,7 @@ pub trait HttpHandler {
     /// **Called From:**
     ///
     /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
-    fn on_url_encoded_field(&mut self, field: &[u8]) -> bool {
+    fn on_url_encoded_name(&mut self, name: &[u8]) -> bool {
         true
     }
 
@@ -1399,7 +1399,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// - [`HttpHandler::on_chunk_extension_name()`](trait.HttpHandler.html#method.on_chunk_extension_name)
     /// - [`HttpHandler::on_chunk_extension_value()`](trait.HttpHandler.html#method.on_chunk_extension_value)
     /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
-    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
     ///
@@ -1441,7 +1441,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// *Request & Response:*
     ///
-    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
     /// - [`HttpHandler::on_status_finished()`](trait.HttpHandler.html#method.on_status_finished)
@@ -1461,7 +1461,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// # Errors
     ///
     /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
-    /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
+    /// - [`ParserError::HeaderName`](enum.ParserError.html#variant.HeaderName)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     /// - [`ParserError::Method`](enum.ParserError.html#variant.Method)
     /// - [`ParserError::Status`](enum.ParserError.html#variant.Status)
@@ -1491,7 +1491,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
     /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    /// - [`HttpHandler::on_header_field()`](trait.HttpHandler.html#method.on_header_field)
+    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
     /// - [`HttpHandler::on_multipart_begin()`](trait.HttpHandler.html#method.on_multipart_begin)
@@ -1500,7 +1500,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// # Errors
     ///
     /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
-    /// - [`ParserError::HeaderField`](enum.ParserError.html#variant.HeaderField)
+    /// - [`ParserError::HeaderName`](enum.ParserError.html#variant.HeaderName)
     /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
     #[inline]
     pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8], boundary: &'a [u8])
@@ -1544,12 +1544,12 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// # Callbacks
     ///
     /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    /// - [`HttpHandler::on_url_encoded_field()`](trait.HttpHandler.html#method.on_url_encoded_field)
+    /// - [`HttpHandler::on_url_encoded_name()`](trait.HttpHandler.html#method.on_url_encoded_name)
     /// - [`HttpHandler::on_url_encoded_value()`](trait.HttpHandler.html#method.on_url_encoded_value)
     ///
     /// # Errors
     ///
-    /// - [`ParserError::UrlEncodedField`](enum.ParserError.html#variant.UrlEncodedField)
+    /// - [`ParserError::UrlEncodedName`](enum.ParserError.html#variant.UrlEncodedName)
     /// - [`ParserError::UrlEncodedValue`](enum.ParserError.html#variant.UrlEncodedValue)
     #[inline]
     pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: usize)
@@ -1557,8 +1557,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if self.state == ParserState::StripDetect {
             self.bit_data       = 0;
             self.length         = length;
-            self.state          = ParserState::UrlEncodedField;
-            self.state_function = Parser::url_encoded_field;
+            self.state          = ParserState::UrlEncodedName;
+            self.state_function = Parser::url_encoded_name;
         } else if self.state == ParserState::Finished {
             // already finished
             return Ok(Success::Finished(0));
@@ -1802,104 +1802,104 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else {
             bs_replay!(context);
 
-            transition_fast!(self, context, ParserState::StripHeaderField, strip_header_field);
+            transition_fast!(self, context, ParserState::StripHeaderName, strip_header_name);
         }
     }
 
     #[inline]
-    fn strip_header_field(&mut self, context: &mut ParserContext<T>)
+    fn strip_header_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
             exit_eos!(self, context)
         );
 
-        transition_fast!(self, context, ParserState::FirstHeaderField, first_header_field);
+        transition_fast!(self, context, ParserState::FirstHeaderName, first_header_name);
     }
 
     #[inline]
     #[cfg_attr(test, allow(cyclomatic_complexity))]
-    fn first_header_field(&mut self, context: &mut ParserContext<T>)
+    fn first_header_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        macro_rules! field {
+        macro_rules! name {
             ($header:expr, $length:expr) => ({
                 bs_jump!(context, $length);
 
                 callback_transition_fast!(self, context,
-                                          on_header_field, $header,
+                                          on_header_name, $header,
                                           ParserState::StripHeaderValue, strip_header_value);
             });
         }
 
         if bs_has_bytes!(context, 24) {
-            // have enough bytes to compare common header fields immediately, without collecting
+            // have enough bytes to compare common header names immediately, without collecting
             // individual tokens
             if context.byte == b'C' {
                 if bs_starts_with11!(context, b"Connection:") {
-                    field!(b"connection", 11);
+                    name!(b"connection", 11);
                 } else if bs_starts_with13!(context, b"Content-Type:") {
-                    field!(b"content-type", 13);
+                    name!(b"content-type", 13);
                 } else if bs_starts_with15!(context, b"Content-Length:") {
-                    field!(b"content-length", 15);
+                    name!(b"content-length", 15);
                 } else if bs_starts_with7!(context, b"Cookie:") {
-                    field!(b"cookie", 7);
+                    name!(b"cookie", 7);
                 } else if bs_starts_with14!(context, b"Cache-Control:") {
-                    field!(b"cache-control", 14);
+                    name!(b"cache-control", 14);
                 } else if bs_starts_with24!(context, b"Content-Security-Policy:") {
-                    field!(b"content-security-policy", 24);
+                    name!(b"content-security-policy", 24);
                 }
             } else if context.byte == b'A' {
                 if bs_starts_with7!(context, b"Accept:") {
-                    field!(b"accept", 7);
+                    name!(b"accept", 7);
                 } else if bs_starts_with15!(context, b"Accept-Charset:") {
-                    field!(b"accept-charset", 15);
+                    name!(b"accept-charset", 15);
                 } else if bs_starts_with16!(context, b"Accept-Encoding:") {
-                    field!(b"accept-encoding", 16);
+                    name!(b"accept-encoding", 16);
                 } else if bs_starts_with16!(context, b"Accept-Language:") {
-                    field!(b"accept-language", 16);
+                    name!(b"accept-language", 16);
                 } else if bs_starts_with14!(context, b"Authorization:") {
-                    field!(b"authorization", 14);
+                    name!(b"authorization", 14);
                 }
             } else if context.byte == b'L' {
                 if bs_starts_with9!(context, b"Location:") {
-                    field!(b"location", 9);
+                    name!(b"location", 9);
                 } else if bs_starts_with14!(context, b"Last-Modified:") {
-                    field!(b"last-modified", 14);
+                    name!(b"last-modified", 14);
                 }
             } else if bs_starts_with7!(context, b"Pragma:") {
-                field!(b"pragma", 7);
+                name!(b"pragma", 7);
             } else if bs_starts_with11!(context, b"Set-Cookie:") {
-                field!(b"set-cookie", 11);
+                name!(b"set-cookie", 11);
             } else if bs_starts_with18!(context, b"Transfer-Encoding:") {
-                field!(b"transfer-encoding", 18);
+                name!(b"transfer-encoding", 18);
             } else if context.byte == b'U' {
                 if bs_starts_with11!(context, b"User-Agent:") {
-                    field!(b"user-agent", 11);
+                    name!(b"user-agent", 11);
                 } else if bs_starts_with8!(context, b"Upgrade:") {
-                    field!(b"upgrade", 8);
+                    name!(b"upgrade", 8);
                 }
             } else if context.byte == b'X' {
                 if bs_starts_with13!(context, b"X-Powered-By:") {
-                    field!(b"x-powered-by", 13);
+                    name!(b"x-powered-by", 13);
                 } else if bs_starts_with16!(context, b"X-Forwarded-For:") {
-                    field!(b"x-forwarded-for", 16);
+                    name!(b"x-forwarded-for", 16);
                 } else if bs_starts_with17!(context, b"X-Forwarded-Host:") {
-                    field!(b"x-forwarded-host", 17);
+                    name!(b"x-forwarded-host", 17);
                 } else if bs_starts_with17!(context, b"X-XSS-Protection:") {
-                    field!(b"x-xss-protection", 17);
+                    name!(b"x-xss-protection", 17);
                 } else if bs_starts_with13!(context, b"X-WebKit-CSP:") {
-                    field!(b"x-webkit-csp", 13);
+                    name!(b"x-webkit-csp", 13);
                 }
             } else if bs_starts_with17!(context, b"WWW-Authenticate:") {
-                field!(b"www-authenticate", 17);
+                name!(b"www-authenticate", 17);
             }
         }
 
-        transition_fast!(self, context, ParserState::UpperHeaderField, upper_header_field);
+        transition_fast!(self, context, ParserState::UpperHeaderName, upper_header_name);
     }
 
     #[inline]
-    fn upper_header_field(&mut self, context: &mut ParserContext<T>)
+    fn upper_header_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1907,31 +1907,31 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte > 0x40 && context.byte < 0x5B {
             // upper-cased byte, let's lower-case it
             callback_transition!(self, context,
-                                 on_header_field, &[context.byte + 0x20],
-                                 ParserState::LowerHeaderField, lower_header_field);
+                                 on_header_name, &[context.byte + 0x20],
+                                 ParserState::LowerHeaderName, lower_header_name);
         }
 
         bs_replay!(context);
 
         transition!(self, context,
-                    ParserState::LowerHeaderField, lower_header_field);
+                    ParserState::LowerHeaderName, lower_header_name);
     }
 
     #[inline]
-    fn lower_header_field(&mut self, context: &mut ParserContext<T>)
+    fn lower_header_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(context, ParserError::HeaderField,
+        collect_tokens!(context, ParserError::HeaderName,
             // stop on these bytes
                context.byte == b':'
             || (context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
-            callback_eos_expr!(self, context, on_header_field)
+            callback_eos_expr!(self, context, on_header_name)
         );
 
         if context.byte == b':' {
             callback_ignore_transition_fast!(self, context,
-                                             on_header_field,
+                                             on_header_name,
                                              ParserState::StripHeaderValue, strip_header_value);
         }
 
@@ -1939,8 +1939,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_replay!(context);
 
         callback_transition_fast!(self, context,
-                                  on_header_field,
-                                  ParserState::UpperHeaderField, upper_header_field);
+                                  on_header_name,
+                                  ParserState::UpperHeaderName, upper_header_name);
     }
 
     #[inline]
@@ -2053,7 +2053,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                  ParserState::StripHeaderValue, strip_header_value);
         } else {
             bs_replay!(context);
-            transition!(self, context, ParserState::StripHeaderField, strip_header_field);
+            transition!(self, context, ParserState::StripHeaderName, strip_header_name);
         }
     }
 
@@ -2904,7 +2904,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         if context.byte == b'\n' {
             transition!(self, context,
-                        ParserState::StripHeaderField, strip_header_field);
+                        ParserState::StripHeaderName, strip_header_name);
         }
 
         Err(ParserError::MultipartBoundary(context.byte))
@@ -3037,9 +3037,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_field(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(context, ParserError::UrlEncodedField,
+        collect_visible!(context, ParserError::UrlEncodedName,
             // stop on these bytes
                context.byte == b'='
             || context.byte == b'%'
@@ -3048,47 +3048,47 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             || context.byte == b'+',
 
             // on end-of-stream
-            callback_eos_expr!(self, context, on_url_encoded_field)
+            callback_eos_expr!(self, context, on_url_encoded_name)
         );
 
         match context.byte {
             b'=' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_field,
+                                                 on_url_encoded_name,
                                                  ParserState::UrlEncodedValue, url_encoded_value);
             },
             b'%' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_field,
-                                                 ParserState::UrlEncodedFieldHex1,
-                                                 url_encoded_field_hex1);
+                                                 on_url_encoded_name,
+                                                 ParserState::UrlEncodedNameHex1,
+                                                 url_encoded_name_hex1);
             },
             b'&' | b';' => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_field,
-                                                 ParserState::UrlEncodedFieldAmpersand,
-                                                 url_encoded_field_ampersand);
+                                                 on_url_encoded_name,
+                                                 ParserState::UrlEncodedNameAmpersand,
+                                                 url_encoded_name_ampersand);
             },
             _ => {
                 callback_ignore_transition_fast!(self, context,
-                                                 on_url_encoded_field,
-                                                 ParserState::UrlEncodedFieldPlus,
-                                                 url_encoded_field_plus);
+                                                 on_url_encoded_name,
+                                                 ParserState::UrlEncodedNamePlus,
+                                                 url_encoded_name_plus);
             }
         }
     }
 
     #[inline]
-    fn url_encoded_field_ampersand(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_ampersand(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         // no value, send an empty one
         callback_transition!(self, context,
                              on_url_encoded_value, b"",
-                             ParserState::UrlEncodedField, url_encoded_field);
+                             ParserState::UrlEncodedName, url_encoded_name);
     }
 
     #[inline]
-    fn url_encoded_field_hex1(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_hex1(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -3100,15 +3100,15 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             (context.byte - 0x57) << 4
         } else {
-            return Err(ParserError::UrlEncodedField(context.byte));
+            return Err(ParserError::UrlEncodedName(context.byte));
         });
 
         transition_fast!(self, context,
-                         ParserState::UrlEncodedFieldHex2, url_encoded_field_hex2);
+                         ParserState::UrlEncodedNameHex2, url_encoded_name_hex2);
     }
 
     #[inline]
-    fn url_encoded_field_hex2(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_hex2(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -3120,21 +3120,21 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             context.byte - 0x57
         } else {
-            return Err(ParserError::UrlEncodedField(context.byte));
+            return Err(ParserError::UrlEncodedName(context.byte));
         });
 
         callback_transition!(self, context,
-                             on_url_encoded_field,
+                             on_url_encoded_name,
                              &[(get_upper14!(self) | get_lower14!(self)) as u8],
-                             ParserState::UrlEncodedField, url_encoded_field);
+                             ParserState::UrlEncodedName, url_encoded_name);
     }
 
     #[inline]
-    fn url_encoded_field_plus(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_plus(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
-                             on_url_encoded_field, b" ",
-                             ParserState::UrlEncodedField, url_encoded_field);
+                             on_url_encoded_name, b" ",
+                             ParserState::UrlEncodedName, url_encoded_name);
     }
 
     #[inline]
@@ -3161,8 +3161,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             b'&' | b';' => {
                 callback_ignore_transition!(self, context,
                                             on_url_encoded_value,
-                                            ParserState::UrlEncodedField,
-                                            url_encoded_field);
+                                            ParserState::UrlEncodedName,
+                                            url_encoded_name);
             },
             b'+' => {
                 callback_ignore_transition_fast!(self, context,

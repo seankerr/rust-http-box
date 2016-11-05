@@ -31,7 +31,7 @@ fn headers_ok () {
                            \r\n",
                          ParserState::MultipartDataByByte, 39);
 
-    assert_eq!(h.header_field, b"h1h2");
+    assert_eq!(h.header_name, b"h1h2");
     assert_eq!(h.header_value, b"V1V2");
     assert!(h.headers_finished);
 }
