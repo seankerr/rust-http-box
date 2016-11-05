@@ -57,11 +57,8 @@ const F_CHUNKED: u32 = 1;
 /// Parsing chunk encoded extensions.
 const F_CHUNK_EXTENSIONS: u32 = 1 << 1;
 
-/// Headers are finished parsing.
-const F_HEADERS_FINISHED: u32 = 1 << 2;
-
 /// Parsing multipart.
-const F_MULTIPART: u32 = 1 << 3;
+const F_MULTIPART: u32 = 1 << 2;
 
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
@@ -1301,7 +1298,7 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 
 // -------------------------------------------------------------------------------------------------
 
-/// HTTP 1.1 parser.
+/// HTTP 1.x parser.
 pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
@@ -1312,7 +1309,7 @@ pub struct Parser<'a, T: HttpHandler> {
     /// Total byte count processed for headers, and body.
     byte_count: usize,
 
-    /// Length storage for max headers length and chunk length.
+    /// Length storage for h.
     length: usize,
 
     /// Current state.
@@ -2064,8 +2061,6 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            set_flag!(self, F_HEADERS_FINISHED);
-
             if has_flag!(self, F_CHUNKED) {
                 set_state!(self, ParserState::BodyFinished, body_finished);
             } else if has_flag!(self, F_MULTIPART) {
@@ -3253,4 +3248,78 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
     }
+}
+
+/// State listing in parsing order.
+///
+/// This is a helper type that will simplify state tracking in custom implementations.
+#[derive(Clone,Copy,PartialEq)]
+#[repr(u8)]
+pub enum State {
+    None,
+
+    // ---------------------------------------------------------------------------------------------
+    // STATUS LINE STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// Request method.
+    RequestMethod,
+
+    /// Request URL.
+    RequestUrl,
+
+    /// Request HTTP version.
+    RequestVersion,
+
+    /// Response HTTP version.
+    ResponseVersion,
+
+    /// Response status code.
+    ResponseStatusCode,
+
+    /// Response status.
+    ResponseStatus,
+
+    // ---------------------------------------------------------------------------------------------
+    // HEADER STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// Header name.
+    HeaderName,
+
+    /// Header value.
+    HeaderValue,
+
+    // ---------------------------------------------------------------------------------------------
+    // CHUNK TRANSFER ENCODING STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// Chunk length.
+    ChunkLength,
+
+    /// Chunk extension name.
+    ChunkExtensionName,
+
+    /// Chunk extension value.
+    ChunkExtensionValue,
+
+    /// Chunk data.
+    ChunkData,
+
+    // ---------------------------------------------------------------------------------------------
+    // MULTIPART STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// Multipart data.
+    MultipartData,
+
+    // ---------------------------------------------------------------------------------------------
+    // URL ENCODED STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// URL encoded name.
+    UrlEncodedName,
+
+    /// URL encoded value.
+    UrlEncodedValue
 }

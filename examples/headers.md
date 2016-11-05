@@ -19,11 +19,12 @@ This is because header names are normalized to lower-case automatically.
 ```rust
 extern crate http_box;
 
-use http_box::http1::{HttpHandler, Parser};
+use http_box::http1::{HttpHandler, Parser, State};
 use std::collections::HashMap;
 
 pub struct Handler {
     pub headers: HashMap<String,String>,
+    pub state: State,
     pub name: Vec<u8>,
     pub value: Vec<u8>
 }
@@ -42,8 +43,10 @@ impl Handler {
 
 impl HttpHandler for Handler {
     fn on_header_name(&mut self, data: &[u8]) -> bool {
-        if self.value.len() > 0 {
+        if self.state == State::HeaderValue {
             self.flush_header();
+
+            self.state = State::HeaderName;
         }
 
         self.name.extend_from_slice(data);
@@ -51,6 +54,7 @@ impl HttpHandler for Handler {
     }
 
     fn on_header_value(&mut self, data: &[u8]) -> bool {
+        self.state = State::HeaderValue;
         self.value.extend_from_slice(data);
         true
     }
@@ -64,6 +68,7 @@ impl HttpHandler for Handler {
 fn main() {
     // init handler and parser
     let mut h = Handler{ headers: HashMap::new(),
+                         state: State::None,
                          name: Vec::new(),
                          value: Vec::new() };
 
