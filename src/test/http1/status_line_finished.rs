@@ -32,7 +32,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_status_finished(&mut self) -> bool {
+        fn on_status_line_finished(&mut self) -> bool {
             false
         }
     }

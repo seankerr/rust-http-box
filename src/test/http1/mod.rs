@@ -48,7 +48,7 @@ mod response_version;
 mod response_status_code;
 mod response_status;
 
-mod status_finished;
+mod status_line_finished;
 
 mod url_encoded_name;
 mod url_encoded_value;

@@ -190,7 +190,7 @@ pub struct DebugHandler {
     pub status_code: u16,
 
     /// Indicates that the status line has successfully been parsed.
-    pub status_finished: bool,
+    pub status_line_finished: bool,
 
     /// Request URL.
     pub url: Vec<u8>,
@@ -223,7 +223,7 @@ impl DebugHandler {
                       multipart_data:        Vec::new(),
                       status:                Vec::new(),
                       status_code:           0,
-                      status_finished:       false,
+                      status_line_finished:  false,
                       url:                   Vec::new(),
                       url_encoded_name:     Vec::new(),
                       url_encoded_value:     Vec::new(),
@@ -245,7 +245,7 @@ impl DebugHandler {
         self.multipart_data        = Vec::new();
         self.status                = Vec::new();
         self.status_code           = 0;
-        self.status_finished       = false;
+        self.status_line_finished  = false;
         self.url                   = Vec::new();
         self.url_encoded_name     = Vec::new();
         self.url_encoded_value     = Vec::new();
@@ -355,9 +355,9 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_status_finished(&mut self) -> bool {
-        println!("on_status_finished");
-        self.status_finished = true;
+    fn on_status_line_finished(&mut self) -> bool {
+        println!("on_status_line_finished");
+        self.status_line_finished = true;
         true
     }
 
@@ -1193,7 +1193,7 @@ pub trait HttpHandler {
     /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
     ///
     /// After the status line has been parsed.
-    fn on_status_finished(&mut self) -> bool {
+    fn on_status_line_finished(&mut self) -> bool {
         true
     }
 
@@ -1441,7 +1441,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    /// - [`HttpHandler::on_status_finished()`](trait.HttpHandler.html#method.on_status_finished)
+    /// - [`HttpHandler::on_status_line_finished()`](trait.HttpHandler.html#method.on_status_line_finished)
     ///
     /// *Request:*
     ///
@@ -1768,7 +1768,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         set_state!(self, ParserState::PreHeadersLf1, pre_headers_lf1);
 
-        if context.handler.on_status_finished() {
+        if context.handler.on_status_line_finished() {
             transition_fast!(self, context);
         }
 
