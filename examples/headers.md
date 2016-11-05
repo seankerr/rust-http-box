@@ -2,8 +2,8 @@
 
 [HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html) has 3 callback functions that are related to headers:
 
-- [on_header_name()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_name): Receive header name details
-- [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value): Receive header value details
+- [on_header_name()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_name): Receive header name
+- [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value): Receive header value
 - [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished): Indicates all headers have been parsed
 
 Similar to status line parsing, when the headers are finished parsing, the `on_headers_finished()`

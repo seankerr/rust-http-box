@@ -5,16 +5,16 @@ functions related to the status line:
 
 **Request**
 
-- [on_method()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_method): Receive method details
-- [on_url()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_url): Receive URL details
+- [on_method()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_method): Receive method
+- [on_url()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_url): Receive URL
 - [on_version()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_version): Receive HTTP major and minor version
 - [on_status_line_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_line_finished): Indicates status line parsing has finished
 
 **Response**
 
 - [on_version()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_version): Receive HTTP major and minor version
-- [on_status()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status): Receive status details
-- [on_status_code()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_code): Receive status code details
+- [on_status()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status): Receive status
+- [on_status_code()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_code): Receive status code
 - [on_status_line_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_status_line_finished): Indicates status line parsing has finished
 
 ## Example
