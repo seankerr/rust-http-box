@@ -9,7 +9,7 @@
 Similar to status line parsing, when the headers are finished parsing, the `on_headers_finished()`
 callback will be executed. You may be wondering how to detect when a new header name or value
 is received, and how to keep it separate from the recent header name and value. This can be
-achieved with a bit of finesse.
+achieved by using the [State](http://www.metatomic.io/docs/api/http_box/http1/enum.State.html) enum.
 
 You will notice that the header name used to retrieve the header from the `HashMap` is lower-cased.
 This is because header names are normalized to lower-case automatically.
