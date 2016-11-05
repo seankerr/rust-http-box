@@ -4,7 +4,7 @@
 
 - [on_header_name()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_name): Receive header name details
 - [on_header_value()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_header_value): Receive header value details
-- [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished): Indicates headers have finished parsing
+- [on_headers_finished()](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html#method.on_headers_finished): Indicates all headers have been parsed
 
 Similar to status line parsing, when the headers are finished parsing, the `on_headers_finished()`
 callback will be executed. You may be wondering how to detect when a new header name or value
