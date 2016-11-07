@@ -26,10 +26,12 @@ separate from frameworks that use it.
 - Push oriented and will process a single byte at a time.
 - Callback oriented with the ability to halt parsing after each callback.
 - Headers are normalized to lower-case.
-- Option to parse phases separately from entire requests:
-  - Request/Response
-  - Headers
-  - Multipart / Chunked / URL encoded
+- Option to parse phases separately:
+  - Head
+  - Body
+    - Multipart
+    - Chunk Transfer-Encoded
+    - URL encoded
 - Zero copy philosophy.
 - DoS protection is easily supported.
 - Fast!
