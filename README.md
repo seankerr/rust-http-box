@@ -27,7 +27,7 @@ separate from frameworks that use it.
 - Callback oriented with the ability to halt parsing after each callback.
 - Headers are normalized to lower-case.
 - Option to parse phases separately from entire requests:
-  - Status
+  - Request/Response
   - Headers
   - Multipart / Chunked / URL encoded
 - Zero copy philosophy.
