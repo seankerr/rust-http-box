@@ -1437,24 +1437,25 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// *Request & Response:*
-    ///
-    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
-    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
-    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    /// - [`HttpHandler::on_initial_finished()`](trait.HttpHandler.html#method.on_initial_finished)
-    ///
     /// *Request:*
     ///
     /// - [`HttpHandler::on_method()`](trait.HttpHandler.html#method.on_method)
     /// - [`HttpHandler::on_url()`](trait.HttpHandler.html#method.on_url)
     /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
+    /// - [`HttpHandler::on_initial_finished()`](trait.HttpHandler.html#method.on_initial_finished)
     ///
     /// *Response:*
     ///
+    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
     /// - [`HttpHandler::on_status()`](trait.HttpHandler.html#method.on_status)
     /// - [`HttpHandler::on_status_code()`](trait.HttpHandler.html#method.on_status_code)
-    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
+    /// - [`HttpHandler::on_initial_finished()`](trait.HttpHandler.html#method.on_initial_finished)
+    ///
+    /// *Headers:*
+    ///
+    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
+    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
+    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
     ///
     /// # Errors
     ///
