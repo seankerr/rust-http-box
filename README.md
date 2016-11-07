@@ -34,14 +34,37 @@ separate from frameworks that use it.
 - DoS protection is easily supported.
 - Fast!
 
-## Examples
-
-- [Tracking State](examples/tracking_state.md)
-- [Detecting Request or Response](examples/detect_request_response.md)
-- [Headers](examples/headers.md)
-- [Query Strings](examples/query.md)
-- [Chunked Transfers](examples/chunked_transfer.md)
-
 ## API Documentation
 
 http://metatomic.io/docs/api/http_box/index.html
+
+## Quick Docs
+
+### Callbacks
+
+In a typical application, callbacks receive arguments that are complete pieces of data. However,
+[Parser](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html) parses data, and
+because of this, it must operate one byte at a type. Moreoever, the data being parsed is often
+coming from a network connection, and is received as incomplete pieces of data. To stick to the
+zero-copy philosophy, and to avoid buffering, callbacks are executed as necessary.
+
+Keep in mind that any callback that receives `&[u8]` slices of data may be executed multiple times
+before the entire pieces of data is complete.
+
+### Tracking State
+
+To keep [Parser](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html) clean and easy
+to maintain, it only has two jobs. The primary job is parsing data byte-by-byte. The second job is
+executing callbacks. It is the job of the
+[HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html) implementor
+to track state.
+
+Sometimes multiple states need to work together to produce a single result. A good example of this
+is when headers are being parsed. The callback for the header name may be called multiple times in
+order to receive the full header name. And the same is true for the header value. It isn't until the
+header value is complete, that the header name/value pair can be stored.
+
+This is where the [State](http://www.metatomic.io/docs/api/http_box/http1/enum.State.html) enum
+comes into play. You can use this to track the current state when a callback is executed. There is
+nothing mysterious about this enum. It's a helper type with the objective of simplifying state
+tracking.
