@@ -318,6 +318,12 @@ impl HttpHandler for DebugHandler {
         true
     }
 
+    fn on_initial_finished(&mut self) -> bool {
+        println!("on_initial_finished");
+        self.initial_finished = true;
+        true
+    }
+
     fn on_method(&mut self, method: &[u8]) -> bool {
         println!("on_method [{}]: {:?}", method.len(), str::from_utf8(method).unwrap());
         self.method.extend_from_slice(method);
@@ -352,12 +358,6 @@ impl HttpHandler for DebugHandler {
     fn on_status_code(&mut self, code: u16) -> bool {
         println!("on_status_code: {}", code);
         self.status_code = code;
-        true
-    }
-
-    fn on_initial_finished(&mut self) -> bool {
-        println!("on_initial_finished");
-        self.initial_finished = true;
         true
     }
 
@@ -1099,6 +1099,23 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when parsing the initial request/response line has completed
+    /// successfully.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    ///
+    /// **Called From:**
+    ///
+    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
+    ///
+    /// After the status line has been parsed.
+    fn on_initial_finished(&mut self) -> bool {
+        true
+    }
+
     /// Callback that is executed when a request method has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
@@ -1178,23 +1195,6 @@ pub trait HttpHandler {
     ///
     /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
-        true
-    }
-
-    /// Callback that is executed when parsing the initial request/response line has completed
-    /// successfully.
-    ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// After the status line has been parsed.
-    fn on_initial_finished(&mut self) -> bool {
         true
     }
 
