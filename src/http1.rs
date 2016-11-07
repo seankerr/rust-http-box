@@ -1391,15 +1391,16 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    /// - [`HttpHandler::on_chunk_data()`](trait.HttpHandler.html#method.on_chunk_data)
-    /// - [`HttpHandler::on_chunk_extension_finished()`](trait.HttpHandler.html#method.on_chunk_extension_finished)
+    /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
     /// - [`HttpHandler::on_chunk_extension_name()`](trait.HttpHandler.html#method.on_chunk_extension_name)
     /// - [`HttpHandler::on_chunk_extension_value()`](trait.HttpHandler.html#method.on_chunk_extension_value)
-    /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
+    /// - [`HttpHandler::on_chunk_extension_finished()`](trait.HttpHandler.html#method.on_chunk_extension_finished)
+    /// - [`HttpHandler::on_chunk_extensions_finished()`](trait.HttpHandler.html#method.on_chunk_extensions_finished)
+    /// - [`HttpHandler::on_chunk_data()`](trait.HttpHandler.html#method.on_chunk_data)
     /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     ///
     /// # Errors
     ///
@@ -1488,13 +1489,13 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
+    /// - [`HttpHandler::on_multipart_begin()`](trait.HttpHandler.html#method.on_multipart_begin)
     /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
     /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
     /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    /// - [`HttpHandler::on_multipart_begin()`](trait.HttpHandler.html#method.on_multipart_begin)
+    /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
     /// - [`HttpHandler::on_multipart_data()`](trait.HttpHandler.html#method.on_multipart_data)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     ///
     /// # Errors
     ///
@@ -1542,9 +1543,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// # Callbacks
     ///
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     /// - [`HttpHandler::on_url_encoded_name()`](trait.HttpHandler.html#method.on_url_encoded_name)
     /// - [`HttpHandler::on_url_encoded_value()`](trait.HttpHandler.html#method.on_url_encoded_value)
+    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
     ///
     /// # Errors
     ///
@@ -1604,7 +1605,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.state_function = Parser::detect1;
     }
 
-    /// Resume parsing.
+    /// Resume parsing an additional slice of data.
     ///
     /// # Arguments
     ///
