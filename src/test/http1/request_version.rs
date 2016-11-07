@@ -40,7 +40,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"1.0\r", ParserState::StatusLineEnd, 4);
+    assert_callback(&mut p, &mut h, b"1.0\r", ParserState::InitialEnd, 4);
 }
 
 #[test]

@@ -33,6 +33,8 @@ mod header_quoted_value;
 mod header_value;
 mod headers_finished;
 
+mod initial_finished;
+
 mod multipart_begin;
 mod multipart_boundary;
 mod multipart_data;
@@ -47,8 +49,6 @@ mod response_http;
 mod response_version;
 mod response_status_code;
 mod response_status;
-
-mod status_line_finished;
 
 mod url_encoded_name;
 mod url_encoded_value;

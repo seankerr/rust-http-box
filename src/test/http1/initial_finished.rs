@@ -16,40 +16,14 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use fsm::*;
 use http1::*;
-use test::*;
 use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"HTTP/1.1 200 ", ParserState::StripResponseStatus);
-    });
-}
-
-#[test]
-fn byte_check() {
-    // invalid bytes
-    loop_non_tokens(b"\r\t ", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
-
-        setup!(p, h);
-
-        if let ParserError::Status(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
-    });
-
-    // valid bytes
-    loop_tokens(b"", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
-
-        setup!(p, h);
-
-        assert_eos(&mut p, &mut h, &[byte], ParserState::ResponseStatus, 1);
+        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1",
+              ParserState::RequestVersionMinor);
     });
 }
 
@@ -58,7 +32,7 @@ fn callback_exit() {
     struct X;
 
     impl HttpHandler for X {
-        fn on_status(&mut self, _status: &[u8]) -> bool {
+        fn on_initial_finished(&mut self) -> bool {
             false
         }
     }
@@ -68,29 +42,5 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", ParserState::InitialEnd, 14);
-}
-
-#[test]
-fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
-
-    setup!(p, h);
-
-    assert_eos(&mut p, &mut h, b"NOT ", ParserState::ResponseStatus, 4);
-    assert_eq!(h.status, b"NOT ");
-    assert_eos(&mut p, &mut h, b"FOUND\r", ParserState::PreHeadersLf1, 6);
-    assert_eq!(h.status, b"NOT FOUND");
-}
-
-#[test]
-fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
-
-    setup!(p, h);
-
-    assert_eos(&mut p, &mut h, b"NOT FOUND\r", ParserState::PreHeadersLf1, 10);
-    assert_eq!(h.status, b"NOT FOUND");
+    assert_callback(&mut p, &mut h, b"\r", ParserState::PreHeadersLf1, 1);
 }
