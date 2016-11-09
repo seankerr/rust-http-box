@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", ParserState::StripHeaderValue);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                   b"GET / HTTP/1.1\r\nFieldName: ",
+                   ParserState::StripHeaderValue);
     });
 }
 
@@ -35,14 +39,14 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], ParserState::HeaderQuotedValue, 1);
+        assert_eos!(p, h,
+                    &[b'"'],
+                    ParserState::HeaderQuotedValue);
 
-        if let ParserError::HeaderValue(x) = assert_error(&mut p, &mut h,
-                                                          &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::HeaderValue,
+                           byte);
     });
 
     // valid bytes
@@ -52,8 +56,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[b'"'], ParserState::HeaderQuotedValue, 1);
-        assert_eos(&mut p, &mut h, &[byte], ParserState::HeaderQuotedValue, 1);
+        assert_eos!(p, h, &[b'"'], ParserState::HeaderQuotedValue, 1);
+        assert_eos!(p, h, &[byte], ParserState::HeaderQuotedValue, 1);
     });
 }
 
@@ -64,11 +68,11 @@ fn escaped_multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value", ParserState::HeaderQuotedValue, 6);
+    assert_eos!(p, h, b"\"Value", ParserState::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"\\\"", ParserState::HeaderQuotedValue, 2);
+    assert_eos!(p, h, b"\\\"", ParserState::HeaderQuotedValue, 2);
     assert_eq!(h.header_value, b"Value\"");
-    assert_eos(&mut p, &mut h, b"Time\"", ParserState::HeaderCr1, 5);
+    assert_eos!(p, h, b"Time\"", ParserState::HeaderCr1, 5);
     assert_eq!(h.header_value, b"Value\"Time");
 }
 
@@ -79,7 +83,7 @@ fn escaped_single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value\\\"Time\"", ParserState::HeaderCr1, 13);
+    assert_eos!(p, h, b"\"Value\\\"Time\"", ParserState::HeaderCr1, 13);
     assert_eq!(h.header_value, b"Value\"Time");
 }
 
@@ -90,9 +94,9 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value", ParserState::HeaderQuotedValue, 6);
+    assert_eos!(p, h, b"\"Value", ParserState::HeaderQuotedValue, 6);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"Time\"", ParserState::HeaderCr1, 5);
+    assert_eos!(p, h, b"Time\"", ParserState::HeaderCr1, 5);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -103,6 +107,8 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"\"Value Time\"", ParserState::HeaderCr1, 12);
+    assert_eos!(p, h,
+                b"\"Value Time\"",
+                ParserState::HeaderCr1);
     assert_eq!(h.header_value, b"Value Time");
 }

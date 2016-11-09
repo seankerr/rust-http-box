@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"HTTP/1.1 200 ", ParserState::StripResponseStatus);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"HTTP/1.1 200 ",
+                    ParserState::StripResponseStatus);
     });
 }
 
@@ -35,11 +39,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::Status(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::Status,
+                           byte);
     });
 
     // valid bytes
@@ -49,7 +52,9 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], ParserState::ResponseStatus, 1);
+        assert_eos!(p, h,
+                    &[byte],
+                    ParserState::ResponseStatus);
     });
 }
 
@@ -68,7 +73,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"A\tCOOL STATUS\r", ParserState::InitialEnd, 14);
+    assert_callback!(p, h,
+                     b"A\tCOOL STATUS\r",
+                     ParserState::InitialEnd);
 }
 
 #[test]
@@ -78,9 +85,13 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"NOT ", ParserState::ResponseStatus, 4);
+    assert_eos!(p, h,
+                b"NOT ",
+                ParserState::ResponseStatus);
     assert_eq!(h.status, b"NOT ");
-    assert_eos(&mut p, &mut h, b"FOUND\r", ParserState::PreHeadersLf1, 6);
+    assert_eos!(p, h,
+                b"FOUND\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.status, b"NOT FOUND");
 }
 
@@ -91,6 +102,8 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"NOT FOUND\r", ParserState::PreHeadersLf1, 10);
+    assert_eos!(p, h,
+                b"NOT FOUND\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.status, b"NOT FOUND");
 }

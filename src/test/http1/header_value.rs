@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: ", ParserState::StripHeaderValue);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                   b"GET / HTTP/1.1\r\nFieldName: ",
+                   ParserState::StripHeaderValue);
     });
 }
 
@@ -35,11 +39,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::HeaderValue(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::HeaderValue,
+                           byte);
     });
 
     // valid bytes
@@ -49,7 +52,8 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], ParserState::HeaderValue, 1);
+        assert_eos!(p, h,
+                    &[byte], ParserState::HeaderValue);
     });
 }
 
@@ -68,7 +72,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", ParserState::HeaderValue, 1);
+    assert_callback!(p, h,
+                     b"F",
+                     ParserState::HeaderValue);
 }
 
 #[test]
@@ -78,9 +84,13 @@ fn multiline() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value1\r\n", ParserState::HeaderCr2, 8);
+    assert_eos!(p, h,
+                b"Value1\r\n",
+                ParserState::HeaderCr2);
     assert_eq!(h.header_value, b"Value1");
-    assert_eos(&mut p, &mut h, b" Value2\r", ParserState::HeaderLf1, 8);
+    assert_eos!(p, h,
+                b" Value2\r",
+                ParserState::HeaderLf1);
     assert_eq!(h.header_value, b"Value1 Value2");
 }
 
@@ -91,9 +101,13 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value", ParserState::HeaderValue, 5);
+    assert_eos!(p, h,
+                b"Value",
+                ParserState::HeaderValue);
     assert_eq!(h.header_value, b"Value");
-    assert_eos(&mut p, &mut h, b"Time\r", ParserState::HeaderLf1, 5);
+    assert_eos!(p, h,
+                b"Time\r",
+                ParserState::HeaderLf1);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -104,7 +118,9 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"ValueTime\r", ParserState::HeaderLf1, 10);
+    assert_eos!(p, h,
+                b"ValueTime\r",
+                ParserState::HeaderLf1);
     assert_eq!(h.header_value, b"ValueTime");
 }
 
@@ -115,6 +131,8 @@ fn space() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Value Time\r", ParserState::HeaderLf1, 11);
+    assert_eos!(p, h,
+                b"Value Time\r",
+                ParserState::HeaderLf1);
     assert_eq!(h.header_value, b"Value Time");
 }

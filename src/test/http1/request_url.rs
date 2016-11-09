@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET ", ParserState::StripRequestUrl);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"GET ",
+                    ParserState::StripRequestUrl);
     });
 }
 
@@ -35,11 +39,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::Url(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::Url,
+                           byte);
     });
 
     // valid bytes
@@ -49,7 +52,9 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], ParserState::RequestUrl, 1);
+        assert_eos!(p, h,
+                    &[byte],
+                    ParserState::RequestUrl);
     });
 }
 
@@ -68,7 +73,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"/", ParserState::RequestUrl, 1);
+    assert_callback!(p, h,
+                     b"/",
+                     ParserState::RequestUrl);
 }
 
 #[test]
@@ -78,8 +85,9 @@ fn with_schema() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"http://host.com:443/path?query_string#fragment ",
-               ParserState::StripRequestHttp, 47);
+    assert_eos!(p, h,
+                b"http://host.com:443/path?query_string#fragment ",
+                ParserState::StripRequestHttp);
     vec_eq(&h.url, b"http://host.com:443/path?query_string#fragment");
 }
 
@@ -90,7 +98,8 @@ fn without_schema() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"/path?query_string#fragment ",
-               ParserState::StripRequestHttp, 28);
+    assert_eos!(p, h,
+                b"/path?query_string#fragment ",
+                ParserState::StripRequestHttp);
     vec_eq(&h.url, b"/path?query_string#fragment");
 }

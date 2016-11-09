@@ -19,9 +19,14 @@
 use http1::*;
 use test::http1::*;
 
+
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/", ParserState::RequestVersionMajor);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"GET / HTTP/",
+                    ParserState::RequestVersionMajor);
     });
 }
 
@@ -40,7 +45,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"1.0\r", ParserState::InitialEnd, 4);
+    assert_callback!(p, h,
+                     b"1.0\r",
+                     ParserState::InitialEnd);
 }
 
 #[test]
@@ -50,7 +57,9 @@ fn v0_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"0.0\r", ParserState::PreHeadersLf1, 4);
+    assert_eos!(p, h,
+                b"0.0\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 0);
     assert_eq!(h.version_minor, 0);
 }
@@ -62,7 +71,9 @@ fn v1_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"1.0\r", ParserState::PreHeadersLf1, 4);
+    assert_eos!(p, h,
+                b"1.0\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -74,7 +85,9 @@ fn v1_1 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"1.1\r", ParserState::PreHeadersLf1, 4);
+    assert_eos!(p, h,
+                b"1.1\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -86,7 +99,9 @@ fn v2_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"2.0\r", ParserState::PreHeadersLf1, 4);
+    assert_eos!(p, h,
+                b"2.0\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }
@@ -98,7 +113,9 @@ fn v999_999 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"999.999\r", ParserState::PreHeadersLf1, 8);
+    assert_eos!(p, h,
+                b"999.999\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 999);
     assert_eq!(h.version_minor, 999);
 }
@@ -110,11 +127,10 @@ fn v1000_0 () {
 
     setup!(p, h);
 
-    if let ParserError::Version(x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
-        assert_eq!(x, b'0');
-    } else {
-        panic!();
-    }
+    assert_error_byte!(p, h,
+                       b"1000",
+                       ParserError::Version,
+                       b'0');
 }
 
 #[test]
@@ -124,9 +140,8 @@ fn v0_1000 () {
 
     setup!(p, h);
 
-    if let ParserError::Version(x) = assert_error(&mut p, &mut h, b"0.1000").unwrap() {
-        assert_eq!(x, b'0');
-    } else {
-        panic!();
-    }
+    assert_error_byte!(p, h,
+                       b"0.1000",
+                       ParserError::Version,
+                       b'0');
 }

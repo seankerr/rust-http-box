@@ -24,12 +24,14 @@ fn headers_ok () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\
-                           H1: V1\r\n\
-                           H2: V2\r\n\
-                           \r\n",
-                         ParserState::MultipartDataByByte, 39);
+    p.init_multipart(b"XXDebugBoundaryXX");
+
+    assert_eos!(p, h,
+                b"--XXDebugBoundaryXX\r\n\
+                  H1: V1\r\n\
+                  H2: V2\r\n\
+                  \r\n",
+                ParserState::MultipartDataByByte);
 
     assert_eq!(h.header_name, b"h1h2");
     assert_eq!(h.header_value, b"V1V2");

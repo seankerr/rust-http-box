@@ -32,8 +32,12 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    chunked_setup(&mut p, &mut h, b"F;extension=value\r",
-                  ParserState::ChunkLengthLf);
-    chunked_assert_callback(&mut p, &mut h, b"\nDATA",
-                            ParserState::ChunkData, 1);
+    p.init_chunked();
+
+    assert_eos!(p, h,
+                b"F;extension=value\r",
+                ParserState::ChunkLengthLf);
+    assert_callback!(p, h,
+                     b"\nDATA",
+                     ParserState::ChunkData, 1);
 }

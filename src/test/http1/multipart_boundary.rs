@@ -19,18 +19,23 @@
 use http1::*;
 use test::http1::*;
 
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        $parser.init_multipart(b"XXDebugBoundaryXX");
+    });
+}
+
 #[test]
 fn first_boundary_hyphen1_error () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::MultipartBoundary(x) = multipart_assert_error(&mut p,
-                                                                      &mut h,
-                                                                      b"@").unwrap() {
-        assert_eq!(x, b'@');
-    } else {
-        panic!();
-    }
+    setup!(p, h);
+
+    assert_error_byte!(p, h,
+                       b"@",
+                       ParserError::MultipartBoundary,
+                       b'@');
 }
 
 #[test]
@@ -38,13 +43,12 @@ fn first_boundary_hyphen2_error () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::MultipartBoundary(x) = multipart_assert_error(&mut p,
-                                                                      &mut h,
-                                                                      b"-@").unwrap() {
-        assert_eq!(x, b'@');
-    } else {
-        panic!();
-    }
+    setup!(p, h);
+
+    assert_error_byte!(p, h,
+                       b"-@",
+                       ParserError::MultipartBoundary,
+                       b'@');
 }
 
 #[test]
@@ -52,41 +56,43 @@ fn first_boundary_match () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"",
-                         ParserState::MultipartHyphen1, 0);
+    setup!(p, h);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"-",
-                         ParserState::MultipartHyphen2, 1);
+    assert_eos!(p, h,
+                b"",
+                ParserState::MultipartHyphen1);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"-",
-                         ParserState::MultipartBoundary, 1);
+    assert_eos!(p, h,
+                b"-",
+                ParserState::MultipartHyphen2);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"XXDebugBoundary",
-                         ParserState::MultipartBoundary, 15);
+    assert_eos!(p, h,
+                b"-",
+                ParserState::MultipartBoundary);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"XX",
-                         ParserState::MultipartBoundaryCr, 2);
+    assert_eos!(p, h,
+                b"XXDebugBoundary",
+                ParserState::MultipartBoundary);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"\r",
-                         ParserState::PreHeadersLf1, 1);
+    assert_eos!(p, h,
+                b"XX",
+                ParserState::MultipartBoundaryCr);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"\n",
-                         ParserState::PreHeadersCr2, 1);
+    assert_eos!(p, h,
+                b"\r",
+                ParserState::PreHeadersLf1);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"\r",
-                         ParserState::HeaderLf2, 1);
+    assert_eos!(p, h,
+                b"\n",
+                ParserState::PreHeadersCr2);
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"\n",
-                         ParserState::MultipartDataByByte, 1);
+    assert_eos!(p, h,
+                b"\r",
+                ParserState::HeaderLf2);
+
+    assert_eos!(p, h,
+                b"\n",
+                ParserState::MultipartDataByByte);
 }
 
 #[test]
@@ -94,17 +100,16 @@ fn first_boundary_no_match () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundary",
-                         ParserState::MultipartBoundary, 17);
+    setup!(p, h);
 
-    if let ParserError::MultipartBoundary(x) = multipart_assert_error(&mut p,
-                                                                      &mut h,
-                                                                      b"Q").unwrap() {
-        assert_eq!(x, b'Q');
-    } else {
-        panic!();
-    }
+    assert_eos!(p, h,
+                b"--XXDebugBoundary",
+                ParserState::MultipartBoundary);
+
+    assert_error_byte!(p, h,
+                       b"Q",
+                       ParserError::MultipartBoundary,
+                       b'Q');
 }
 
 #[test]
@@ -112,12 +117,14 @@ fn second_boundary_match () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\
-                           \r\n\
-                           DATA1\r\n\
-                           --XXDebugBoundaryXX\r\n",
-                         ParserState::PreHeadersCr2, 51);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"--XXDebugBoundaryXX\r\n\
+                  \r\n\
+                  DATA1\r\n\
+                  --XXDebugBoundaryXX\r\n",
+                ParserState::PreHeadersCr2);
 
     assert_eq!(h.multipart_data, b"DATA1");
 }
@@ -127,12 +134,14 @@ fn second_false_boundary () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\
-                           \r\n\
-                           DATA1\r\n\
-                           --XXDebugBoundaryQ",
-                         ParserState::MultipartDataByByte, 48);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"--XXDebugBoundaryXX\r\n\
+                  \r\n\
+                  DATA1\r\n\
+                  --XXDebugBoundaryQ",
+                ParserState::MultipartDataByByte);
 
     assert_eq!(h.multipart_data, b"DATA1\r\n--XXDebugBoundaryQ");
 }
@@ -142,15 +151,17 @@ fn second_false_third_boundary_match () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    multipart_assert_eos(&mut p, &mut h,
-                         b"--XXDebugBoundaryXX\r\n\
-                           \r\n\
-                           DATA1\r\n\
-                           --XXDebugBoundaryQ\r\n\
-                           --XXDebugBoundaryXX\r\n\
-                           \r\n\
-                           ABCD",
-                         ParserState::MultipartDataByByte, 77);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"--XXDebugBoundaryXX\r\n\
+                  \r\n\
+                  DATA1\r\n\
+                  --XXDebugBoundaryQ\r\n\
+                  --XXDebugBoundaryXX\r\n\
+                  \r\n\
+                  ABCD",
+                ParserState::MultipartDataByByte);
 
     assert_eq!(h.multipart_data, b"DATA1\r\n--XXDebugBoundaryQABCD");
 }

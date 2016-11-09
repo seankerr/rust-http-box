@@ -32,8 +32,9 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    multipart_assert_callback(&mut p, &mut h,
-                              b"--XXDebugBoundaryXX\r",
-                              ParserState::PreHeadersLf1, 20);
+    p.init_multipart(b"XXDebugBoundaryXX");
 
+    assert_callback!(p, h,
+                     b"--XXDebugBoundaryXX\r",
+                     ParserState::PreHeadersLf1);
 }

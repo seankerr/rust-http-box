@@ -16,14 +16,16 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use fsm::*;
 use http1::*;
 use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\nFieldName: Value",
-              ParserState::HeaderValue);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                   b"GET / HTTP/1.1\r\nFieldName: Value",
+                   ParserState::HeaderValue);
     });
 }
 
@@ -42,7 +44,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"\r\n\r\n", ParserState::Finished, 4);
+    assert_callback!(p, h,
+                     b"\r\n\r\n",
+                     ParserState::Finished);
 }
 
 #[test]
@@ -52,6 +56,7 @@ fn finished() {
 
     setup!(p, h);
 
-    assert_finished(&mut p, &mut h, b"\r\n\r\n", ParserState::Finished, 4);
+    assert_finished!(p, h,
+                     b"\r\n\r\n");
     assert!(h.headers_finished);
 }

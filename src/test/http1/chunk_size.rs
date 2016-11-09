@@ -27,12 +27,12 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
-        if let ParserError::ChunkLength(x) = chunked_assert_error(&mut p, &mut h,
-                                                                  &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        p.init_chunked();
+
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::ChunkLength,
+                           byte);
     });
 
     // valid bytes
@@ -40,14 +40,22 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkLength2, 1);
+        p.init_chunked();
+
+        assert_eos!(p, h,
+                    &[byte],
+                    ParserState::ChunkLength2);
     });
 
     // starting 0 (end chunk)
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"0", ParserState::ChunkLengthCr, 1);
+    p.init_chunked();
+
+    assert_eos!(p, h,
+                b"0",
+                ParserState::ChunkLengthCr);
 }
 
 #[test]
@@ -63,7 +71,11 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    chunked_assert_callback(&mut p, &mut h, b"F\r", ParserState::ChunkLengthLf, 2);
+    p.init_chunked();
+
+    assert_callback!(p, h,
+                     b"F\r",
+                     ParserState::ChunkLengthLf);
 }
 
 #[test]
@@ -71,12 +83,12 @@ fn missing_length() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::ChunkLength(x) = chunked_assert_error(&mut p, &mut h,
-                                                              b"\r").unwrap() {
-        assert_eq!(x, b'\r');
-    } else {
-        panic!();
-    }
+    p.init_chunked();
+
+    assert_error_byte!(p, h,
+                       b"\r",
+                       ParserError::ChunkLength,
+                       b'\r');
 }
 
 #[test]
@@ -84,7 +96,11 @@ fn length1() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"F\r", ParserState::ChunkLengthLf, 2);
+    p.init_chunked();
+
+    assert_eos!(p, h,
+                b"F\r",
+                ParserState::ChunkLengthLf);
     assert_eq!(h.chunk_length, 15);
 }
 
@@ -93,7 +109,11 @@ fn length2() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FF\r", ParserState::ChunkLengthLf, 3);
+    p.init_chunked();
+
+    assert_eos!(p, h,
+                b"FF\r",
+                ParserState::ChunkLengthLf);
     assert_eq!(h.chunk_length, 255);
 }
 
@@ -102,7 +122,11 @@ fn length3() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    chunked_assert_eos(&mut p, &mut h, b"FFF\r", ParserState::ChunkLengthLf, 4);
+    p.init_chunked();
+
+    assert_eos!(p, h,
+                b"FFF\r",
+                ParserState::ChunkLengthLf);
     assert_eq!(h.chunk_length, 4095);
 }
 
@@ -111,9 +135,9 @@ fn too_long() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::MaxChunkLength = chunked_assert_error(&mut p, &mut h,
-                                                              b"FFFFFFFFFFFFFFFF0").unwrap() {
-    } else {
-        panic!();
-    }
+    p.init_chunked();
+
+    assert_error!(p, h,
+                  b"FFFFFFFFFFFFFFFF0",
+                  ParserError::MaxChunkLength);
 }

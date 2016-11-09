@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1\r\n", ParserState::PreHeadersCr2);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"GET / HTTP/1.1\r\n",
+                    ParserState::PreHeadersCr2);
     });
 }
 
@@ -35,11 +39,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::HeaderName(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::HeaderName,
+                           byte);
     });
 
     // valid non-alphabetical bytes
@@ -50,7 +53,7 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
+            assert_eos!(p, h, &[byte], ParserState::LowerHeaderName, 1);
         }
     });
 
@@ -62,7 +65,9 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
+            assert_eos!(p, h,
+                        &[byte],
+                        ParserState::LowerHeaderName);
         }
     });
 
@@ -74,7 +79,9 @@ fn byte_check() {
 
             setup!(p, h);
 
-            assert_eos(&mut p, &mut h, &[byte], ParserState::LowerHeaderName, 1);
+            assert_eos!(p, h,
+                        &[byte],
+                        ParserState::LowerHeaderName);
         }
     });
 }
@@ -86,7 +93,9 @@ fn by_name_accept() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Accept:                   ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Accept:                   ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -96,7 +105,9 @@ fn by_name_accept_charset() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Accept-Charset:           ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Accept-Charset:           ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -106,7 +117,9 @@ fn by_name_accept_encoding() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Accept-Encoding:          ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Accept-Encoding:          ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -116,7 +129,9 @@ fn by_name_accept_language() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Accept-Language:          ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Accept-Language:          ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -126,7 +141,9 @@ fn by_name_authorization() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Authorization:            ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Authorization:            ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -136,7 +153,9 @@ fn by_name_connection() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Connection:               ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Connection:               ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -146,7 +165,9 @@ fn by_name_content_type() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Content-Type:             ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Content-Type:             ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -156,7 +177,9 @@ fn by_name_content_length() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Content-Length:           ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Content-Length:           ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_cookie() {
@@ -165,7 +188,9 @@ fn by_name_cookie() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Cookie:                   ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Cookie:                   ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_cache_control() {
@@ -174,7 +199,9 @@ fn by_name_cache_control() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Cache-Control:            ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Cache-Control:            ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_content_security_policy() {
@@ -183,7 +210,9 @@ fn by_name_content_security_policy() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Content-Security-Policy:  ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Content-Security-Policy:  ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_location() {
@@ -192,7 +221,9 @@ fn by_name_location() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Location:                 ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Location:                 ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_last_modified() {
@@ -201,7 +232,9 @@ fn by_name_last_modified() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Last-Modified:            ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Last-Modified:            ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_pragma() {
@@ -210,7 +243,9 @@ fn by_name_pragma() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Pragma:                   ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Pragma:                   ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_set_cookie() {
@@ -219,7 +254,9 @@ fn by_name_set_cookie() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Set-Cookie:               ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Set-Cookie:               ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -229,7 +266,9 @@ fn by_name_transfer_encoding() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Transfer-Encoding:        ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Transfer-Encoding:        ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -239,7 +278,9 @@ fn by_name_user_agent() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"User-Agent:               ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"User-Agent:               ",
+                ParserState::StripHeaderValue);
 }
 #[test]
 fn by_name_upgrade() {
@@ -248,7 +289,9 @@ fn by_name_upgrade() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"Upgrade:                  ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"Upgrade:                  ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -258,7 +301,9 @@ fn by_name_x_powered_by() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"X-Powered-By:             ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"X-Powered-By:             ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -268,7 +313,9 @@ fn by_name_x_forwarded_for() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"X-Forwarded-For:          ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"X-Forwarded-For:          ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -278,7 +325,9 @@ fn by_name_x_forwarded_host() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"X-Forwarded-Host:         ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"X-Forwarded-Host:         ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -288,7 +337,9 @@ fn by_name_x_xss_protection() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"X-XSS-Protection:         ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"X-XSS-Protection:         ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -298,7 +349,9 @@ fn by_name_x_webkit_csp() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"X-WebKit-CSP:             ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"X-WebKit-CSP:             ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -308,7 +361,9 @@ fn by_name_www_authenticate() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"WWW-Authenticate:         ", ParserState::StripHeaderValue, 26);
+    assert_eos!(p, h,
+                b"WWW-Authenticate:         ",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -326,7 +381,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"F", ParserState::LowerHeaderName, 1);
+    assert_callback!(p, h,
+                     b"F",
+                     ParserState::LowerHeaderName);
 }
 
 #[test]
@@ -336,25 +393,45 @@ fn multiple() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"F", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"F",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"f");
-    assert_eos(&mut p, &mut h, b"i", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"i",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fi");
-    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"e",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fie");
-    assert_eos(&mut p, &mut h, b"l", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"l",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fiel");
-    assert_eos(&mut p, &mut h, b"d", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"d",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"field");
-    assert_eos(&mut p, &mut h, b"N", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"N",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fieldn");
-    assert_eos(&mut p, &mut h, b"a", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"a",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fieldna");
-    assert_eos(&mut p, &mut h, b"m", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"m",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fieldnam");
-    assert_eos(&mut p, &mut h, b"e", ParserState::LowerHeaderName, 1);
+    assert_eos!(p, h,
+                b"e",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"fieldname");
-    assert_eos(&mut p, &mut h, b":", ParserState::StripHeaderValue, 1);
+    assert_eos!(p, h,
+                b":",
+                ParserState::StripHeaderValue);
 }
 
 #[test]
@@ -364,7 +441,9 @@ fn normalize() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HEADER-FIELD", ParserState::LowerHeaderName, 12);
+    assert_eos!(p, h,
+                b"HEADER-FIELD",
+                ParserState::LowerHeaderName);
     assert_eq!(h.header_name, b"header-field");
 }
 
@@ -375,6 +454,8 @@ fn single() {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"FieldName:", ParserState::StripHeaderValue, 10);
+    assert_eos!(p, h,
+                b"FieldName:",
+                ParserState::StripHeaderValue);
     assert_eq!(h.header_name, b"fieldname");
 }

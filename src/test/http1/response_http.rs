@@ -19,6 +19,12 @@
 use http1::*;
 use test::http1::*;
 
+macro_rules! setup {
+    ($parser:expr, $handler:expr) => ({
+        $parser.init_head();
+    });
+}
+
 #[test]
 fn callback_exit() {
     struct X;
@@ -32,7 +38,11 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    assert_callback(&mut p, &mut h, b"HTTP/1.0 ", ParserState::StripResponseStatusCode, 9);
+    setup!(p, h);
+
+    assert_callback!(p, h,
+                     b"HTTP/1.0 ",
+                     ParserState::StripResponseStatusCode);
 }
 
 #[test]
@@ -40,7 +50,11 @@ fn http_1_0 () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.0 ", ParserState::StripResponseStatusCode, 9);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"HTTP/1.0 ",
+                ParserState::StripResponseStatusCode);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -50,7 +64,11 @@ fn http_1_1 () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.1 ", ParserState::StripResponseStatusCode, 9);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"HTTP/1.1 ",
+                ParserState::StripResponseStatusCode);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -60,7 +78,11 @@ fn http_2_0 () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"HTTP/2.0 ", ParserState::StripResponseStatusCode, 9);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"HTTP/2.0 ",
+                ParserState::StripResponseStatusCode);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }
@@ -70,7 +92,11 @@ fn h_lower () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::Detect2, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"h",
+                ParserState::Detect2);
 }
 
 #[test]
@@ -78,7 +104,11 @@ fn h_upper () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::Detect2, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"H",
+                ParserState::Detect2);
 }
 
 #[test]
@@ -86,8 +116,14 @@ fn ht_lower () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect3, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"h",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect3);
 }
 
 #[test]
@@ -95,8 +131,14 @@ fn ht_upper () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect3, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"H",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect3);
 }
 
 #[test]
@@ -104,9 +146,17 @@ fn htt_lower () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect4, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"h",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect4);
 }
 
 #[test]
@@ -114,9 +164,17 @@ fn htt_upper () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect4, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"H",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect4);
 }
 
 #[test]
@@ -124,10 +182,20 @@ fn http_lower () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect4, 1);
-    assert_eos(&mut p, &mut h, b"p", ParserState::Detect5, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"h",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect4);
+    assert_eos!(p, h,
+                b"p",
+                ParserState::Detect5);
 }
 
 #[test]
@@ -135,10 +203,20 @@ fn http_upper () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect4, 1);
-    assert_eos(&mut p, &mut h, b"P", ParserState::Detect5, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"H",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect4);
+    assert_eos!(p, h,
+                b"P",
+                ParserState::Detect5);
 }
 
 #[test]
@@ -146,11 +224,23 @@ fn http_slash_lower () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::Detect4, 1);
-    assert_eos(&mut p, &mut h, b"p", ParserState::Detect5, 1);
-    assert_eos(&mut p, &mut h, b"/", ParserState::ResponseVersionMajor, 1);
+    setup!(p, h);
+
+    assert_eos!(p, h,
+                b"h",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::Detect4);
+    assert_eos!(p, h,
+                b"p",
+                ParserState::Detect5);
+    assert_eos!(p, h,
+                b"/",
+                ParserState::ResponseVersionMajor);
 }
 
 #[test]
@@ -158,10 +248,21 @@ fn http_slash_upper () {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::Detect2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::Detect4, 1);
-    assert_eos(&mut p, &mut h, b"P", ParserState::Detect5, 1);
-    assert_eos(&mut p, &mut h, b"/", ParserState::ResponseVersionMajor, 1);
-}
+    setup!(p, h);
 
+    assert_eos!(p, h,
+                b"H",
+                ParserState::Detect2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::Detect4);
+    assert_eos!(p, h,
+                b"P",
+                ParserState::Detect5);
+    assert_eos!(p, h,
+                b"/",
+                ParserState::ResponseVersionMajor);
+}

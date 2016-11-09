@@ -60,6 +60,9 @@ const F_CHUNK_EXTENSIONS: u32 = 1 << 1;
 /// Parsing multipart.
 const F_MULTIPART: u32 = 1 << 2;
 
+/// Parsing URL encoded.
+const F_URL_ENCODED: u32 = 1 << 3;
+
 // -------------------------------------------------------------------------------------------------
 // BIT DATA MACROS
 // -------------------------------------------------------------------------------------------------
@@ -225,7 +228,7 @@ impl DebugHandler {
                       status:                Vec::new(),
                       status_code:           0,
                       url:                   Vec::new(),
-                      url_encoded_name:     Vec::new(),
+                      url_encoded_name:      Vec::new(),
                       url_encoded_value:     Vec::new(),
                       version_major:         0,
                       version_minor:         0 }
@@ -247,7 +250,7 @@ impl DebugHandler {
         self.status                = Vec::new();
         self.status_code           = 0;
         self.url                   = Vec::new();
-        self.url_encoded_name     = Vec::new();
+        self.url_encoded_name      = Vec::new();
         self.url_encoded_value     = Vec::new();
         self.version_major         = 0;
         self.version_minor         = 0;
@@ -1349,6 +1352,76 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.byte_count
     }
 
+    /// Initialize `Parser` for chunked transfer encoded parsing.
+    ///
+    /// This function may be called as many times as possible. It resets `Parser` state and bit
+    /// data.
+    #[inline]
+    pub fn init_chunked(&mut self) {
+        self.bit_data       = 0;
+        self.length         = 0;
+        self.state          = ParserState::ChunkLength1;
+        self.state_function = Parser::chunk_length1;
+
+        set_flag!(self, F_CHUNKED);
+    }
+
+    /// Initialize `Parser` for head parsing.
+    ///
+    /// This function may be called as many times as possible. It resets `Parser` state and bit
+    /// data.
+    #[inline]
+    pub fn init_head(&mut self) {
+        self.bit_data       = 0;
+        self.length         = 0;
+        self.state          = ParserState::StripDetect;
+        self.state_function = Parser::strip_detect;
+    }
+
+    /// Initialize `Parser` for multipart parsing.
+    ///
+    /// This function may be called as many times as possible. It resets `Parser` state and bit
+    /// data.
+    ///
+    /// # Arguments
+    ///
+    /// **`boundary`**
+    ///
+    /// The multipart boundary.
+    #[inline]
+    pub fn init_multipart(&mut self, boundary: &'a [u8]) {
+        self.bit_data       = 0;
+        self.boundary       = Some(boundary);
+        self.length         = 0;
+        self.state          = ParserState::MultipartHyphen1;
+        self.state_function = Parser::multipart_hyphen1;
+
+        set_flag!(self, F_MULTIPART);
+
+        // lower14 == 1 when we expect a boundary
+        set_lower14!(self, 1);
+    }
+
+    /// Initialize `Parser` for URL encoded parsing.
+    ///
+    /// This function may be called as many times as possible. It resets `Parser` state and bit
+    /// data.
+    ///
+    /// # Arguments
+    ///
+    /// **`length`**
+    ///
+    /// The length of URL encoded data that needs parsed.
+    #[inline]
+    pub fn init_url_encoded(&mut self, length: usize) {
+        self.bit_data       = 0;
+        self.length         = length;
+        self.state          = ParserState::UrlEncodedName;
+        self.state_function = Parser::url_encoded_name;
+
+        set_flag!(self, F_URL_ENCODED);
+    }
+
     /// Main parser loop.
     #[inline]
     fn parse(&mut self, mut context: &mut ParserContext<T>) -> Result<Success, ParserError> {
@@ -1376,225 +1449,6 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
     }
 
-    /// Parse chunked transfer encoded data.
-    ///
-    /// # Arguments
-    ///
-    /// **`handler`**
-    ///
-    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks expected by this function.
-    ///
-    /// **`stream`**
-    ///
-    /// The stream of data to be parsed.
-    ///
-    /// # Callbacks
-    ///
-    /// - [`HttpHandler::on_chunk_length()`](trait.HttpHandler.html#method.on_chunk_length)
-    /// - [`HttpHandler::on_chunk_extension_name()`](trait.HttpHandler.html#method.on_chunk_extension_name)
-    /// - [`HttpHandler::on_chunk_extension_value()`](trait.HttpHandler.html#method.on_chunk_extension_value)
-    /// - [`HttpHandler::on_chunk_extension_finished()`](trait.HttpHandler.html#method.on_chunk_extension_finished)
-    /// - [`HttpHandler::on_chunk_extensions_finished()`](trait.HttpHandler.html#method.on_chunk_extensions_finished)
-    /// - [`HttpHandler::on_chunk_data()`](trait.HttpHandler.html#method.on_chunk_data)
-    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
-    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
-    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    ///
-    /// # Errors
-    ///
-    /// - [`ParserError::ChunkExtensionName`](enum.ParserError.html#variant.ChunkExtensionName)
-    /// - [`ParserError::ChunkExtensionValue`](enum.ParserError.html#variant.ChunkExtensionValue)
-    /// - [`ParserError::ChunkLength`](enum.ParserError.html#variant.ChunkLength)
-    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
-    /// - [`ParserError::MaxChunkLength`](enum.ParserError.html#variant.MaxChunkLength)
-    #[inline]
-    pub fn parse_chunked(&mut self, handler: &mut T, stream: &[u8])
-    -> Result<Success, ParserError> {
-        if self.state == ParserState::StripDetect {
-            set_flag!(self, F_CHUNKED);
-
-            self.length         = 0;
-            self.state          = ParserState::ChunkLength1;
-            self.state_function = Parser::chunk_length1;
-        }
-
-        self.parse(&mut ParserContext::new(handler, stream))
-    }
-
-    /// Parse initial request/response line and all headers.
-    ///
-    /// # Arguments
-    ///
-    /// **`handler`**
-    ///
-    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks expected by this function.
-    ///
-    /// **`stream`**
-    ///
-    /// The stream of data to be parsed.
-    ///
-    /// # Callbacks
-    ///
-    /// *Request:*
-    ///
-    /// - [`HttpHandler::on_method()`](trait.HttpHandler.html#method.on_method)
-    /// - [`HttpHandler::on_url()`](trait.HttpHandler.html#method.on_url)
-    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
-    /// - [`HttpHandler::on_initial_finished()`](trait.HttpHandler.html#method.on_initial_finished)
-    ///
-    /// *Response:*
-    ///
-    /// - [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version)
-    /// - [`HttpHandler::on_status()`](trait.HttpHandler.html#method.on_status)
-    /// - [`HttpHandler::on_status_code()`](trait.HttpHandler.html#method.on_status_code)
-    /// - [`HttpHandler::on_initial_finished()`](trait.HttpHandler.html#method.on_initial_finished)
-    ///
-    /// *Headers:*
-    ///
-    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
-    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
-    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    ///
-    /// # Errors
-    ///
-    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
-    /// - [`ParserError::HeaderName`](enum.ParserError.html#variant.HeaderName)
-    /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
-    /// - [`ParserError::Method`](enum.ParserError.html#variant.Method)
-    /// - [`ParserError::Status`](enum.ParserError.html#variant.Status)
-    /// - [`ParserError::StatusCode`](enum.ParserError.html#variant.StatusCode)
-    /// - [`ParserError::Url`](enum.ParserError.html#variant.Url)
-    /// - [`ParserError::Version`](enum.ParserError.html#variant.Version)
-    #[inline]
-    pub fn parse_head(&mut self, handler: &mut T, stream: &[u8])
-    -> Result<Success, ParserError> {
-        self.parse(&mut ParserContext::new(handler, stream))
-    }
-
-    /// Parse multipart data.
-    ///
-    /// # Arguments
-    ///
-    /// **`handler`**
-    ///
-    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks expected by this function.
-    ///
-    /// **`stream`**
-    ///
-    /// The stream of data to be parsed.
-    ///
-    /// # Callbacks
-    ///
-    /// - [`HttpHandler::on_multipart_begin()`](trait.HttpHandler.html#method.on_multipart_begin)
-    /// - [`HttpHandler::on_header_name()`](trait.HttpHandler.html#method.on_header_name)
-    /// - [`HttpHandler::on_header_value()`](trait.HttpHandler.html#method.on_header_value)
-    /// - [`HttpHandler::on_headers_finished()`](trait.HttpHandler.html#method.on_headers_finished)
-    /// - [`HttpHandler::content_length()`](trait.HttpHandler.html#method.content_length)
-    /// - [`HttpHandler::on_multipart_data()`](trait.HttpHandler.html#method.on_multipart_data)
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    ///
-    /// # Errors
-    ///
-    /// - [`ParserError::CrlfSequence`](enum.ParserError.html#variant.CrlfSequence)
-    /// - [`ParserError::HeaderName`](enum.ParserError.html#variant.HeaderName)
-    /// - [`ParserError::HeaderValue`](enum.ParserError.html#variant.HeaderValue)
-    #[inline]
-    pub fn parse_multipart(&mut self, handler: &mut T, stream: &[u8], boundary: &'a [u8])
-    -> Result<Success, ParserError> {
-        if self.state == ParserState::StripDetect {
-            self.bit_data       = 0;
-            self.boundary       = Some(boundary);
-            self.length         = 0;
-            self.state          = ParserState::MultipartHyphen1;
-            self.state_function = Parser::multipart_hyphen1;
-
-            set_flag!(self, F_MULTIPART);
-
-            // lower14 == 1 when we expect a boundary
-            set_lower14!(self, 1);
-        } else if self.state == ParserState::Finished {
-            // already finished
-            return Ok(Success::Finished(0));
-        }
-
-        self.parse(&mut ParserContext::new(handler, stream))
-    }
-
-    /// Parse URL encoded data.
-    ///
-    /// # Arguments
-    ///
-    /// **`handler`**
-    ///
-    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks expected by this function.
-    ///
-    /// **`stream`**
-    ///
-    /// The stream of data to be parsed.
-    ///
-    /// **`length`**
-    ///
-    /// The length of URL encoded data in `stream` that needs parsed.
-    ///
-    /// # Callbacks
-    ///
-    /// - [`HttpHandler::on_url_encoded_name()`](trait.HttpHandler.html#method.on_url_encoded_name)
-    /// - [`HttpHandler::on_url_encoded_value()`](trait.HttpHandler.html#method.on_url_encoded_value)
-    /// - [`HttpHandler::on_body_finished()`](trait.HttpHandler.html#method.on_body_finished)
-    ///
-    /// # Errors
-    ///
-    /// - [`ParserError::UrlEncodedName`](enum.ParserError.html#variant.UrlEncodedName)
-    /// - [`ParserError::UrlEncodedValue`](enum.ParserError.html#variant.UrlEncodedValue)
-    #[inline]
-    pub fn parse_url_encoded(&mut self, handler: &mut T, mut stream: &[u8], length: usize)
-    -> Result<Success, ParserError> {
-        if self.state == ParserState::StripDetect {
-            self.bit_data       = 0;
-            self.length         = length;
-            self.state          = ParserState::UrlEncodedName;
-            self.state_function = Parser::url_encoded_name;
-        } else if self.state == ParserState::Finished {
-            // already finished
-            return Ok(Success::Finished(0));
-        }
-
-        if self.length < stream.len() {
-            // amount of data to process is less than the stream length
-            stream = &stream[0..self.length];
-        }
-
-        let mut context = ParserContext::new(handler, stream);
-
-        match self.parse(&mut context) {
-            Ok(Success::Eos(length)) => {
-                if self.length - length == 0 {
-                    self.state          = ParserState::BodyFinished;
-                    self.state_function = Parser::body_finished;
-
-                    self.parse(&mut context)
-                } else {
-                    self.length -= length;
-
-                    Ok(Success::Eos(length))
-                }
-            },
-            Ok(Success::Callback(length)) => {
-                self.length -= length;
-
-                Ok(Success::Callback(length))
-            },
-            other => {
-                other
-            }
-        }
-    }
-
     /// Reset the parser to its initial state.
     pub fn reset(&mut self) {
         self.bit_data       = 0;
@@ -1618,8 +1472,40 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     ///
     /// The stream of data to be parsed.
     #[inline]
-    pub fn resume(&mut self, handler: &mut T, stream: &[u8]) -> Result<Success, ParserError> {
-        self.parse(&mut ParserContext::new(handler, stream))
+    pub fn resume(&mut self, handler: &mut T, mut stream: &[u8]) -> Result<Success, ParserError> {
+        if has_flag!(self, F_URL_ENCODED) {
+            if self.length < stream.len() {
+                // amount of data to process is less than the stream length
+                stream = &stream[0..self.length];
+            }
+
+            let mut context = ParserContext::new(handler, stream);
+
+            match self.parse(&mut context) {
+                Ok(Success::Eos(length)) => {
+                    if self.length - length == 0 {
+                        self.state          = ParserState::BodyFinished;
+                        self.state_function = Parser::body_finished;
+
+                        self.parse(&mut context)
+                    } else {
+                        self.length -= length;
+
+                        Ok(Success::Eos(length))
+                    }
+                },
+                Ok(Success::Callback(length)) => {
+                    self.length -= length;
+
+                    Ok(Success::Callback(length))
+                },
+                other => {
+                    other
+                }
+            }
+        } else {
+            self.parse(&mut ParserContext::new(handler, stream))
+        }
     }
 
     /// Retrieve the current state.

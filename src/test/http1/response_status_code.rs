@@ -22,7 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"HTTP/1.0 ", ParserState::StripResponseStatusCode);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"HTTP/1.0 ",
+                    ParserState::StripResponseStatusCode);
     });
 }
 
@@ -35,11 +39,10 @@ fn byte_check() {
 
         setup!(p, h);
 
-        if let ParserError::StatusCode(x) = assert_error(&mut p, &mut h, &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::StatusCode,
+                           byte);
     });
 
     // valid bytes
@@ -49,7 +52,9 @@ fn byte_check() {
 
         setup!(p, h);
 
-        assert_eos(&mut p, &mut h, &[byte], ParserState::ResponseStatusCode, 1);
+        assert_eos!(p, h,
+                    &[byte],
+                    ParserState::ResponseStatusCode);
     });
 }
 
@@ -68,7 +73,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"100 ", ParserState::StripResponseStatus, 3);
+    assert_callback!(p, h,
+                     b"100 ",
+                     ParserState::StripResponseStatus, 3);
 }
 
 #[test]
@@ -78,7 +85,9 @@ fn v0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"0 ", ParserState::StripResponseStatus, 2);
+    assert_eos!(p, h,
+                b"0 ",
+                ParserState::StripResponseStatus);
     assert_eq!(h.status_code, 0);
 }
 
@@ -89,7 +98,9 @@ fn v999 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"999 ", ParserState::StripResponseStatus, 4);
+    assert_eos!(p, h,
+                b"999 ",
+                ParserState::StripResponseStatus);
     assert_eq!(h.status_code, 999);
 }
 
@@ -100,9 +111,8 @@ fn v1000 () {
 
     setup!(p, h);
 
-    if let ParserError::StatusCode(x) = assert_error(&mut p, &mut h, b"1000").unwrap() {
-        assert_eq!(x, b'0');
-    } else {
-        panic!();
-    }
+    assert_error_byte!(p, h,
+                       b"1000",
+                       ParserError::StatusCode,
+                       b'0');
 }

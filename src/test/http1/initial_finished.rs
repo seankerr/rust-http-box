@@ -16,14 +16,16 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use fsm::*;
 use http1::*;
 use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / HTTP/1.1",
-              ParserState::RequestVersionMinor);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                   b"GET / HTTP/1.1",
+                   ParserState::RequestVersionMinor);
     });
 }
 
@@ -42,5 +44,7 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"\r", ParserState::PreHeadersLf1, 1);
+    assert_callback!(p, h,
+                     b"\r",
+                     ParserState::PreHeadersLf1);
 }

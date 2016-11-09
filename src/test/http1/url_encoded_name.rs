@@ -20,6 +20,12 @@ use http1::*;
 use test::*;
 use test::http1::*;
 
+macro_rules! setup {
+    ($parser:expr, $handler:expr, $length:expr) => ({
+        $parser.init_url_encoded($length);
+    });
+}
+
 #[test]
 fn byte_check() {
     // invalid bytes
@@ -27,14 +33,12 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
-        if let ParserError::UrlEncodedName(x) = url_encoded_assert_error(&mut p,
-                                                                          &mut h,
-                                                                          &[byte],
-                                                                          1).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        setup!(p, h, 1000);
+
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::UrlEncodedName,
+                           byte);
     });
 
     // valid bytes
@@ -42,7 +46,10 @@ fn byte_check() {
         let mut h = DebugHandler::new();
         let mut p = Parser::new();
 
-        url_encoded_assert_finished(&mut p, &mut h, &[byte], 1, 1);
+        setup!(p, h, 1);
+
+        assert_finished!(p, h,
+                         &[byte]);
     });
 }
 
@@ -59,7 +66,11 @@ fn callback_exit() {
     let mut h = X{};
     let mut p = Parser::new();
 
-    url_encoded_assert_callback(&mut p, &mut h, b"Field", ParserState::UrlEncodedName, 5, 5);
+    setup!(p, h, 1000);
+
+    assert_callback!(p, h,
+                     b"Field",
+                     ParserState::UrlEncodedName);
 }
 
 #[test]
@@ -67,7 +78,11 @@ fn basic() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field", ParserState::UrlEncodedName, 1000, 5);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field",
+                ParserState::UrlEncodedName);
     assert_eq!(h.url_encoded_name, b"Field");
 }
 
@@ -76,7 +91,11 @@ fn ending_ampersand() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field1&", ParserState::UrlEncodedName, 1000, 7);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field1&",
+                ParserState::UrlEncodedName);
     assert_eq!(h.url_encoded_name, b"Field1");
 }
 
@@ -85,7 +104,11 @@ fn ending_equal() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field=", ParserState::UrlEncodedValue, 1000, 6);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field=",
+                ParserState::UrlEncodedValue);
     assert_eq!(h.url_encoded_name, b"Field");
 }
 
@@ -94,7 +117,11 @@ fn ending_percent() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field%", ParserState::UrlEncodedNameHex1, 1000, 6);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field%",
+                ParserState::UrlEncodedNameHex1);
     assert_eq!(h.url_encoded_name, b"Field");
 }
 
@@ -103,7 +130,11 @@ fn ending_plus() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field+", ParserState::UrlEncodedName, 1000, 6);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field+",
+                ParserState::UrlEncodedName);
     assert_eq!(h.url_encoded_name, b"Field ");
 }
 
@@ -112,7 +143,11 @@ fn hex() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    url_encoded_assert_eos(&mut p, &mut h, b"Field%21", ParserState::UrlEncodedName, 1000, 8);
+    setup!(p, h, 1000);
+
+    assert_eos!(p, h,
+                b"Field%21",
+                ParserState::UrlEncodedName);
     assert_eq!(h.url_encoded_name, b"Field!");
 }
 
@@ -121,10 +156,10 @@ fn hex_error() {
     let mut h = DebugHandler::new();
     let mut p = Parser::new();
 
-    if let ParserError::UrlEncodedName(x) = url_encoded_assert_error(&mut p, &mut h,
-                                                                      b"%2z", 3).unwrap() {
-        assert_eq!(x, b'z');
-    } else {
-        panic!();
-    }
+    setup!(p, h, 1000);
+
+    assert_error_byte!(p, h,
+                       b"%2z",
+                       ParserError::UrlEncodedName,
+                       b'z');
 }

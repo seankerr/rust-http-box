@@ -21,7 +21,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        setup(&mut $parser, &mut $handler, b"GET / ", ParserState::StripRequestHttp);
+        $parser.init_head();
+
+        assert_eos!($parser, $handler,
+                    b"GET / ",
+                    ParserState::StripRequestHttp);
     });
 }
 
@@ -40,7 +44,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"HTTP/1.0\r", ParserState::InitialEnd, 9);
+    assert_callback!(p, h,
+                     b"HTTP/1.0\r",
+                     ParserState::InitialEnd);
 }
 
 #[test]
@@ -50,7 +56,9 @@ fn http_1_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.0\r", ParserState::PreHeadersLf1, 9);
+    assert_eos!(p, h,
+                b"HTTP/1.0\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 0);
 }
@@ -62,7 +70,9 @@ fn http_1_1 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/1.1\r", ParserState::PreHeadersLf1, 9);
+    assert_eos!(p, h,
+                b"HTTP/1.1\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 1);
     assert_eq!(h.version_minor, 1);
 }
@@ -74,7 +84,9 @@ fn http_2_0 () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"HTTP/2.0\r", ParserState::PreHeadersLf1, 9);
+    assert_eos!(p, h,
+                b"HTTP/2.0\r",
+                ParserState::PreHeadersLf1);
     assert_eq!(h.version_major, 2);
     assert_eq!(h.version_minor, 0);
 }
@@ -86,7 +98,9 @@ fn h_lower () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::RequestHttp2, 1);
+    assert_eos!(p, h,
+                b"h",
+                ParserState::RequestHttp2);
 }
 
 #[test]
@@ -96,7 +110,9 @@ fn h_upper () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::RequestHttp2, 1);
+    assert_eos!(p, h,
+                b"H",
+                ParserState::RequestHttp2);
 }
 
 #[test]
@@ -106,8 +122,12 @@ fn ht_lower () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp3, 1);
+    assert_eos!(p, h,
+                b"h",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp3);
 }
 
 #[test]
@@ -117,8 +137,12 @@ fn ht_upper () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp3, 1);
+    assert_eos!(p, h,
+                b"H",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp3);
 }
 
 #[test]
@@ -128,9 +152,15 @@ fn htt_lower () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp4, 1);
+    assert_eos!(p, h,
+                b"h",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp4);
 }
 
 #[test]
@@ -140,9 +170,15 @@ fn htt_upper () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp4, 1);
+    assert_eos!(p, h,
+                b"H",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp4);
 }
 
 #[test]
@@ -152,10 +188,18 @@ fn http_lower () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp4, 1);
-    assert_eos(&mut p, &mut h, b"p", ParserState::RequestHttp5, 1);
+    assert_eos!(p, h,
+                b"h",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp4);
+    assert_eos!(p, h,
+                b"p",
+                ParserState::RequestHttp5);
 }
 
 #[test]
@@ -165,10 +209,18 @@ fn http_upper () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp4, 1);
-    assert_eos(&mut p, &mut h, b"P", ParserState::RequestHttp5, 1);
+    assert_eos!(p, h,
+                b"H",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp4);
+    assert_eos!(p, h,
+                b"P",
+                ParserState::RequestHttp5);
 }
 
 #[test]
@@ -178,11 +230,21 @@ fn http_slash_lower () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"h", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"t", ParserState::RequestHttp4, 1);
-    assert_eos(&mut p, &mut h, b"p", ParserState::RequestHttp5, 1);
-    assert_eos(&mut p, &mut h, b"/", ParserState::RequestVersionMajor, 1);
+    assert_eos!(p, h,
+                b"h",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"t",
+                ParserState::RequestHttp4);
+    assert_eos!(p, h,
+                b"p",
+                ParserState::RequestHttp5);
+    assert_eos!(p, h,
+                b"/",
+                ParserState::RequestVersionMajor);
 }
 
 #[test]
@@ -192,9 +254,19 @@ fn http_slash_upper () {
 
     setup!(p, h);
 
-    assert_eos(&mut p, &mut h, b"H", ParserState::RequestHttp2, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp3, 1);
-    assert_eos(&mut p, &mut h, b"T", ParserState::RequestHttp4, 1);
-    assert_eos(&mut p, &mut h, b"P", ParserState::RequestHttp5, 1);
-    assert_eos(&mut p, &mut h, b"/", ParserState::RequestVersionMajor, 1);
+    assert_eos!(p, h,
+                b"H",
+                ParserState::RequestHttp2);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp3);
+    assert_eos!(p, h,
+                b"T",
+                ParserState::RequestHttp4);
+    assert_eos!(p, h,
+                b"P",
+                ParserState::RequestHttp5);
+    assert_eos!(p, h,
+                b"/",
+                ParserState::RequestVersionMajor);
 }

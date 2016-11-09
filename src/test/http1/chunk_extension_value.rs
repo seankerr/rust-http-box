@@ -22,8 +22,11 @@ use test::http1::*;
 
 macro_rules! setup {
     ($parser:expr, $handler:expr) => ({
-        chunked_setup(&mut $parser, &mut $handler, b"F;extension=",
-                      ParserState::StripChunkExtensionValue);
+        $parser.init_chunked();
+
+        assert_eos!($parser, $handler,
+                    b"F;extension=",
+                    ParserState::StripChunkExtensionValue);
     });
 }
 
@@ -36,12 +39,10 @@ fn byte_check_unquoted() {
 
         setup!(p, h);
 
-        if let ParserError::ChunkExtensionValue(x) = chunked_assert_error(&mut p, &mut h,
-                                                                          &[byte]).unwrap() {
-            assert_eq!(x, byte);
-        } else {
-            panic!();
-        }
+        assert_error_byte!(p, h,
+                           &[byte],
+                           ParserError::ChunkExtensionValue,
+                           byte);
     });
 
     // valid bytes
@@ -51,7 +52,9 @@ fn byte_check_unquoted() {
 
         setup!(p, h);
 
-        chunked_assert_eos(&mut p, &mut h, &[byte], ParserState::ChunkExtensionValue, 1);
+        assert_eos!(p, h,
+                    &[byte],
+                    ParserState::ChunkExtensionValue);
     });
 }
 
@@ -62,7 +65,9 @@ fn basic() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-value;", ParserState::UpperChunkExtensionName, 12);
+    assert_eos!(p, h,
+                b"valid-value;",
+                ParserState::UpperChunkExtensionName);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -81,7 +86,9 @@ fn callback_exit() {
 
     setup!(p, h);
 
-    assert_callback(&mut p, &mut h, b"ExtensionValue", ParserState::ChunkExtensionValue, 14);
+    assert_callback!(p, h,
+                     b"ExtensionValue",
+                     ParserState::ChunkExtensionValue);
 }
 
 #[test]
@@ -91,7 +98,9 @@ fn linear_space() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"   \t\t\tvalid-value\r", ParserState::ChunkLengthLf, 18);
+    assert_eos!(p, h,
+                b"   \t\t\tvalid-value\r",
+                ParserState::ChunkLengthLf);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 
@@ -102,6 +111,8 @@ fn repeat() {
 
     setup!(p, h);
 
-    chunked_assert_eos(&mut p, &mut h, b"valid-value\r", ParserState::ChunkLengthLf, 12);
+    assert_eos!(p, h,
+                b"valid-value\r",
+                ParserState::ChunkLengthLf);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
