@@ -57,7 +57,7 @@ for each expected format.
 
 And of course the parsing function, which allows you to resume with a new slice of data each time:
 
-**[resume()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.resume)**
+[resume()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.resume)
 
 ### HttpHandler
 
