@@ -50,10 +50,10 @@ the library. It provides only necessary components for parsing HTTP data.
 It offers 4 initialization functions, which may be called whenever needed. They initialize `Parser`
 for each expected format.
 
-**[init_head()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_head)**
-**[init_chunked()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_chunked)**
-**[init_multipart()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_multipart)**
-**[init_url_encoded()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_url_encoded)**
+- [init_head()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_head)
+- [init_chunked()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_chunked)
+- [init_multipart()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_multipart)
+- [init_url_encoded()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_url_encoded)
 
 And of course the parsing function, which allows you to resume with a new slice of data each time:
 
