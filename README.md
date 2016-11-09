@@ -47,26 +47,19 @@ http://metatomic.io/docs/api/http_box/index.html
 [Parser](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html) is the guts of
 the library. It provides only necessary components for parsing HTTP data.
 
-It offers 4 parser functions:
+It offers 4 initialization functions, which may be called whenever needed. They initialize `Parser`
+for each expected format.
 
-**[parse_head()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.parse_head)**
+**[init_head()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_head)**
+**[init_chunked()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_chunked)**
+**[init_multipart()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_multipart)**
+**[init_url_encoded()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.init_url_encoded)**
 
-Initiates the parsing of HTTP data. It handles everything prior to the body.
+And of course the parsing function, which allows you to resume with a new slice of data each time:
 
-**[parse_chunked()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.parse_chunked)**
+**[resume()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.resume)**
 
-Used to parse `chunked` transfer-encoded data. This is for data where the sender doesn't know the
-entire length ahead of time.
-
-**[parse_multipart()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.parse_multipart)**
-
-Used to parse multipart data. This is typically non-GET requests that contain files.
-
-**[parse_url_encoded()](http://www.metatomic.io/docs/api/http_box/http1/struct.Parser.html#method.parse_url_encoded)**
-
-Used to parse URL encoded data. This is typically non-GET requests that do not contain files.
-
-### HttpHandler trait
+### HttpHandler
 
 Implementing [HttpHandler](http://www.metatomic.io/docs/api/http_box/http1/trait.HttpHandler.html)
 is how you provide a custom callback implementation. It is often necessary to provide multiple
@@ -96,3 +89,85 @@ This is where the [State](http://www.metatomic.io/docs/api/http_box/http1/enum.S
 comes into play. You can use this to track the current state when a callback is executed. There is
 nothing mysterious about this enum. It's a helper type with the objective of simplifying state
 tracking.
+
+### Example
+
+```rust
+extern crate http_box;
+
+use http_box::http1::{HttpHandler, Parser};
+
+pub struct Handler {
+    pub initial_finished: bool,
+    pub method: Vec<u8>,
+    pub status: Vec<u8>,
+    pub status_code: u16,
+    pub url: Vec<u8>,
+    pub version_major: u16,
+    pub version_minor: u16
+}
+
+impl Handler {
+    pub fn is_request(&self) -> bool {
+        self.method.len() > 0
+    }
+
+    pub fn is_initial_finished(&self) -> bool {
+        self.initial_finished
+    }
+}
+
+impl HttpHandler for Handler {
+    fn on_initial_finished(&mut self) -> bool {
+        self.initial_finished = true;
+        true
+    }
+
+    fn on_method(&mut self, data: &[u8]) -> bool {
+        self.method.extend_from_slice(data);
+        true
+    }
+
+    fn on_status(&mut self, data: &[u8]) -> bool {
+        self.status.extend_from_slice(data);
+        true
+    }
+
+    fn on_status_code(&mut self, code: u16) -> bool {
+        self.status_code = code;
+        true
+    }
+
+    fn on_url(&mut self, data: &[u8]) -> bool {
+        self.url.extend_from_slice(data);
+        true
+    }
+
+    fn on_version(&mut self, major: u16, minor: u16) -> bool {
+        self.version_major = major;
+        self.version_minor = minor;
+        true
+    }
+}
+
+fn main() {
+    // init handler and parser
+    let mut h = Handler{ initial_finished: false,
+                         method: Vec::new(),
+                         status: Vec::new(),
+                         status_code: 0,
+                         url: Vec::new(),
+                         version_major: 0,
+                         version_minor: 0 };
+
+    let mut p = Parser::new();
+
+    p.init_head();
+    p.resume(&mut h, b"GET /url HTTP/1.0\r\n");
+
+    assert_eq!(true, h.is_initial_finished());
+    assert_eq!(true, h.is_request());
+    assert_eq!(h.method, b"GET");
+    assert_eq!(h.url, b"/url");
+}
+```
