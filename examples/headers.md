@@ -74,10 +74,10 @@ fn main() {
 
     let mut p = Parser::new();
 
-    // parse headers
-    p.parse_head(&mut h, b"GET /url HTTP/1.0\r\n\
-                           Header1: Value 1\r\n\
-                           Header2: Value 2\r\n\r\n");
+    p.init_head();
+    p.resume(&mut h, b"GET /url HTTP/1.0\r\n\
+                       Header1: Value 1\r\n\
+                       Header2: Value 2\r\n\r\n");
 
     assert_eq!("Value 1", h.headers.get("header1").unwrap());
     assert_eq!("Value 2", h.headers.get("header2").unwrap());
