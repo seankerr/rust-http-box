@@ -572,6 +572,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
             // stop on these bytes
                context.byte == b'='
             || context.byte == delimiter
+            || context.byte == b'/'
             || (normalize && context.byte > 0x40 && context.byte < 0x5B),
 
             // on end-of-stream
@@ -655,7 +656,10 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
                 bs_replay!(context);
                 bs_mark!(context);
 
-                collect_field!(context, FieldError::Value, delimiter,
+                collect_field!(context, FieldError::Value,
+                    // stop on these bytes
+                    context.byte == delimiter,
+
                     // error on these bytes
                     !field_fn.validate(context.byte),
 
@@ -698,6 +702,9 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 
                 exit_ok!(context);
             }
+        } else if context.byte == b'/' {
+            // this isn't allowed as a token, but since it's a name-only field, it's allowed
+            name.push(b'/');
         } else {
             // upper-cased byte, let's lower-case it
             name.push(context.byte + 0x20);
