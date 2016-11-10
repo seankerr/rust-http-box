@@ -1165,15 +1165,10 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
     /// Retrieve the total byte count processed since the instantiation of `Parser`.
     ///
-    /// The byte count is updated when any of the parsing functions completes. This means that if a
+    /// The byte count is updated when `resume()` completes. This means that if a
     /// call to `byte_count()` is executed from within a callback, it will be accurate within
     /// `stream.len()` bytes. For precise accuracy, the best time to retrieve the byte count is
-    /// outside of all callbacks, and outside of the following functions:
-    ///
-    /// - `parse_chunked()`
-    /// - `parse_head()`
-    /// - `parse_multipart()`
-    /// - `parse_url_encoded()`
+    /// outside of all callbacks.
     pub fn byte_count(&self) -> usize {
         self.byte_count
     }
