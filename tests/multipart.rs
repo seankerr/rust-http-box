@@ -170,7 +170,6 @@ fn multipart_body() {
 
     match p.resume(&mut h, &s) {
         Ok(Success::Finished(length)) => {
-            println!("SUCCESSFULLY FINISHED HEAD");
             // adjust the slice since we've parsed the head already
             s = &s[length..];
         },
