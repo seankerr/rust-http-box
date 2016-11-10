@@ -215,17 +215,17 @@ fn main() {
     p.init_head();
 
     // parse some head data
-    p.resume(&mut h, b"GET /url HTTP/1.0\r\n\
+    p.resume(&mut h, b"GET /url?query HTTP/1.0\r\n\
                        Header1: This is the first header\r\n\
                        Header2: This is the second header\r\n\
                        \r\n");
 
     // compare our data
-    assert_eq!(true, h.is_initial_finished());
-    assert_eq!(true, h.is_request());
+    assert!(h.is_initial_finished());
+    assert!(h.is_request());
     assert_eq!(h.method, b"GET");
-    assert_eq!(h.url, b"/url");
-    assert_eq!("This is the first header", h.headers.get("header1").unwrap());
-    assert_eq!("This is the second header", h.headers.get("header2").unwrap());
+    assert_eq!(h.url, b"/url?query");
+    assert_eq!(h.headers.get("header1").unwrap(), "This is the first header");
+    assert_eq!(h.headers.get("header2").unwrap(), "This is the second header");
 }
 ```
