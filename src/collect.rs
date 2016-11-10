@@ -36,9 +36,9 @@ macro_rules! collect_digits16 {
 
 /// Collect an unquoted field value.
 macro_rules! collect_field {
-    ($context:expr, $error:expr, $delimiter:expr, $byte_error:expr, $on_eos:expr) => ({
+    ($context:expr, $error:expr, $stop:expr, $byte_error:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $context.byte == $delimiter {
+                if $stop {
                     break;
                 } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
                     // space + visible + no byte error
@@ -50,9 +50,9 @@ macro_rules! collect_field {
         );
     });
 
-    ($context:expr, $error:expr, $delimiter:expr, $on_eos:expr) => ({
+    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $context.byte == $delimiter {
+                if $stop {
                     break;
                 } else if $context.byte > 0x1F && $context.byte < 0x7F {
                     // space + visible

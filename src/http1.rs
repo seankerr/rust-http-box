@@ -1567,6 +1567,10 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 } else if bs_starts_with14!(context, b"Authorization:") {
                     name!(b"authorization", 14);
                 }
+            } else if context.byte == b'H' {
+                if bs_starts_with5!(context, b"Host:") {
+                    name!(b"host", 5);
+                }
             } else if context.byte == b'L' {
                 if bs_starts_with9!(context, b"Location:") {
                     name!(b"location", 9);
@@ -1672,7 +1676,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn header_value(&mut self, context: &mut ParserContext<T>)
     -> Result<ParserValue, ParserError> {
-        collect_field!(context, ParserError::HeaderValue, b'\r',
+        collect_field!(context, ParserError::HeaderValue,
+            // stop on these bytes
+            context.byte == b'\r',
+
+            // on end-of-stream
             callback_eos_expr!(self, context, on_header_value)
         );
 
@@ -1686,9 +1694,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_quoted_field!(context, ParserError::HeaderValue,
             // on end-of-stream
-            {
-                callback_eos_expr!(self, context, on_header_value);
-            }
+            callback_eos_expr!(self, context, on_header_value)
         );
 
         if context.byte == b'"' {
