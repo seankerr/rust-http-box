@@ -267,6 +267,11 @@ impl HttpHandler for DebugHandler {
         true
     }
 
+    fn on_chunk_begin(&mut self) -> bool {
+        println!("on_chunk_begin");
+        true
+    }
+
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         self.chunk_data.extend_from_slice(data);
 
@@ -708,6 +713,9 @@ pub enum ParserState {
     // CHUNKED TRANSFER
     // ---------------------------------------------------------------------------------------------
 
+    /// Parsing a new chunk has begun.
+    ChunkBegin,
+
     /// Parsing chunk length byte 1.
     ChunkLength1,
 
@@ -859,6 +867,17 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     fn on_body_finished(&mut self) -> bool {
+        true
+    }
+
+    /// Callback that is executed when a new chunk section has been located. This is executed
+    /// prior to the length, extensions, and data.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    fn on_chunk_begin(&mut self) -> bool {
         true
     }
 
@@ -2166,7 +2185,19 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         bs_replay!(context);
 
-        transition_fast!(self, context, ParserState::ChunkLength2, chunk_length2);
+        transition_fast!(self, context, ParserState::ChunkBegin, chunk_begin);
+    }
+
+    #[inline]
+    fn chunk_begin(&mut self, context: &mut ParserContext<T>)
+    -> Result<ParserValue, ParserError> {
+        set_state!(self, ParserState::ChunkLength2, chunk_length2);
+
+        if context.handler.on_chunk_begin() {
+            transition_fast!(self, context);
+        }
+
+        exit_callback!(self, context);
     }
 
     #[inline]
