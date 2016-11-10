@@ -6,7 +6,7 @@
 
 ## What is http-box?
 
-http-box is a push-oriented HTTP parser with the goal of remaining bare bones. There are several
+http-box is a push oriented HTTP parser with the goal of remaining bare bones. There are several
 HTTP client and server libraries available, but http-box attempts to stay as far away from abstract
 as possible, giving the developer absolute and full control over how HTTP data is processed.
 
