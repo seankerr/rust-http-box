@@ -571,65 +571,6 @@ impl fmt::Display for ParserError {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser types.
-///
-/// The parser type will be `ParserType::Unknown` until
-/// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-/// is executed, and either of the following has occurred:
-///
-/// *Requests:*
-///
-/// [`HttpHandler::on_method()`](trait.HttpHandler.html#method.on_method) has been executed.
-///
-/// *Responses:*
-///
-/// [`HttpHandler::on_version()`](trait.HttpHandler.html#method.on_version) has been executed.
-#[derive(Clone,Copy)]
-pub enum ParserType {
-    /// Parser is parsing a request.
-    Request,
-
-    /// Parser is parsing a response.
-    Response,
-
-    /// Type has not yet been determined.
-    Unknown
-}
-
-impl fmt::Debug for ParserType {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ParserType::Request => {
-                write!(formatter, "ParserType::Request")
-            },
-            ParserType::Response => {
-                write!(formatter, "ParserType::Response")
-            },
-            ParserType::Unknown => {
-                write!(formatter, "ParserType::Unknown")
-            }
-        }
-    }
-}
-
-impl fmt::Display for ParserType {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ParserType::Request => {
-                write!(formatter, "ParserType::Request")
-            },
-            ParserType::Response => {
-                write!(formatter, "ParserType::Response")
-            },
-            ParserType::Unknown => {
-                write!(formatter, "ParserType::Unknown")
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
 /// Parser states.
 #[derive(Clone,Copy,Debug,PartialEq)]
 #[repr(u8)]
@@ -904,9 +845,9 @@ pub enum ParserState {
 pub trait HttpHandler {
     /// Retrieve the content length.
     ///
-    /// **Called From::**
+    /// **Called When::**
     ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
+    /// Within multipart parsing, after each boundary's head data has been parsed.
     fn content_length(&mut self) -> Option<usize> {
         None
     }
@@ -917,20 +858,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
-    ///
-    /// Once all chunked data has been parsed.
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-    ///
-    /// Once all multipart data has been parsed.
-    ///
-    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
-    ///
-    /// Once all URL encoded data has been parsed.
     fn on_body_finished(&mut self) -> bool {
         true
     }
@@ -943,25 +870,17 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
         true
     }
 
-    /// Callback that is executed when parsing an individual chunk extension has completed
-    /// successfully.
+    /// Callback that is executed when parsing an individual chunk extension name/value pair has
+    /// completed successfully.
     ///
     /// **Returns:**
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_finished(&mut self) -> bool {
         true
     }
@@ -974,10 +893,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_name(&mut self, name: &[u8]) -> bool {
         true
     }
@@ -990,10 +905,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
         true
     }
@@ -1004,10 +915,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_extensions_finished(&mut self) -> bool {
         true
     }
@@ -1018,10 +925,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
     fn on_chunk_length(&mut self, size: usize) -> bool {
         true
     }
@@ -1035,19 +938,10 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
-    /// **Called From:**
+    /// **Called When:**
     ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
-    ///
-    /// If trailers are present.
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// For standard HTTP headers.
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-    ///
-    /// For headers before each multipart section.
+    /// During head parsing, multipart parsing of headers for each piece of data, or at the end of
+    /// chunk encoded data when trailers are present.
     fn on_header_name(&mut self, name: &[u8]) -> bool {
         true
     }
@@ -1061,19 +955,10 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
-    /// **Called From:**
+    /// **Called When:**
     ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
-    ///
-    /// If trailers are supplied.
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// For standard HTTP headers.
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-    ///
-    /// For headers before each multipart section.
+    /// During head parsing, multipart parsing of headers for each piece of data, or at the end of
+    /// chunk encoded data when trailers are present.
     fn on_header_value(&mut self, value: &[u8]) -> bool {
         true
     }
@@ -1085,19 +970,10 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     ///
-    /// **Called From:**
+    /// **Called When:**
     ///
-    /// [`Parser::parse_chunked()`](struct.Parser.html#method.parse_chunked)
-    ///
-    /// If trailers are supplied.
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// For standard HTTP headers.
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
-    ///
-    /// For headers before each multipart section.
+    /// During head parsing, multipart parsing of headers for each piece of data, or at the end of
+    /// chunk encoded data when trailers are present.
     fn on_headers_finished(&mut self) -> bool {
         true
     }
@@ -1109,12 +985,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// After the status line has been parsed.
     fn on_initial_finished(&mut self) -> bool {
         true
     }
@@ -1127,26 +997,17 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// During the initial request line.
     fn on_method(&mut self, method: &[u8]) -> bool {
         true
     }
 
-    /// Callback that is executed when a new multipart section has been located.
+    /// Callback that is executed when a new multipart section has been located. This is executed
+    /// prior to any headers.
     ///
     /// **Returns:**
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn on_multipart_begin(&mut self) -> bool {
         true
     }
@@ -1159,10 +1020,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_multipart()`](struct.Parser.html#method.parse_multipart)
     fn on_multipart_data(&mut self, data: &[u8]) -> bool {
         true
     }
@@ -1175,12 +1032,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// During the initial response line.
     fn on_status(&mut self, status: &[u8]) -> bool {
         true
     }
@@ -1191,17 +1042,11 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// During the initial response line.
     fn on_status_code(&mut self, code: u16) -> bool {
         true
     }
 
-    /// Callback that is executed when a request URL/path has been located.
+    /// Callback that is executed when a request URL has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -1209,12 +1054,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// During the initial request line.
     fn on_url(&mut self, url: &[u8]) -> bool {
         true
     }
@@ -1227,10 +1066,6 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_name(&mut self, name: &[u8]) -> bool {
         true
     }
@@ -1243,26 +1078,17 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_url_encoded()`](struct.Parser.html#method.parse_url_encoded)
     fn on_url_encoded_value(&mut self, value: &[u8]) -> bool {
         true
     }
 
-    /// Callback that is executed when the HTTP major version has been located.
+    /// Callback that is executed when the HTTP version has been located during the initial request
+    /// or response line.
     ///
     /// **Returns:**
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    ///
-    /// **Called From:**
-    ///
-    /// [`Parser::parse_head()`](struct.Parser.html#method.parse_head)
-    ///
-    /// During the initial request or response line.
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
         true
     }
