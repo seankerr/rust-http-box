@@ -94,6 +94,7 @@ extern crate http_box;
 use http_box::http1::{HttpHandler, Parser, State};
 use std::collections::HashMap;
 
+// provide a container for the data we wish to track
 pub struct Handler {
     pub headers: HashMap<String,String>,
     pub initial_finished: bool,
@@ -128,7 +129,9 @@ impl Handler {
     }
 }
 
+// implement the callbacks we are listening for
 impl HttpHandler for Handler {
+    // receive a slice of header name
     fn on_header_name(&mut self, data: &[u8]) -> bool {
         if self.state == State::HeaderValue {
             self.flush_header();
@@ -140,42 +143,50 @@ impl HttpHandler for Handler {
         true
     }
 
+    // receive a slice of header value
     fn on_header_value(&mut self, data: &[u8]) -> bool {
         self.state = State::HeaderValue;
         self.value.extend_from_slice(data);
         true
     }
 
+    // executed when headers are finished
     fn on_headers_finished(&mut self) -> bool {
         self.flush_header();
         true
     }
 
+    // executed when the initial request/response line is finished
     fn on_initial_finished(&mut self) -> bool {
         self.initial_finished = true;
         true
     }
 
+    // receive a slice of request method
     fn on_method(&mut self, data: &[u8]) -> bool {
         self.method.extend_from_slice(data);
         true
     }
 
+    // receive a slice of response status
     fn on_status(&mut self, data: &[u8]) -> bool {
         self.status.extend_from_slice(data);
         true
     }
 
+    // receive response status code
     fn on_status_code(&mut self, code: u16) -> bool {
         self.status_code = code;
         true
     }
 
+    // receive a slice of request url
     fn on_url(&mut self, data: &[u8]) -> bool {
         self.url.extend_from_slice(data);
         true
     }
 
+    // receive request/response version
     fn on_version(&mut self, major: u16, minor: u16) -> bool {
         self.version_major = major;
         self.version_minor = minor;
@@ -184,7 +195,7 @@ impl HttpHandler for Handler {
 }
 
 fn main() {
-    // init handler and parser
+    // init our container
     let mut h = Handler{ headers: HashMap::new(),
                          initial_finished: false,
                          method: Vec::new(),
@@ -197,14 +208,19 @@ fn main() {
                          version_major: 0,
                          version_minor: 0 };
 
+    // create our parser
     let mut p = Parser::new();
 
+    // initialize parser to process head data (everything before body)
     p.init_head();
+
+    // parse some head data
     p.resume(&mut h, b"GET /url HTTP/1.0\r\n\
                        Header1: This is the first header\r\n\
                        Header2: This is the second header\r\n\
                        \r\n");
 
+    // compare our data
     assert_eq!(true, h.is_initial_finished());
     assert_eq!(true, h.is_request());
     assert_eq!(h.method, b"GET");
