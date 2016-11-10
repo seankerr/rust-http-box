@@ -4,7 +4,6 @@ use http_box::fsm::Success;
 use http_box::http1::{ HttpHandler,
                        Parser,
                        State };
-use http_box::util::FieldError;
 use http_box::util::FieldSegment;
 use http_box::util;
 
