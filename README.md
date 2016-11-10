@@ -95,19 +95,34 @@ tracking.
 ```rust
 extern crate http_box;
 
-use http_box::http1::{HttpHandler, Parser};
+use http_box::http1::{HttpHandler, Parser, State};
+use std::collections::HashMap;
 
 pub struct Handler {
+    pub headers: HashMap<String,String>,
     pub initial_finished: bool,
     pub method: Vec<u8>,
+    pub name: Vec<u8>,
+    pub state: State,
     pub status: Vec<u8>,
     pub status_code: u16,
     pub url: Vec<u8>,
+    pub value: Vec<u8>,
     pub version_major: u16,
     pub version_minor: u16
 }
 
 impl Handler {
+    fn flush_header(&mut self) {
+        if self.name.len() > 0 && self.value.len() > 0 {
+            self.headers.insert(String::from_utf8(self.name.clone()).unwrap(),
+                                String::from_utf8(self.value.clone()).unwrap());
+        }
+
+        self.name.clear();
+        self.value.clear();
+    }
+
     pub fn is_request(&self) -> bool {
         self.method.len() > 0
     }
@@ -118,6 +133,28 @@ impl Handler {
 }
 
 impl HttpHandler for Handler {
+    fn on_header_name(&mut self, data: &[u8]) -> bool {
+        if self.state == State::HeaderValue {
+            self.flush_header();
+
+            self.state = State::HeaderName;
+        }
+
+        self.name.extend_from_slice(data);
+        true
+    }
+
+    fn on_header_value(&mut self, data: &[u8]) -> bool {
+        self.state = State::HeaderValue;
+        self.value.extend_from_slice(data);
+        true
+    }
+
+    fn on_headers_finished(&mut self) -> bool {
+        self.flush_header();
+        true
+    }
+
     fn on_initial_finished(&mut self) -> bool {
         self.initial_finished = true;
         true
@@ -152,22 +189,31 @@ impl HttpHandler for Handler {
 
 fn main() {
     // init handler and parser
-    let mut h = Handler{ initial_finished: false,
+    let mut h = Handler{ headers: HashMap::new(),
+                         initial_finished: false,
                          method: Vec::new(),
+                         name: Vec::new(),
+                         state: State::None,
                          status: Vec::new(),
                          status_code: 0,
                          url: Vec::new(),
+                         value: Vec::new(),
                          version_major: 0,
                          version_minor: 0 };
 
     let mut p = Parser::new();
 
     p.init_head();
-    p.resume(&mut h, b"GET /url HTTP/1.0\r\n");
+    p.resume(&mut h, b"GET /url HTTP/1.0\r\n\
+                       Header1: This is the first header\r\n\
+                       Header2: This is the second header\r\n\
+                       \r\n");
 
     assert_eq!(true, h.is_initial_finished());
     assert_eq!(true, h.is_request());
     assert_eq!(h.method, b"GET");
     assert_eq!(h.url, b"/url");
+    assert_eq!("This is the first header", h.headers.get("header1").unwrap());
+    assert_eq!("This is the second header", h.headers.get("header2").unwrap());
 }
 ```
