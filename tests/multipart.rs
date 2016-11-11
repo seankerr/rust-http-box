@@ -213,7 +213,7 @@ fn multipart_body() {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
         },
-        _ => {}
+        _ => panic!()
     }
 
     assert_eq!(h.headers.len(), 1);
@@ -233,7 +233,7 @@ fn multipart_body() {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
         },
-        _ => {}
+        _ => panic!()
     }
 
     assert_eq!(h.headers.len(), 1);
@@ -253,7 +253,7 @@ fn multipart_body() {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
         },
-        _ => {}
+        _ => panic!()
     }
 
     assert_eq!(h.headers.len(), 2);
@@ -271,11 +271,9 @@ fn multipart_body() {
 
     // fourth multipart entry
     match p.resume(&mut h, &s) {
-        Ok(Success::Callback(length)) => {
-            // adjust the slice since we've parsed one entry already
-            s = &s[length..];
+        Ok(Success::Finished(_)) => {
         },
-        _ => {}
+        _ => panic!()
     }
 
     assert_eq!(h.headers.len(), 2);
@@ -287,7 +285,4 @@ fn multipart_body() {
                "image/png");
 
     assert_eq!(h.data.len(), 38310);
-
-    // clear saved data
-    h.clear();
 }
