@@ -6,9 +6,10 @@
 
 ## What is http-box?
 
-http-box is a push oriented HTTP parser with the goal of remaining bare bones. There are several
-HTTP client and server libraries available, but http-box attempts to stay as far away from abstract
-as possible, giving the developer absolute and full control over how HTTP data is processed.
+http-box is a push oriented HTTP parser with the goal of remaining fast and bare bones. There are
+several HTTP client and server libraries available, but http-box attempts to stay as far away from
+abstract as possible, giving the developer absolute and full control over how HTTP data is
+processed.
 
 ## Features
 
@@ -195,7 +196,7 @@ impl HttpHandler for Handler {
 }
 
 fn main() {
-    // init our container
+    // init callback handler
     let mut h = Handler{ headers: HashMap::new(),
                          initial_finished: false,
                          method: Vec::new(),
@@ -208,7 +209,7 @@ fn main() {
                          version_major: 0,
                          version_minor: 0 };
 
-    // create our parser
+    // create parser
     let mut p = Parser::new();
 
     // initialize parser to process head data (everything before body)
