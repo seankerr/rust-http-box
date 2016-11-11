@@ -4,7 +4,6 @@ use http_box::fsm::Success;
 use http_box::http1::{ HttpHandler,
                        Parser,
                        State };
-use http_box::util;
 
 use std::collections::HashMap;
 use std::fs::File;
