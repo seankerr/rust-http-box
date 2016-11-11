@@ -74,9 +74,6 @@ impl HttpHandler for ChunkEncodedHandler {
     }
 
     fn on_chunk_data(&mut self, data: &[u8]) -> bool {
-        println!("---------");
-        println!("{:?}", str::from_utf8(data).unwrap());
-        println!("---------");
         self.data.extend_from_slice(data);
 
         true
@@ -151,7 +148,6 @@ fn chunk_encoded_body() {
             // adjust the slice since we've parsed the head already
             s = &s[length..];
         },
-        Err(error) => { println!("ERROR: {:?}", error); },
         _ => {}
     }
 
@@ -196,8 +192,8 @@ fn chunk_encoded_body() {
         _ => {}
     }
 
-    assert_eq!(0, h.trailers.len());
-    assert_eq!(24, h.length);
+    assert_eq!(h.trailers.len(), 0);
+    assert_eq!(h.length, 24);
     assert_eq!(h.data,
                b"This is the second chunk");
 
@@ -215,7 +211,9 @@ fn chunk_encoded_body() {
 
     assert_eq!(h.trailers.len(), 2);
     assert_eq!(h.length, 0);
-    assert_eq!(h.data, b"");
+
+    assert_eq!(h.data,
+               b"");
 
     assert_eq!(h.trailers.get("trailer1").unwrap(),
                "This is trailer 1");

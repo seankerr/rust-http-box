@@ -216,7 +216,7 @@ fn multipart_body() {
         _ => {}
     }
 
-    assert_eq!(1, h.headers.len());
+    assert_eq!(h.headers.len(), 1);
 
     assert_eq!(h.headers.get("content-disposition").unwrap(),
                "form-data; name=\"first_name\"");
@@ -236,7 +236,7 @@ fn multipart_body() {
         _ => {}
     }
 
-    assert_eq!(1, h.headers.len());
+    assert_eq!(h.headers.len(), 1);
 
     assert_eq!(h.headers.get("content-disposition").unwrap(),
                "form-data; name=\"last_name\"");
@@ -256,7 +256,7 @@ fn multipart_body() {
         _ => {}
     }
 
-    assert_eq!(2, h.headers.len());
+    assert_eq!(h.headers.len(), 2);
 
     assert_eq!(h.headers.get("content-disposition").unwrap(),
                "form-data; name=\"file1\"; filename=\"rust-slide.jpg\"");
@@ -264,7 +264,7 @@ fn multipart_body() {
     assert_eq!(h.headers.get("content-type").unwrap(),
                "image/jpeg");
 
-    assert_eq!(62260, h.data.len());
+    assert_eq!(h.data.len(), 62260);
 
     // clear saved data
     h.clear();
@@ -278,7 +278,7 @@ fn multipart_body() {
         _ => {}
     }
 
-    assert_eq!(2, h.headers.len());
+    assert_eq!(h.headers.len(), 2);
 
     assert_eq!(h.headers.get("content-disposition").unwrap(),
                "form-data; name=\"file2\"; filename=\"rustacean.png\"");
@@ -286,7 +286,7 @@ fn multipart_body() {
     assert_eq!(h.headers.get("content-type").unwrap(),
                "image/png");
 
-    assert_eq!(38310, h.data.len());
+    assert_eq!(h.data.len(), 38310);
 
     // clear saved data
     h.clear();
