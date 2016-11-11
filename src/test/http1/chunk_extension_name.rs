@@ -104,7 +104,7 @@ fn no_value() {
 
     assert_eos!(p, h,
                 b"valid-extension;",
-                ParserState::UpperChunkExtensionName);
+                ParserState::StripChunkExtensionName);
     assert_eq!(h.chunk_extension_name, b"valid-extension");
     assert_eq!(h.chunk_extension_value, b"");
 }

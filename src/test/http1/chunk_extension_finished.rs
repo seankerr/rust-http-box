@@ -40,5 +40,5 @@ fn callback_exit() {
 
     assert_callback!(p, h,
                      b";",
-                     ParserState::UpperChunkExtensionName);
+                     ParserState::StripChunkExtensionName);
 }

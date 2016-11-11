@@ -67,7 +67,7 @@ fn basic() {
 
     assert_eos!(p, h,
                 b"valid-value;",
-                ParserState::UpperChunkExtensionName);
+                ParserState::StripChunkExtensionName);
     assert_eq!(h.chunk_extension_value, b"valid-value");
 }
 

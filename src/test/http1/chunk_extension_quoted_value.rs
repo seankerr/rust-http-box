@@ -120,7 +120,7 @@ fn repeat() {
 
     assert_eos!(p, h,
                 b"valid-value1;extension2=valid-value2;",
-                ParserState::UpperChunkExtensionName);
+                ParserState::StripChunkExtensionName);
     assert_eq!(h.chunk_extension_name, b"extension1extension2");
     assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");
 }

@@ -713,9 +713,6 @@ pub enum ParserState {
     // CHUNKED TRANSFER
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing a new chunk has begun.
-    ChunkBegin,
-
     /// Parsing chunk length byte 1.
     ChunkLength1,
 
@@ -2178,19 +2175,19 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'0' {
-            transition_fast!(self, context, ParserState::ChunkLengthCr, chunk_length_cr);
+            set_state!(self, ParserState::ChunkLengthCr, chunk_length_cr);
+
+            if context.handler.on_chunk_begin() {
+                transition_fast!(self, context);
+            }
+
+            exit_callback!(self, context);
         } else if !is_hex!(context.byte) {
             return Err(ParserError::ChunkLength(context.byte));
         }
 
         bs_replay!(context);
 
-        transition_fast!(self, context, ParserState::ChunkBegin, chunk_begin);
-    }
-
-    #[inline]
-    fn chunk_begin(&mut self, context: &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError> {
         set_state!(self, ParserState::ChunkLength2, chunk_length2);
 
         if context.handler.on_chunk_begin() {
@@ -2433,7 +2430,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'\r' {
             set_state!(self, ParserState::ChunkLengthLf, chunk_length_lf);
         } else {
-            set_state!(self, ParserState::UpperChunkExtensionName, upper_chunk_extension_name);
+            set_state!(self, ParserState::StripChunkExtensionName, strip_chunk_extension_name);
         }
 
         if context.handler.on_chunk_extension_finished() {
