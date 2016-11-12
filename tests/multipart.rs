@@ -206,7 +206,6 @@ fn multipart_body() {
                                   state:     State::None,
                                   value_buf: Vec::new() };
 
-
     // first multipart entry
     match p.resume(&mut h, &s) {
         Ok(Success::Callback(length)) => {
