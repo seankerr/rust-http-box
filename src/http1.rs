@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! HTTP 1.1 parser, states, and errors.
+//! HTTP 1.x parser, states, and errors.
 
 #![allow(dead_code)]
 
