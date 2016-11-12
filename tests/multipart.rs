@@ -173,7 +173,7 @@ fn multipart_body() {
             // adjust the slice since we've parsed the head already
             s = &s[length..];
         },
-        _ => {}
+        _ => panic!()
     }
 
     // get boundary
