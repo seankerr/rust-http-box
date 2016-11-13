@@ -58,7 +58,7 @@ macro_rules! callback_eos_expr {
 /// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
 /// to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
@@ -79,7 +79,7 @@ macro_rules! callback_ignore_transition {
 /// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
 /// `Success::Callback`.
 macro_rules! callback_ignore_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
@@ -102,7 +102,7 @@ macro_rules! callback_ignore_transition_fast {
 /// This macro exists to enforce the design decision that after each callback, state must either
 /// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:ident,
      $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
         callback!($parser, $context, $function, $data, {
@@ -110,7 +110,7 @@ macro_rules! callback_transition {
         });
     });
 
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
         callback!($parser, $context, $function, {
             transition!($parser, $context);
@@ -124,7 +124,7 @@ macro_rules! callback_transition {
 /// This macro exists to enforce the design decision that after each callback, state must either
 /// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:expr,
+    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:ident,
      $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
         callback!($parser, $context, $function, $data, {
@@ -132,7 +132,7 @@ macro_rules! callback_transition_fast {
         });
     });
 
-    ($parser:expr, $context:expr, $function:ident, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
         callback!($parser, $context, $function, {
             transition_fast!($parser, $context);
@@ -179,15 +179,15 @@ macro_rules! get_state {
 
 /// Set state and state function.
 macro_rules! set_state {
-    ($parser:expr, $state:expr, $state_function:ident) => ({
-        $parser.state          = $state;
+    ($parser:expr, $state:ident, $state_function:ident) => ({
+        $parser.state          = ParserState::$state;
         $parser.state_function = Parser::$state_function;
     });
 }
 
 /// Transition to `$state`.
 macro_rules! transition {
-    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
 
         bs_mark!($context, $context.stream_index);
@@ -204,7 +204,7 @@ macro_rules! transition {
 
 /// Transition to `$state` quickly by directly calling `$state_function`.
 macro_rules! transition_fast {
-    ($parser:expr, $context:expr, $state:expr, $state_function:ident) => ({
+    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
 
         bs_mark!($context, $context.stream_index);
