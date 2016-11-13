@@ -138,12 +138,6 @@ macro_rules! unset_flag {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser state function type.
-type StateFunction<'a, T> = fn(&mut Parser<'a, T>, &mut ParserContext<T>)
-    -> Result<ParserValue, ParserError>;
-
-// -------------------------------------------------------------------------------------------------
-
 /// `DebugHandler` works with all `Parser` parsing methods.
 ///
 /// When in use, all parsed bytes will be printed, along with the callback name and length
@@ -1145,7 +1139,7 @@ impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 1.x parser.
-pub struct Parser<'a, T: HttpHandler> {
+pub struct Parser<'a, T: HttpHandler + 'a> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
@@ -1162,10 +1156,11 @@ pub struct Parser<'a, T: HttpHandler> {
     state: ParserState,
 
     /// Current state function.
-    state_function: StateFunction<'a, T>
+    state_function: fn(&mut Parser<'a, T>, &mut ParserContext<T>)
+                    -> Result<ParserValue, ParserError>
 }
 
-impl<'a, T: HttpHandler> Parser<'a, T> {
+impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     /// Create a new `Parser`.
     ///
     /// The initial state `Parser` is set to is a type detection state that determines if the
