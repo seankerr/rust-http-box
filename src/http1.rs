@@ -1265,7 +1265,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              PreHeadersCr2, pre_headers_cr2);
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -1512,7 +1512,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 transition_fast!(self, context,
                                  HeaderLf1, header_lf1);
             } else {
-                Err(ParserError::CrlfSequence(context.byte))
+                exit_error!(CrlfSequence, context.byte);
             }
         }
     }
@@ -1527,7 +1527,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              HeaderCr2, header_cr2);
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -1573,7 +1573,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 exit_callback!(self, context);
             }
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -1709,7 +1709,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'H' || context.byte == b'h' {
             transition_fast!(self, context, RequestHttp2, request_http2);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1723,7 +1723,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              RequestHttp3, request_http3);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1737,7 +1737,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              RequestHttp4, request_http4);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1751,7 +1751,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              RequestHttp5, request_http5);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1768,7 +1768,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              RequestVersionMajor, request_version_major);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1789,7 +1789,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              RequestVersionMinor, request_version_minor);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1813,7 +1813,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 exit_callback!(self, context);
             }
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1838,7 +1838,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              ResponseVersionMinor, response_version_minor);
         } else {
-            Err(ParserError::Version(context.byte))
+            exit_error!(Version, context.byte);
         }
     }
 
@@ -1880,7 +1880,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              ResponseStatusCode, response_status_code);
         } else {
-            Err(ParserError::StatusCode(context.byte))
+            exit_error!(StatusCode, context.byte);
         }
     }
 
@@ -1926,7 +1926,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
                 // do nothing
             } else {
-                return Err(ParserError::Status(context.byte));
+                exit_error!(Status, context.byte);
             },
 
             // on end-of-stream
@@ -1969,7 +1969,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 exit_callback!(self, context);
             }
         } else {
-            Err(ParserError::ChunkLength(context.byte))
+            exit_error!(ChunkLength, context.byte);
         }
     }
 
@@ -2013,7 +2013,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                       StripChunkExtensionName,
                                       strip_chunk_extension_name);
         } else {
-            Err(ParserError::ChunkLength(context.byte))
+            exit_error!(ChunkLength, context.byte);
         }
     }
 
@@ -2036,7 +2036,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 transition!(self, context);
             }
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -2178,7 +2178,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                       ChunkExtensionQuotedValue,
                                       chunk_extension_quoted_value);
         } else {
-            Err(ParserError::ChunkExtensionValue(context.byte))
+            exit_error!(ChunkExtensionValue, context.byte);
         }
     }
 
@@ -2194,7 +2194,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition!(self, context,
                         ChunkExtensionFinished, chunk_extension_finished);
         } else {
-            Err(ParserError::ChunkExtensionValue(context.byte))
+            exit_error!(ChunkExtensionValue, context.byte);
         }
     }
 
@@ -2252,7 +2252,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'\r' {
             transition_fast!(self, context, ChunkDataNewline2, chunk_data_newline2);
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -2265,7 +2265,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         if context.byte == b'\n' {
             transition_fast!(self, context, ChunkLength1, chunk_length1);
         } else {
-            Err(ParserError::CrlfSequence(context.byte))
+            exit_error!(CrlfSequence, context.byte);
         }
     }
 
@@ -2284,7 +2284,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                  on_multipart_data, &[b'\r', b'\n', context.byte],
                                  MultipartDataByByte, multipart_data_by_byte);
         } else {
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2304,7 +2304,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                  MultipartDataByByte, multipart_data_by_byte);
         } else {
             // we're parsing the initial boundary, and it's invalid
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2368,7 +2368,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 //     bs_starts_with!() vs an individual byte check
                 bs_next!(context);
 
-                Err(ParserError::MultipartBoundary(context.byte))
+                exit_error!(MultipartBoundary, context.byte);
             }
         } else {
             // boundary matched
@@ -2407,7 +2407,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(self, context,
                              MultipartEnd, multipart_end);
         } else {
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2421,7 +2421,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition!(self, context,
                         StripHeaderName, strip_header_name);
         } else {
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2483,7 +2483,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else {
             // this state is only used after multipart_data_by_length, so we can error if we don't
             // find the carriage return
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2499,7 +2499,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else {
             // this state is only used after multipart_data_by_length, so we can error if we don't
             // find the carriage return
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2545,7 +2545,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition!(self, context,
                         BodyFinished, body_finished);
         } else {
-            Err(ParserError::MultipartBoundary(context.byte))
+            exit_error!(MultipartBoundary, context.byte);
         }
     }
 
@@ -2613,7 +2613,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             (context.byte - 0x57) << 4
         } else {
-            return Err(ParserError::UrlEncodedName(context.byte));
+            exit_error!(UrlEncodedName, context.byte);
         });
 
         transition_fast!(self, context,
@@ -2633,7 +2633,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             context.byte - 0x57
         } else {
-            return Err(ParserError::UrlEncodedName(context.byte));
+            exit_error!(UrlEncodedName, context.byte);
         });
 
         callback_transition!(self, context,
@@ -2684,7 +2684,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                                  url_encoded_value_plus);
             },
             _ => {
-                Err(ParserError::UrlEncodedValue(context.byte))
+                exit_error!(UrlEncodedValue, context.byte);
             }
         }
     }
@@ -2702,7 +2702,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             (context.byte - 0x57) << 4
         } else {
-            return Err(ParserError::UrlEncodedValue(context.byte));
+            exit_error!(UrlEncodedValue, context.byte);
         });
 
         transition_fast!(self, context,
@@ -2722,7 +2722,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else if b'`' < context.byte && context.byte < b'g' {
             context.byte - 0x57
         } else {
-            return Err(ParserError::UrlEncodedValue(context.byte));
+            exit_error!(UrlEncodedValue, context.byte);
         });
 
         callback_transition!(self, context,
@@ -2746,7 +2746,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn dead(&mut self, _context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        Err(ParserError::Dead)
+        exit_error!(Dead);
     }
 
     #[inline]
