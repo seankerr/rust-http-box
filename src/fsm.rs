@@ -154,6 +154,17 @@ macro_rules! exit_eos {
     });
 }
 
+/// Exit parser with `ParserError`.
+macro_rules! exit_error {
+    ($error:ident, $byte:expr) => ({
+        return Err(ParserError::$error($byte));
+    });
+
+    ($error:ident) => ({
+        return Err(ParserError::$error);
+    });
+}
+
 /// Exit parser with `Success::Finished`.
 macro_rules! exit_finished {
     ($parser:expr, $context:expr) => ({
