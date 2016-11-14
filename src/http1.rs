@@ -2774,7 +2774,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 /// State listing in parsing order.
 ///
 /// This is a helper type that will simplify state tracking in custom
-/// [`HttpHandler`](trait.HttpHandler.html) implementations.
+/// [HttpHandler](trait.HttpHandler.html) implementations.
 #[derive(Clone,Copy,PartialEq)]
 #[repr(u8)]
 pub enum State {
