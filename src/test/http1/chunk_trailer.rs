@@ -16,14 +16,12 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use fsm::*;
 use http1::*;
+use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_chunked(DebugHandler::new());
-
-        parser
+        Parser::new_chunked(DebugHandler::new())
     });
 }
 
