@@ -1005,9 +1005,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
     /// Reset `Parser` to its initial state.
     ///
-    /// If using `Parser` to parse multipart data, you must also execute `set_boundary()`.
-    ///
-    /// If using `Parser` to parse URL encoded data, you must also execute `set_length()`.
+    /// After each call to `reset()`, don't forget to also set the multipart boundary, or URL
+    /// encoded data length using `set_boundary()` or `set_length()`.
     pub fn reset(&mut self) {
         self.bit_data = 0;
         self.boundary = None;
