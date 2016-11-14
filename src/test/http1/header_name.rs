@@ -56,7 +56,7 @@ fn byte_check() {
     });
 
     // valid lower-cased alphabetical bytes
-    loop_tokens(b"\r\n \t:", |byte| {
+    loop_tokens(b"", |byte| {
         if byte > 0x60 && byte < 0x7B {
             let mut p = setup!();
 
@@ -67,7 +67,7 @@ fn byte_check() {
     });
 
     // valid upper-cased alphabetical bytes
-    loop_tokens(b"\r\n \t:", |byte| {
+    loop_tokens(b"", |byte| {
         if byte > 0x40 && byte < 0x5B {
             let mut p = setup!();
 

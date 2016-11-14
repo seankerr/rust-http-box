@@ -614,8 +614,11 @@ pub enum ParserState {
     // REQUEST
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing request method.
-    RequestMethod,
+    /// Parsing upper-caed request method.
+    UpperRequestMethod,
+
+    /// Parsing lower-cased request method.
+    LowerRequestMethod,
 
     /// Stripping linear white space before URL.
     StripRequestUrl,
@@ -1153,7 +1156,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         }
 
         // this is a request
-        transition_fast!(self, context, RequestMethod, request_method);
+        transition_fast!(self, context,
+                         UpperRequestMethod, upper_request_method);
     }
 
     #[inline]
@@ -1172,7 +1176,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
             callback_transition_fast!(self, context,
                                       on_method, b"H",
-                                      RequestMethod, request_method);
+                                      UpperRequestMethod, upper_request_method);
         }
     }
 
@@ -1193,7 +1197,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
             callback_transition_fast!(self, context,
                                       on_method, b"HT",
-                                      RequestMethod, request_method);
+                                      UpperRequestMethod, upper_request_method);
         }
     }
 
@@ -1214,7 +1218,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
             callback_transition_fast!(self, context,
                                       on_method, b"HTT",
-                                      RequestMethod, request_method);
+                                      UpperRequestMethod, upper_request_method);
         }
     }
 
@@ -1238,7 +1242,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
             callback_transition_fast!(self, context,
                                       on_method, b"HTTP",
-                                      RequestMethod, request_method);
+                                      UpperRequestMethod, upper_request_method);
         }
     }
 
@@ -1585,7 +1589,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn request_method(&mut self, context: &mut ByteStream)
+    fn upper_request_method(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! method {
             ($method:expr, $length:expr) => (
@@ -1623,17 +1627,46 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         collect_tokens!(context, ParserError::Method,
             // stop on these bytes
-            context.byte == b' ',
+               context.byte == b' '
+            || (context.byte > 0x60 && context.byte < 0x7B),
 
             // on end-of-stream
             callback_eos_expr!(self, context, on_method)
         );
 
-        bs_replay!(context);
+        if context.byte == b' ' {
+            bs_replay!(context);
 
-        callback_transition_fast!(self, context,
-                                  on_method,
-                                  StripRequestUrl, strip_request_url);
+            callback_transition_fast!(self, context,
+                                      on_method,
+                                      StripRequestUrl, strip_request_url);
+        } else {
+            // lower-cased byte, let's upper-case it
+            bs_replay!(context);
+
+            callback_transition_fast!(self, context,
+                                      on_method,
+                                      LowerRequestMethod, lower_request_method);
+        }
+    }
+
+    #[inline]
+    fn lower_request_method(&mut self, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte > 0x60 && context.byte < 0x7B {
+            // lower-cased byte, let's upper-case it
+            callback_transition!(self, context,
+                                 on_method, &[context.byte - 0x20],
+                                 LowerRequestMethod, lower_request_method);
+        } else {
+            bs_replay!(context);
+
+            transition!(self, context,
+                        UpperRequestMethod, upper_request_method);
+        }
     }
 
     #[inline]

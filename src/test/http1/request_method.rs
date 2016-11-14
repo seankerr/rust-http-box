@@ -38,13 +38,26 @@ fn byte_check() {
                            byte);
     });
 
-    // valid bytes
+    // valid lower-cased alphabetical bytes
     loop_tokens(b"Hh", |byte| {
-        let mut p = setup!();
+        if byte > 0x60 && byte < 0x7B {
+            let mut p = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    RequestMethod);
+            assert_eos!(p,
+                        &[byte],
+                        LowerRequestMethod);
+        }
+    });
+
+    // valid upper-cased alphabetical bytes
+    loop_tokens(b"Hh", |byte| {
+        if !(byte > 0x60 && byte < 0x7B) {
+            let mut p = setup!();
+
+            assert_eos!(p,
+                        &[byte],
+                        UpperRequestMethod);
+        }
     });
 
     for n in &[b'H', b'h'] {
@@ -71,7 +84,7 @@ fn callback_exit() {
 
     assert_callback!(p,
                      b"G",
-                     RequestMethod);
+                     UpperRequestMethod);
 }
 
 #[test]
@@ -80,49 +93,49 @@ fn multiple_connect() {
 
     assert_eos!(p,
                b"C",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"C");
 
     assert_eos!(p,
                b"O",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CO");
 
     assert_eos!(p,
                b"N",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CON");
 
     assert_eos!(p,
                b"N",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CONN");
 
     assert_eos!(p,
                b"E",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CONNE");
 
     assert_eos!(p,
                b"C",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CONNEC");
 
     assert_eos!(p,
                b"T",
-               RequestMethod);
+               UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"CONNECT");
@@ -141,42 +154,42 @@ fn multiple_delete() {
 
     assert_eos!(p,
                 b"D",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"D");
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"DE");
 
     assert_eos!(p,
                 b"L",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"DEL");
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"DELE");
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"DELET");
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"DELETE");
@@ -195,21 +208,21 @@ fn multiple_get() {
 
     assert_eos!(p,
                 b"G",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"G");
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"GE");
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"GET");
@@ -232,21 +245,21 @@ fn multiple_head() {
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"HE");
 
     assert_eos!(p,
                 b"A",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"HEA");
 
     assert_eos!(p,
                 b"D",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"HEAD");
@@ -265,49 +278,49 @@ fn multiple_options() {
 
     assert_eos!(p,
                 b"O",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"O");
 
     assert_eos!(p,
                 b"P",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OP");
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OPT");
 
     assert_eos!(p,
                 b"I",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OPTI");
 
     assert_eos!(p,
                 b"O",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OPTIO");
 
     assert_eos!(p,
                 b"N",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OPTION");
 
     assert_eos!(p,
                 b"S",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"OPTIONS");
@@ -326,28 +339,28 @@ fn multiple_post() {
 
     assert_eos!(p,
                 b"P",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"P");
 
     assert_eos!(p,
                 b"O",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"PO");
 
     assert_eos!(p,
                 b"S",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"POS");
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"POST");
@@ -366,21 +379,21 @@ fn multiple_put() {
 
     assert_eos!(p,
                 b"P",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"P");
 
     assert_eos!(p,
                 b"U",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"PU");
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"PUT");
@@ -399,35 +412,35 @@ fn multiple_trace() {
 
     assert_eos!(p,
                 b"T",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"T");
 
     assert_eos!(p,
                 b"R",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"TR");
 
     assert_eos!(p,
                 b"A",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"TRA");
 
     assert_eos!(p,
                 b"C",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"TRAC");
 
     assert_eos!(p,
                 b"E",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"TRACE");
@@ -446,49 +459,49 @@ fn multiple_unknown() {
 
     assert_eos!(p,
                 b"U",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"U");
 
     assert_eos!(p,
                 b"N",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UN");
 
     assert_eos!(p,
                 b"K",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UNK");
 
     assert_eos!(p,
                 b"N",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UNKN");
 
     assert_eos!(p,
                 b"O",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UNKNO");
 
     assert_eos!(p,
                 b"W",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UNKNOW");
 
     assert_eos!(p,
                 b"N",
-                RequestMethod);
+                UpperRequestMethod);
 
     assert_eq!(p.handler().method,
                b"UNKNOWN");
@@ -499,6 +512,39 @@ fn multiple_unknown() {
 
     assert_eq!(p.handler().method,
                b"UNKNOWN");
+}
+
+#[test]
+fn normalize() {
+    let mut p = setup!();
+
+    assert_eos!(p,
+                b"g",
+                LowerRequestMethod);
+
+    assert_eq!(p.handler().method,
+               b"G");
+
+    assert_eos!(p,
+                b"E",
+                UpperRequestMethod);
+
+    assert_eq!(p.handler().method,
+               b"GE");
+
+    assert_eos!(p,
+                b"t",
+                LowerRequestMethod);
+
+    assert_eq!(p.handler().method,
+               b"GET");
+
+    assert_eos!(p,
+                b" ",
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"GET");
 }
 
 #[test]
