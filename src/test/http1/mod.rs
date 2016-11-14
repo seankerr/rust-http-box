@@ -20,44 +20,44 @@ use http1::*;
 pub use fsm::Success;
 
 macro_rules! assert_callback {
-    ($parser:expr, $handler:expr, $stream:expr, $state:expr, $length:expr) => ({
-        assert!(match $parser.resume(&mut $handler, $stream) {
+    ($parser:expr, $stream:expr, $state:ident, $length:expr) => ({
+        assert!(match $parser.resume($stream) {
             Ok(Success::Callback(byte_count)) => {
                 assert_eq!(byte_count, $length);
-                assert_eq!($parser.state(), $state);
+                assert_eq!($parser.state(), ParserState::$state);
                 true
             },
             _ => false
         });
     });
 
-    ($parser:expr, $handler:expr, $stream:expr, $state:expr) => ({
-        assert_callback!($parser, $handler, $stream, $state, $stream.len())
+    ($parser:expr, $stream:expr, $state:ident) => ({
+        assert_callback!($parser, $stream, $state, $stream.len())
     });
 }
 
 macro_rules! assert_eos {
-    ($parser:expr, $handler:expr, $stream:expr, $state:expr, $length:expr) => ({
-        assert!(match $parser.resume(&mut $handler, $stream) {
+    ($parser:expr, $stream:expr, $state:ident, $length:expr) => ({
+        assert!(match $parser.resume($stream) {
             Ok(Success::Eos(byte_count)) => {
                 assert_eq!(byte_count, $length);
-                assert_eq!($parser.state(), $state);
+                assert_eq!($parser.state(), ParserState::$state);
                 true
             },
             _ => false
         });
     });
 
-    ($parser:expr, $handler:expr, $stream:expr, $state:expr) => ({
-        assert_eos!($parser, $handler, $stream, $state, $stream.len())
+    ($parser:expr, $stream:expr, $state:ident) => ({
+        assert_eos!($parser, $stream, $state, $stream.len())
     });
 }
 
 macro_rules! assert_error {
-    ($parser:expr, $handler:expr, $stream:expr, $error:expr) => ({
-        assert!(match $parser.resume(&mut $handler, $stream) {
+    ($parser:expr, $stream:expr, $error:ident) => ({
+        assert!(match $parser.resume($stream) {
             Err(error) => {
-                assert_eq!(error, $error);
+                assert_eq!(error, ParserError::$error);
                 assert_eq!($parser.state(), ParserState::Dead);
                 true
             },
@@ -69,9 +69,9 @@ macro_rules! assert_error {
 }
 
 macro_rules! assert_error_byte {
-    ($parser:expr, $handler:expr, $stream:expr, $error:path, $byte:expr) => ({
-        assert!(match $parser.resume(&mut $handler, $stream) {
-            Err($error(byte)) => {
+    ($parser:expr, $stream:expr, $error:ident, $byte:expr) => ({
+        assert!(match $parser.resume($stream) {
+            Err(ParserError::$error(byte)) => {
                 assert_eq!(byte, $byte);
                 assert_eq!($parser.state(), ParserState::Dead);
                 true
@@ -84,8 +84,8 @@ macro_rules! assert_error_byte {
 }
 
 macro_rules! assert_finished {
-    ($parser:expr, $handler:expr, $stream:expr, $length:expr) => ({
-        assert!(match $parser.resume(&mut $handler, $stream) {
+    ($parser:expr, $stream:expr, $length:expr) => ({
+        assert!(match $parser.resume($stream) {
             Ok(Success::Finished(byte_count)) => {
                 assert_eq!(byte_count, $length);
             true
@@ -94,8 +94,8 @@ macro_rules! assert_finished {
         });
     });
 
-    ($parser:expr, $handler:expr, $stream:expr) => ({
-        assert_finished!($parser, $handler, $stream, $stream.len())
+    ($parser:expr, $stream:expr) => ({
+        assert_finished!($parser, $stream, $stream.len())
     });
 }
 
@@ -106,7 +106,7 @@ mod chunk_extension_name;
 mod chunk_extension_quoted_value;
 mod chunk_extension_value;
 mod chunk_extensions_finished;
-mod chunk_size;
+mod chunk_length;
 mod chunk_trailer;
 
 mod header_name;

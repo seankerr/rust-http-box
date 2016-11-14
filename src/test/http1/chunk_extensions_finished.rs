@@ -21,23 +21,21 @@ use test::http1::*;
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_chunk_extensions_finished(&mut self) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_chunked(CallbackHandler);
 
-    p.init_chunked();
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"F;extension=value\r",
-                ParserState::ChunkLengthLf);
-    assert_callback!(p, h,
+                ChunkLengthLf);
+
+    assert_callback!(p,
                      b"\nDATA",
-                     ParserState::ChunkData, 1);
+                     ChunkData, 1);
 }

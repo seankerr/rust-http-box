@@ -21,106 +21,103 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_chunked();
+    () => ({
+        let mut parser = Parser::new_chunked(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"F;extension1=",
-                    ParserState::StripChunkExtensionValue);
+                    StripChunkExtensionValue);
+
+        parser
     });
 }
 
 #[test]
 fn basic() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"\"valid-value\"",
-                ParserState::ChunkExtensionQuotedValueFinished);
-    assert_eq!(h.chunk_extension_value, b"valid-value");
+                ChunkExtensionQuotedValueFinished);
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid-value");
 }
 
 #[test]
 fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[b'"'],
-                    ParserState::ChunkExtensionQuotedValue);
+                    ChunkExtensionQuotedValue);
 
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::ChunkExtensionValue,
+                           ChunkExtensionValue,
                            byte);
     });
 
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[b'"'],
-                    ParserState::ChunkExtensionQuotedValue);
-        assert_eos!(p, h,
+                    ChunkExtensionQuotedValue);
+
+        assert_eos!(p,
                     &[byte],
-                    ParserState::ChunkExtensionQuotedValue);
+                    ChunkExtensionQuotedValue);
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_chunked(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"F;extension1=",
+                StripChunkExtensionValue);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"\"ExtensionValue\"",
-                     ParserState::ChunkExtensionQuotedValueFinished);
+                     ChunkExtensionQuotedValueFinished);
 }
 
 #[test]
 fn escaped() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"\"valid \\\"value\\\" here\"\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_extension_value, b"valid \"value\" here");
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid \"value\" here");
 }
 
 #[test]
 fn repeat() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"valid-value1;extension2=valid-value2;",
-                ParserState::StripChunkExtensionName);
-    assert_eq!(h.chunk_extension_name, b"extension1extension2");
-    assert_eq!(h.chunk_extension_value, b"valid-value1valid-value2");
+                StripChunkExtensionName);
+
+    assert_eq!(p.handler().chunk_extension_name,
+               b"extension1extension2");
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid-value1valid-value2");
 }

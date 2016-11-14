@@ -94,18 +94,20 @@ fn head() {
 
     File::open("tests/data/multipart.dat").unwrap().read_to_end(&mut d);
 
-    let mut h = HeadHandler{ headers:       HashMap::new(),
-                             method:        Vec::new(),
-                             name_buf:      Vec::new(),
-                             state:         State::None,
-                             url:           Vec::new(),
-                             value_buf:     Vec::new(),
-                             version_major: 0,
-                             version_minor: 0 };
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(
+                    HeadHandler{ headers:       HashMap::new(),
+                                 method:        Vec::new(),
+                                 name_buf:      Vec::new(),
+                                 state:         State::None,
+                                 url:           Vec::new(),
+                                 value_buf:     Vec::new(),
+                                 version_major: 0,
+                                 version_minor: 0 }
+                );
 
-    p.init_head();
-    p.resume(&mut h, &d);
+    p.resume(&d);
+
+    let h = p.handler();
 
     assert_eq!(h.method,
                b"POST");

@@ -24,7 +24,7 @@ use std::fmt;
 /// `Success::Callback`.
 macro_rules! callback {
     ($parser:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
-        if $context.handler.$function($data) {
+        if $parser.handler.$function($data) {
             $exec
         } else {
             exit_callback!($parser, $context);
@@ -35,7 +35,7 @@ macro_rules! callback {
         let slice = bs_slice!($context);
 
         if slice.len() > 0 {
-            if $context.handler.$function(slice) {
+            if $parser.handler.$function(slice) {
                 $exec
             } else {
                 exit_callback!($parser, $context);
@@ -64,7 +64,7 @@ macro_rules! callback_ignore_transition {
         set_state!($parser, $state, $state_function);
 
         if slice.len() > 0 {
-            if $context.handler.$function(slice) {
+            if $parser.handler.$function(slice) {
                 transition!($parser, $context);
             } else {
                 exit_callback!($parser, $context);
@@ -85,7 +85,7 @@ macro_rules! callback_ignore_transition_fast {
         set_state!($parser, $state, $state_function);
 
         if slice.len() > 0 {
-            if $context.handler.$function(slice) {
+            if $parser.handler.$function(slice) {
                 transition_fast!($parser, $context);
             } else {
                 exit_callback!($parser, $context);

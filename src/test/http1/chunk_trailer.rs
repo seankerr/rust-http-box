@@ -19,30 +19,42 @@
 use fsm::*;
 use http1::*;
 
+macro_rules! setup {
+    () => ({
+        let mut parser = Parser::new_chunked(DebugHandler::new());
+
+        parser
+    });
+}
+
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_finished!(p, h,
+    assert_finished!(p,
                      b"0\r\nField1: Value1\r\nField2: Value2\r\n\r\n");
-    assert!(h.headers_finished);
-    assert_eq!(h.header_name, b"field1field2");
-    assert_eq!(h.header_value, b"Value1Value2");
+
+    assert!(p.handler().headers_finished);
+
+    assert_eq!(p.handler().header_name,
+               b"field1field2");
+
+    assert_eq!(p.handler().header_value,
+               b"Value1Value2");
 }
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_finished!(p, h,
+    assert_finished!(p,
                      b"0\r\nField: Value\r\n\r\n");
-    assert!(h.headers_finished);
-    assert_eq!(h.header_name, b"field");
-    assert_eq!(h.header_value, b"Value");
+
+    assert!(p.handler().headers_finished);
+
+    assert_eq!(p.handler().header_name,
+               b"field");
+
+    assert_eq!(p.handler().header_value,
+               b"Value");
 }

@@ -19,32 +19,23 @@
 use http1::*;
 use test::http1::*;
 
-macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
-
-        assert_eos!($parser, $handler,
-                   b"GET / HTTP/1.1",
-                   ParserState::RequestVersionMinor);
-    });
-}
-
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_initial_finished(&mut self) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / HTTP/1.1",
+                RequestVersionMinor);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"\r",
-                     ParserState::PreHeadersLf1);
+                     PreHeadersLf1);
 }

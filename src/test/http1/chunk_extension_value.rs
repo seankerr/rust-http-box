@@ -21,12 +21,14 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_chunked();
+    () => ({
+        let mut parser = Parser::new_chunked(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"F;extension=",
-                    ParserState::StripChunkExtensionValue);
+                    StripChunkExtensionValue);
+
+        parser
     });
 }
 
@@ -34,85 +36,77 @@ macro_rules! setup {
 fn byte_check_unquoted() {
     // invalid bytes
     loop_non_tokens(b" \t\r;=\"", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::ChunkExtensionValue,
+                           ChunkExtensionValue,
                            byte);
     });
 
     // valid bytes
     loop_tokens(b" \t", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[byte],
-                    ParserState::ChunkExtensionValue);
+                    ChunkExtensionValue);
     });
 }
 
 #[test]
 fn basic() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"valid-value;",
-                ParserState::StripChunkExtensionName);
-    assert_eq!(h.chunk_extension_value, b"valid-value");
+                StripChunkExtensionName);
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid-value");
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_chunk_extension_value(&mut self, _value: &[u8]) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_chunked(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"F;extension=",
+                StripChunkExtensionValue);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"ExtensionValue",
-                     ParserState::ChunkExtensionValue);
+                     ChunkExtensionValue);
 }
 
 #[test]
 fn linear_space() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"   \t\t\tvalid-value\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_extension_value, b"valid-value");
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid-value");
 }
 
 #[test]
 fn repeat() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"valid-value\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_extension_value, b"valid-value");
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_extension_value,
+               b"valid-value");
 }

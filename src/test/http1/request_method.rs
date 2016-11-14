@@ -21,8 +21,8 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        Parser::new_head(DebugHandler::new())
     });
 }
 
@@ -30,532 +30,590 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\n\t ", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::Method,
+                           Method,
                            byte);
     });
 
     // valid bytes
     loop_tokens(b"Hh", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[byte],
-                    ParserState::RequestMethod);
+                    RequestMethod);
     });
 
     for n in &[b'H', b'h'] {
         // valid H|h byte
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[*n as u8],
-                    ParserState::Detect2);
+                    Detect2);
     }
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_method(&mut self, _method: &[u8]) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
-
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"G",
-                     ParserState::RequestMethod);
+                     RequestMethod);
 }
 
 #[test]
 fn multiple_connect() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                b"C",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"C");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"C");
+
+    assert_eos!(p,
                b"O",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CO");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CO");
+
+    assert_eos!(p,
                b"N",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CON");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CON");
+
+    assert_eos!(p,
                b"N",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CONN");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CONN");
+
+    assert_eos!(p,
                b"E",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CONNE");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CONNE");
+
+    assert_eos!(p,
                b"C",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CONNEC");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CONNEC");
+
+    assert_eos!(p,
                b"T",
-               ParserState::RequestMethod);
-    assert_eq!(h.method, b"CONNECT");
+               RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"CONNECT");
+
+    assert_eos!(p,
                b" ",
-               ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"CONNECT");
+               StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"CONNECT");
 }
 
 #[test]
 fn multiple_delete() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"D",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"D");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"D");
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"DE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"DE");
+
+    assert_eos!(p,
                 b"L",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"DEL");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"DEL");
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"DELE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"DELE");
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"DELET");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"DELET");
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"DELETE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"DELETE");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"DELETE");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"DELETE");
 }
 
 #[test]
 fn multiple_get() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"G",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"G");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"G");
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"GE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"GE");
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"GET");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"GET");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"GET");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"GET");
 }
 
 #[test]
 fn multiple_head() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::Detect2);
-    assert_eos!(p, h,
+                Detect2);
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"HE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"HE");
+
+    assert_eos!(p,
                 b"A",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"HEA");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"HEA");
+
+    assert_eos!(p,
                 b"D",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"HEAD");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"HEAD");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"HEAD");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"HEAD");
 }
 
 #[test]
 fn multiple_options() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"O",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"O");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"O");
+
+    assert_eos!(p,
                 b"P",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OP");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OP");
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OPT");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OPT");
+
+    assert_eos!(p,
                 b"I",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OPTI");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OPTI");
+
+    assert_eos!(p,
                 b"O",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OPTIO");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OPTIO");
+
+    assert_eos!(p,
                 b"N",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OPTION");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OPTION");
+
+    assert_eos!(p,
                 b"S",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"OPTIONS");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"OPTIONS");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"OPTIONS");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"OPTIONS");
 }
 
 #[test]
 fn multiple_post() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"P",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"P");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"P");
+
+    assert_eos!(p,
                 b"O",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"PO");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"PO");
+
+    assert_eos!(p,
                 b"S",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"POS");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"POS");
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"POST");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"POST");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"POST");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"POST");
 }
 
 #[test]
 fn multiple_put() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"P",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"P");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"P");
+
+    assert_eos!(p,
                 b"U",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"PU");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"PU");
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"PUT");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"PUT");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"PUT");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"PUT");
 }
 
 #[test]
 fn multiple_trace() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"T");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"T");
+
+    assert_eos!(p,
                 b"R",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"TR");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"TR");
+
+    assert_eos!(p,
                 b"A",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"TRA");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"TRA");
+
+    assert_eos!(p,
                 b"C",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"TRAC");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"TRAC");
+
+    assert_eos!(p,
                 b"E",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"TRACE");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"TRACE");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"TRACE");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"TRACE");
 }
 
 #[test]
 fn multiple_unknown() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"U",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"U");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"U");
+
+    assert_eos!(p,
                 b"N",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UN");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UN");
+
+    assert_eos!(p,
                 b"K",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UNK");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UNK");
+
+    assert_eos!(p,
                 b"N",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UNKN");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UNKN");
+
+    assert_eos!(p,
                 b"O",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UNKNO");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UNKNO");
+
+    assert_eos!(p,
                 b"W",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UNKNOW");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UNKNOW");
+
+    assert_eos!(p,
                 b"N",
-                ParserState::RequestMethod);
-    assert_eq!(h.method, b"UNKNOWN");
+                RequestMethod);
 
-    assert_eos!(p, h,
+    assert_eq!(p.handler().method,
+               b"UNKNOWN");
+
+    assert_eos!(p,
                 b" ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"UNKNOWN");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"UNKNOWN");
 }
 
 #[test]
 fn single_connect() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"CONNECT ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"CONNECT");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"CONNECT");
 }
 
 #[test]
 fn single_delete() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"DELETE  ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"DELETE");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"DELETE");
 }
 
 #[test]
 fn single_get() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"GET     ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"GET");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"GET");
 }
 
 #[test]
 fn single_head() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"HEAD    ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"HEAD");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"HEAD");
 }
 
 #[test]
 fn single_options() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"OPTIONS ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"OPTIONS");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"OPTIONS");
 }
 
 #[test]
 fn single_post() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"POST    ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"POST");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"POST");
 }
 
 #[test]
 fn single_put() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"PUT     ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"PUT");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"PUT");
 }
 
 #[test]
 fn single_trace() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"TRACE   ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"TRACE");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"TRACE");
 }
 
 #[test]
 fn single_unknown() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"UNKNOWN ",
-                ParserState::StripRequestUrl);
-    assert_eq!(h.method, b"UNKNOWN");
+                StripRequestUrl);
+
+    assert_eq!(p.handler().method,
+               b"UNKNOWN");
 }
 
 #[test]
 fn starting_space() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"   ",
-                ParserState::StripDetect);
+                StripDetect);
 }

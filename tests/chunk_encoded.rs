@@ -136,13 +136,10 @@ fn chunk_encoded_body() {
     File::open("tests/data/chunk_encoded.dat").unwrap().read_to_end(&mut d);
 
     let mut s = d.as_slice();
-    let mut h = HeadHandler;
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(HeadHandler);
 
     // parse head
-    p.init_head();
-
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Finished(length)) => {
             s = &s[length..];
         },
@@ -150,40 +147,40 @@ fn chunk_encoded_body() {
     }
 
     // parse chunk encoded
-    let mut p = Parser::new();
-
-    p.init_chunked();
-
-    let mut h = ChunkEncodedHandler{ count:      0,
-                                     data:       Vec::new(),
-                                     extensions: Vec::new(),
-                                     length:     0,
-                                     name_buf:   Vec::new(),
-                                     state:      State::None,
-                                     trailers:   HashMap::new(),
-                                     value_buf:  Vec::new() };
-
+    let mut p = Parser::new_chunked(
+                    ChunkEncodedHandler{ count:      0,
+                                         data:       Vec::new(),
+                                         extensions: Vec::new(),
+                                         length:     0,
+                                         name_buf:   Vec::new(),
+                                         state:      State::None,
+                                         trailers:   HashMap::new(),
+                                         value_buf:  Vec::new() }
+                );
 
     // first chunk entry
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Callback(length)) => {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
         },
-        Err(error) => println!("ERROR: {:?}", error),
         _ => panic!()
     }
 
-    assert_eq!(0, h.trailers.len());
-    assert_eq!(23, h.length);
-    assert_eq!(h.data,
+    assert_eq!(p.handler().trailers.len(),
+               0);
+
+    assert_eq!(p.handler().length,
+               23);
+
+    assert_eq!(p.handler().data,
                b"This is the first chunk");
 
     // clear saved data
-    h.clear();
+    p.handler().clear();
 
     // second chunk entry
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Callback(length)) => {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
@@ -191,30 +188,37 @@ fn chunk_encoded_body() {
         _ => panic!()
     }
 
-    assert_eq!(h.trailers.len(), 0);
-    assert_eq!(h.length, 24);
-    assert_eq!(h.data,
+    assert_eq!(p.handler().trailers.len(),
+               0);
+
+    assert_eq!(p.handler().length,
+               24);
+
+    assert_eq!(p.handler().data,
                b"This is the second chunk");
 
     // clear saved data
-    h.clear();
+    p.handler().clear();
 
     // second chunk entry
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Finished(_)) => {
         },
         _ => panic!()
     }
 
-    assert_eq!(h.trailers.len(), 2);
-    assert_eq!(h.length, 0);
+    assert_eq!(p.handler().trailers.len(),
+               2);
 
-    assert_eq!(h.data,
+    assert_eq!(p.handler().length,
+               0);
+
+    assert_eq!(p.handler().data,
                b"");
 
-    assert_eq!(h.trailers.get("trailer1").unwrap(),
+    assert_eq!(p.handler().trailers.get("trailer1").unwrap(),
                "This is trailer 1");
 
-    assert_eq!(h.trailers.get("trailer2").unwrap(),
+    assert_eq!(p.handler().trailers.get("trailer2").unwrap(),
                "This is trailer 2");
 }

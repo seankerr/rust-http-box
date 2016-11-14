@@ -24,6 +24,7 @@ use byte::is_token;
 use fsm::{ ParserValue,
            Success };
 
+use byte_slice::ByteStream;
 use std::{ fmt,
            str };
 
@@ -1106,40 +1107,8 @@ pub enum ParserState {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Parser context data.
-struct ParserContext<'a, T: HttpHandler + 'a> {
-    // Current byte.
-    byte: u8,
-
-    // Callback handler.
-    handler: &'a mut T,
-
-    // Callback mark index.
-    mark_index: usize,
-
-    // Stream data.
-    stream: &'a [u8],
-
-    // Stream index.
-    stream_index: usize
-}
-
-impl<'a, T: HttpHandler + 'a> ParserContext<'a, T> {
-    /// Create a new `ParserContext`.
-    pub fn new(handler: &'a mut T, stream: &'a [u8])
-    -> ParserContext<'a, T> {
-        ParserContext{ byte:         0,
-                       handler:      handler,
-                       mark_index:   0,
-                       stream:       stream,
-                       stream_index: 0 }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
 /// HTTP 1.x parser.
-pub struct Parser<'a, T: HttpHandler + 'a> {
+pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
@@ -1149,29 +1118,100 @@ pub struct Parser<'a, T: HttpHandler + 'a> {
     /// Total byte count processed for headers, and body.
     byte_count: usize,
 
+    /// Handler implementation.
+    handler: T,
+
     /// Length storage for h.
     length: usize,
+
+    /// Parser type.
+    parser_type: ParserType,
 
     /// Current state.
     state: ParserState,
 
     /// Current state function.
-    state_function: fn(&mut Parser<'a, T>, &mut ParserContext<T>)
+    state_function: fn(&mut Parser<'a, T>, &mut ByteStream)
                     -> Result<ParserValue, ParserError>
 }
 
-impl<'a, T: HttpHandler +'a> Parser<'a, T> {
+impl<'a, T: HttpHandler> Parser<'a, T> {
     /// Create a new `Parser`.
     ///
-    /// The initial state `Parser` is set to is a type detection state that determines if the
-    /// stream is a HTTP request or HTTP response.
-    pub fn new() -> Parser<'a, T> {
-        Parser{ bit_data:       0,
-                boundary:       None,
-                byte_count:     0,
-                length:         0,
-                state:          ParserState::StripDetect,
-                state_function: Parser::strip_detect }
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// The handler implementation.
+    ///
+    /// **`parser_type`**
+    ///
+    /// The type of parser.
+    fn new(handler: T, parser_type: ParserType) -> Parser<'a, T> {
+         Parser{ bit_data:       0,
+                 boundary:       None,
+                 byte_count:     0,
+                 handler:        handler,
+                 length:         0,
+                 parser_type:    parser_type,
+                 state:          ParserState::StripDetect,
+                 state_function: Parser::strip_detect }
+    }
+
+    /// Create a new `Parser` for chunked transfer encoding parsing.
+    ///
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// The chunked transfer encoding handler implementation.
+    pub fn new_chunked(handler: T) -> Parser<'a, T> {
+        let mut p = Parser::new(handler, ParserType::Chunked);
+
+        p.reset();
+        p
+    }
+
+    /// Create a new `Parser` for head parsing.
+    ///
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// The head handler implementation.
+    pub fn new_head(handler: T) -> Parser<'a, T> {
+        let mut p = Parser::new(handler, ParserType::Head);
+
+        p.reset();
+        p
+    }
+
+    /// Create a new `Parser` for multipart parsing.
+    ///
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// The multipart handler implementation.
+    pub fn new_multipart(handler: T) -> Parser<'a, T> {
+        let mut p = Parser::new(handler, ParserType::Multipart);
+
+        p.reset();
+        p
+    }
+
+    /// Create a new `Parser` for URL encoded parsing.
+    ///
+    /// # Arguments
+    ///
+    /// **`handler`**
+    ///
+    /// The URL encoded handler implementation.
+    pub fn new_url_encoded(handler: T) -> Parser<'a, T> {
+        let mut p = Parser::new(handler, ParserType::UrlEncoded);
+
+        p.reset();
+        p
     }
 
     /// Retrieve the total byte count processed since the instantiation of `Parser`.
@@ -1184,79 +1224,14 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
         self.byte_count
     }
 
-    /// Initialize `Parser` for chunked transfer encoded parsing.
-    ///
-    /// This function may be called as many times as possible. It resets `Parser` state and bit
-    /// data.
-    #[inline]
-    pub fn init_chunked(&mut self) {
-        self.bit_data       = 0;
-        self.length         = 0;
-        self.state          = ParserState::ChunkLength1;
-        self.state_function = Parser::chunk_length1;
-
-        set_flag!(self, F_CHUNKED);
-    }
-
-    /// Initialize `Parser` for head parsing.
-    ///
-    /// This function may be called as many times as possible. It resets `Parser` state and bit
-    /// data.
-    #[inline]
-    pub fn init_head(&mut self) {
-        self.bit_data       = 0;
-        self.length         = 0;
-        self.state          = ParserState::StripDetect;
-        self.state_function = Parser::strip_detect;
-    }
-
-    /// Initialize `Parser` for multipart parsing.
-    ///
-    /// This function may be called as many times as possible. It resets `Parser` state and bit
-    /// data.
-    ///
-    /// # Arguments
-    ///
-    /// **`boundary`**
-    ///
-    /// The multipart boundary.
-    #[inline]
-    pub fn init_multipart(&mut self, boundary: &'a [u8]) {
-        self.bit_data       = 0;
-        self.boundary       = Some(boundary);
-        self.length         = 0;
-        self.state          = ParserState::MultipartHyphen1;
-        self.state_function = Parser::multipart_hyphen1;
-
-        set_flag!(self, F_MULTIPART);
-
-        // lower14 == 1 when we expect a boundary
-        set_lower14!(self, 1);
-    }
-
-    /// Initialize `Parser` for URL encoded parsing.
-    ///
-    /// This function may be called as many times as possible. It resets `Parser` state and bit
-    /// data.
-    ///
-    /// # Arguments
-    ///
-    /// **`length`**
-    ///
-    /// The length of URL encoded data that needs parsed.
-    #[inline]
-    pub fn init_url_encoded(&mut self, length: usize) {
-        self.bit_data       = 0;
-        self.length         = length;
-        self.state          = ParserState::UrlEncodedName;
-        self.state_function = Parser::url_encoded_name;
-
-        set_flag!(self, F_URL_ENCODED);
+    /// Receive the handler implementation.
+    pub fn handler(&mut self) -> &mut T {
+        &mut self.handler
     }
 
     /// Main parser loop.
     #[inline]
-    fn parse(&mut self, mut context: &mut ParserContext<T>) -> Result<Success, ParserError> {
+    fn parse(&mut self, mut context: &mut ByteStream) -> Result<Success, ParserError> {
         loop {
             match (self.state_function)(self, &mut context) {
                 Ok(ParserValue::Continue) => {
@@ -1283,35 +1258,55 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
 
     /// Reset the parser to its initial state.
     pub fn reset(&mut self) {
-        self.bit_data       = 0;
-        self.boundary       = None;
-        self.byte_count     = 0;
-        self.length         = 0;
-        self.state          = ParserState::Detect1;
-        self.state_function = Parser::detect1;
+        self.bit_data = 0;
+        self.boundary = None;
+        self.length   = 0;
+
+        match self.parser_type {
+            ParserType::Chunked => {
+                self.state          = ParserState::ChunkLength1;
+                self.state_function = Parser::chunk_length1;
+
+                set_flag!(self, F_CHUNKED);
+            },
+            ParserType::Head => {
+                self.state          = ParserState::StripDetect;
+                self.state_function = Parser::strip_detect;
+            },
+            ParserType::Multipart => {
+                self.state          = ParserState::MultipartHyphen1;
+                self.state_function = Parser::multipart_hyphen1;
+
+                set_flag!(self, F_MULTIPART);
+
+                // lower14 == 1 when we expect a boundary, which is only the first boundary
+                set_lower14!(self, 1);
+            },
+            ParserType::UrlEncoded => {
+                self.state          = ParserState::UrlEncodedName;
+                self.state_function = Parser::url_encoded_name;
+
+                set_flag!(self, F_URL_ENCODED);
+            }
+        }
     }
 
     /// Resume parsing an additional slice of data.
     ///
     /// # Arguments
     ///
-    /// **`handler`**
-    ///
-    /// An implementation of [`HttpHandler`](trait.HttpHandler.html) that provides zero or more of
-    /// the callbacks expected by `Parser`.
-    ///
     /// **`stream`**
     ///
     /// The stream of data to be parsed.
     #[inline]
-    pub fn resume(&mut self, handler: &mut T, mut stream: &[u8]) -> Result<Success, ParserError> {
+    pub fn resume(&mut self, mut stream: &[u8]) -> Result<Success, ParserError> {
         if has_flag!(self, F_URL_ENCODED) {
             if self.length < stream.len() {
                 // amount of data to process is less than the stream length
                 stream = &stream[0..self.length];
             }
 
-            let mut context = ParserContext::new(handler, stream);
+            let mut context = ByteStream::new(stream);
 
             match self.parse(&mut context) {
                 Ok(Success::Eos(length)) => {
@@ -1336,8 +1331,18 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
                 }
             }
         } else {
-            self.parse(&mut ParserContext::new(handler, stream))
+            self.parse(&mut ByteStream::new(stream))
         }
+    }
+
+    /// Set the multipart boundary.
+    pub fn set_boundary(&mut self, boundary: &'a [u8]) {
+        self.boundary = Some(boundary);
+    }
+
+    /// Set the URL encoded length.
+    pub fn set_length(&mut self, length: usize) {
+        self.length = length;
     }
 
     /// Retrieve the current state.
@@ -1350,7 +1355,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn strip_detect(&mut self, context: &mut ParserContext<T>)
+    fn strip_detect(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_empty_space!(context,
             // on end-of-stream
@@ -1361,14 +1366,14 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn detect1(&mut self, context: &mut ParserContext<T>)
+    fn detect1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => ({
                 bs_jump!(context, $length);
                 set_state!(self, StripResponseStatusCode, strip_response_status_code);
 
-                if context.handler.on_version($major, $minor) {
+                if self.handler.on_version($major, $minor) {
                     transition_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
@@ -1402,7 +1407,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn detect2(&mut self, context: &mut ParserContext<T>)
+    fn detect2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1422,7 +1427,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn detect3(&mut self, context: &mut ParserContext<T>)
+    fn detect3(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1443,7 +1448,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn detect4(&mut self, context: &mut ParserContext<T>)
+    fn detect4(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1464,7 +1469,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn detect5(&mut self, context: &mut ParserContext<T>)
+    fn detect5(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1492,11 +1497,11 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn initial_end(&mut self, context: &mut ParserContext<T>)
+    fn initial_end(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         set_state!(self, PreHeadersLf1, pre_headers_lf1);
 
-        if context.handler.on_initial_finished() {
+        if self.handler.on_initial_finished() {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -1504,7 +1509,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn pre_headers_lf1(&mut self, context: &mut ParserContext<T>)
+    fn pre_headers_lf1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1518,7 +1523,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn pre_headers_cr2(&mut self, context: &mut ParserContext<T>)
+    fn pre_headers_cr2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1535,7 +1540,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_header_name(&mut self, context: &mut ParserContext<T>)
+    fn strip_header_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -1548,7 +1553,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
 
     #[inline]
     #[cfg_attr(test, allow(cyclomatic_complexity))]
-    fn first_header_name(&mut self, context: &mut ParserContext<T>)
+    fn first_header_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! name {
             ($header:expr, $length:expr) => ({
@@ -1633,7 +1638,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn upper_header_name(&mut self, context: &mut ParserContext<T>)
+    fn upper_header_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1652,7 +1657,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn lower_header_name(&mut self, context: &mut ParserContext<T>)
+    fn lower_header_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::HeaderName,
             // stop on these bytes
@@ -1678,7 +1683,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_header_value(&mut self, context: &mut ParserContext<T>)
+    fn strip_header_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -1699,7 +1704,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_value(&mut self, context: &mut ParserContext<T>)
+    fn header_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_field!(context, ParserError::HeaderValue,
             // stop on these bytes
@@ -1715,7 +1720,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_quoted_value(&mut self, context: &mut ParserContext<T>)
+    fn header_quoted_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_quoted_field!(context, ParserError::HeaderValue,
             // on end-of-stream
@@ -1734,7 +1739,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_escaped_value(&mut self, context: &mut ParserContext<T>)
+    fn header_escaped_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1745,7 +1750,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_cr1(&mut self, context: &mut ParserContext<T>)
+    fn header_cr1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         if bs_has_bytes!(context, 2) && bs_starts_with2!(context, b"\r\n") {
             bs_jump!(context, 2);
@@ -1766,7 +1771,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_lf1(&mut self, context: &mut ParserContext<T>)
+    fn header_lf1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1780,7 +1785,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_cr2(&mut self, context: &mut ParserContext<T>)
+    fn header_cr2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1801,7 +1806,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn header_lf2(&mut self, context: &mut ParserContext<T>)
+    fn header_lf2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1815,7 +1820,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
                 set_state!(self, Finished, finished);
             }
 
-            if context.handler.on_headers_finished() {
+            if self.handler.on_headers_finished() {
                 transition_fast!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -1830,7 +1835,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn request_method(&mut self, context: &mut ParserContext<T>)
+    fn request_method(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! method {
             ($method:expr, $length:expr) => (
@@ -1882,7 +1887,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_request_url(&mut self, context: &mut ParserContext<T>)
+    fn strip_request_url(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -1894,7 +1899,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_url(&mut self, context: &mut ParserContext<T>)
+    fn request_url(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::Url,
             // stop on these bytes
@@ -1912,7 +1917,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_request_http(&mut self, context: &mut ParserContext<T>)
+    fn strip_request_http(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -1924,14 +1929,14 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_http1(&mut self, context: &mut ParserContext<T>)
+    fn request_http1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => (
                 bs_jump!(context, $length);
                 set_state!(self, InitialEnd, initial_end);
 
-                if context.handler.on_version($major, $minor) {
+                if self.handler.on_version($major, $minor) {
                     transition_fast!(self, context);
                 } else {
                     exit_callback!(self, context);
@@ -1962,7 +1967,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_http2(&mut self, context: &mut ParserContext<T>)
+    fn request_http2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1976,7 +1981,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_http3(&mut self, context: &mut ParserContext<T>)
+    fn request_http3(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -1990,7 +1995,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_http4(&mut self, context: &mut ParserContext<T>)
+    fn request_http4(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2004,7 +2009,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_http5(&mut self, context: &mut ParserContext<T>)
+    fn request_http5(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2021,7 +2026,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_version_major(&mut self, context: &mut ParserContext<T>)
+    fn request_version_major(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
@@ -2042,7 +2047,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn request_version_minor(&mut self, context: &mut ParserContext<T>)
+    fn request_version_minor(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper14!(self);
 
@@ -2055,7 +2060,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
         if context.byte == b'\r' {
             set_state!(self, InitialEnd, initial_end);
 
-            if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
+            if self.handler.on_version(get_lower14!(self) as u16, digit as u16) {
                 transition_fast!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -2070,7 +2075,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn response_version_major(&mut self, context: &mut ParserContext<T>)
+    fn response_version_major(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
@@ -2091,7 +2096,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn response_version_minor(&mut self, context: &mut ParserContext<T>)
+    fn response_version_minor(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_upper14!(self);
 
@@ -2103,7 +2108,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
 
         set_state!(self, StripResponseStatusCode, strip_response_status_code);
 
-        if context.handler.on_version(get_lower14!(self) as u16, digit as u16) {
+        if self.handler.on_version(get_lower14!(self) as u16, digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2111,7 +2116,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_response_status_code(&mut self, context: &mut ParserContext<T>)
+    fn strip_response_status_code(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -2133,7 +2138,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn response_status_code(&mut self, context: &mut ParserContext<T>)
+    fn response_status_code(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         let mut digit = get_lower14!(self);
 
@@ -2145,7 +2150,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
         bs_replay!(context);
         set_state!(self, StripResponseStatus, strip_response_status);
 
-        if context.handler.on_status_code(digit as u16) {
+        if self.handler.on_status_code(digit as u16) {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2153,7 +2158,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_response_status(&mut self, context: &mut ParserContext<T>)
+    fn strip_response_status(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -2165,7 +2170,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn response_status(&mut self, context: &mut ParserContext<T>)
+    fn response_status(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         bs_collect!(context,
             // collect loop
@@ -2193,7 +2198,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn chunk_length1(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2201,7 +2206,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
         if context.byte == b'0' {
             set_state!(self, ChunkLengthCr, chunk_length_cr);
 
-            if context.handler.on_chunk_begin() {
+            if self.handler.on_chunk_begin() {
                 transition_fast!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -2211,7 +2216,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
 
             set_state!(self, ChunkLength2, chunk_length2);
 
-            if context.handler.on_chunk_begin() {
+            if self.handler.on_chunk_begin() {
                 transition_fast!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -2222,7 +2227,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_length2(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -2238,7 +2243,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_length_cr(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length_cr(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2266,7 +2271,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_length_lf(&mut self, context: &mut ParserContext<T>)
+    fn chunk_length_lf(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2275,7 +2280,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
             set_state!(self, ChunkData, chunk_data);
 
             if has_flag!(self, F_CHUNK_EXTENSIONS) {
-                if context.handler.on_chunk_extensions_finished() {
+                if self.handler.on_chunk_extensions_finished() {
                     transition!(self, context);
                 } else {
                     exit_callback!(self, context);
@@ -2289,7 +2294,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
+    fn strip_chunk_extension_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -2301,7 +2306,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn upper_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
+    fn upper_chunk_extension_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2319,7 +2324,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn lower_chunk_extension_name(&mut self, context: &mut ParserContext<T>)
+    fn lower_chunk_extension_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::ChunkExtensionName,
             // stop on these bytes
@@ -2357,7 +2362,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn strip_chunk_extension_value(&mut self, context: &mut ParserContext<T>)
+    fn strip_chunk_extension_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         consume_linear_space!(context,
             // on end-of-stream
@@ -2369,7 +2374,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_extension_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_tokens!(context, ParserError::ChunkExtensionValue,
             // stop on these bytes
@@ -2394,7 +2399,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_extension_quoted_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_quoted_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_quoted_field!(context, ParserError::ChunkExtensionValue,
             // on end-of-stream
@@ -2415,7 +2420,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_extension_escaped_value(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_escaped_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2431,7 +2436,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_extension_quoted_value_finished(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_quoted_value_finished(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2447,7 +2452,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_extension_finished(&mut self, context: &mut ParserContext<T>)
+    fn chunk_extension_finished(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2458,7 +2463,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
             set_state!(self, StripChunkExtensionName, strip_chunk_extension_name);
         }
 
-        if context.handler.on_chunk_extension_finished() {
+        if self.handler.on_chunk_extension_finished() {
             transition!(self, context);
         } else {
             exit_callback!(self, context);
@@ -2466,7 +2471,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -2492,7 +2497,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_newline1(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data_newline1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2505,7 +2510,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_newline2(&mut self, context: &mut ParserContext<T>)
+    fn chunk_data_newline2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2518,7 +2523,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_hyphen1(&mut self, context: &mut ParserContext<T>)
+    fn multipart_hyphen1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2537,7 +2542,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_hyphen2(&mut self, context: &mut ParserContext<T>)
+    fn multipart_hyphen2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2557,7 +2562,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_boundary(&mut self, context: &mut ParserContext<T>)
+    fn multipart_boundary(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -2638,7 +2643,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_boundary_cr(&mut self, context: &mut ParserContext<T>)
+    fn multipart_boundary_cr(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2646,7 +2651,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
         if context.byte == b'\r' {
             set_state!(self, PreHeadersLf1, pre_headers_lf1);
 
-            if context.handler.on_multipart_begin() {
+            if self.handler.on_multipart_begin() {
                 transition!(self, context);
             } else {
                 exit_callback!(self, context);
@@ -2660,7 +2665,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_boundary_lf(&mut self, context: &mut ParserContext<T>)
+    fn multipart_boundary_lf(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2674,9 +2679,9 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_detect_data(&mut self, context: &mut ParserContext<T>)
+    fn multipart_detect_data(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        if let Some(length) = context.handler.content_length() {
+        if let Some(length) = self.handler.content_length() {
             self.length = length;
 
             // expect boundary after data
@@ -2694,7 +2699,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data_by_length(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_length(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -2720,7 +2725,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data_by_length_cr(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_length_cr(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2736,7 +2741,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data_by_length_lf(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_length_lf(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2752,7 +2757,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data_by_byte(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_byte(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         bs_collect_until!(context,
             // collect bytes until
@@ -2768,7 +2773,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_data_by_byte_lf(&mut self, context: &mut ParserContext<T>)
+    fn multipart_data_by_byte_lf(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2784,7 +2789,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn multipart_end(&mut self, context: &mut ParserContext<T>)
+    fn multipart_end(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2798,7 +2803,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_name(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::UrlEncodedName,
             // stop on these bytes
@@ -2840,7 +2845,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_name_ampersand(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_ampersand(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         // no value, send an empty one
         callback_transition!(self, context,
@@ -2849,7 +2854,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_name_hex1(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_hex1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2869,7 +2874,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_name_hex2(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_hex2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2891,7 +2896,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_name_plus(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_name_plus(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
                              on_url_encoded_name, b" ",
@@ -2899,7 +2904,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_value(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_visible!(context, ParserError::UrlEncodedValue,
             // stop on these bytes
@@ -2938,7 +2943,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_value_hex1(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_hex1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2958,7 +2963,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_value_hex2(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_hex2(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2980,7 +2985,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn url_encoded_value_plus(&mut self, context: &mut ParserContext<T>)
+    fn url_encoded_value_plus(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         callback_transition!(self, context,
                              on_url_encoded_value, b" ",
@@ -2992,17 +2997,17 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn dead(&mut self, _context: &mut ParserContext<T>)
+    fn dead(&mut self, _context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         Err(ParserError::Dead)
     }
 
     #[inline]
-    fn body_finished(&mut self, context: &mut ParserContext<T>)
+    fn body_finished(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         set_state!(self, Finished, finished);
 
-        if context.handler.on_body_finished() {
+        if self.handler.on_body_finished() {
             transition_fast!(self, context);
         } else {
             exit_callback!(self, context);
@@ -3010,7 +3015,7 @@ impl<'a, T: HttpHandler +'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn finished(&mut self, context: &mut ParserContext<T>)
+    fn finished(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_finished!(self, context);
     }
@@ -3088,4 +3093,21 @@ pub enum State {
 
     /// URL encoded value.
     UrlEncodedValue
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Parser type.
+enum ParserType {
+    /// Chunk transfer encoding parser type.
+    Chunked,
+
+    /// Head parser type.
+    Head,
+
+    /// Multipart parser type.
+    Multipart,
+
+    /// URL encoded parser type.
+    UrlEncoded
 }

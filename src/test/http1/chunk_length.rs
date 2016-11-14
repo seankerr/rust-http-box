@@ -20,124 +20,111 @@ use http1::*;
 use test::*;
 use test::http1::*;
 
+macro_rules! setup {
+    () => ({
+        let mut parser = Parser::new_chunked(DebugHandler::new());
+
+        parser
+    });
+}
+
 #[test]
 fn byte_check() {
     // invalid bytes
     loop_non_hex(b"", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        p.init_chunked();
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::ChunkLength,
+                           ChunkLength,
                            byte);
     });
 
     // valid bytes
     loop_hex(b"0", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        p.init_chunked();
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[byte],
-                    ParserState::ChunkLength2);
+                    ChunkLength2);
     });
 
     // starting 0 (end chunk)
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"0",
-                ParserState::ChunkLengthCr);
+                ChunkLengthCr);
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_chunk_length(&mut self, _length: usize) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_chunked(CallbackHandler);
 
-    p.init_chunked();
-
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"F\r",
-                     ParserState::ChunkLengthLf);
+                     ChunkLengthLf);
 }
 
 #[test]
 fn missing_length() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_error_byte!(p, h,
+    assert_error_byte!(p,
                        b"\r",
-                       ParserError::ChunkLength,
+                       ChunkLength,
                        b'\r');
 }
 
 #[test]
 fn length1() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"F\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_length, 15);
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_length,
+               15);
 }
 
 #[test]
 fn length2() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"FF\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_length, 255);
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_length,
+               255);
 }
 
 #[test]
 fn length3() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"FFF\r",
-                ParserState::ChunkLengthLf);
-    assert_eq!(h.chunk_length, 4095);
+                ChunkLengthLf);
+
+    assert_eq!(p.handler().chunk_length,
+               4095);
 }
 
 #[test]
 fn too_long() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    p.init_chunked();
-
-    assert_error!(p, h,
+    assert_error!(p,
                   b"FFFFFFFFFFFFFFFF0",
-                  ParserError::MaxChunkLength);
+                  MaxChunkLength);
 }

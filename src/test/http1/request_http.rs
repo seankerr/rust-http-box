@@ -20,253 +20,249 @@ use http1::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"GET / ",
-                    ParserState::StripRequestHttp);
+                    StripRequestHttp);
+
+        parser
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_version(&mut self, _major: u16, _minor: u16) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / ",
+                StripRequestHttp);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"HTTP/1.0\r",
-                     ParserState::InitialEnd);
+                     InitialEnd);
 }
 
 #[test]
 fn http_1_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"HTTP/1.0\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 1);
-    assert_eq!(h.version_minor, 0);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               1);
+
+    assert_eq!(p.handler().version_minor,
+               0);
 }
 
 #[test]
 fn http_1_1 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"HTTP/1.1\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 1);
-    assert_eq!(h.version_minor, 1);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               1);
+
+    assert_eq!(p.handler().version_minor,
+               1);
 }
 
 #[test]
 fn http_2_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"HTTP/2.0\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 2);
-    assert_eq!(h.version_minor, 0);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               2);
+
+    assert_eq!(p.handler().version_minor,
+               0);
 }
 
 #[test]
 fn h_lower () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"h",
-                ParserState::RequestHttp2);
+                RequestHttp2);
 }
 
 #[test]
 fn h_upper () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::RequestHttp2);
+                RequestHttp2);
 }
 
 #[test]
 fn ht_lower () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"h",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp3);
+                RequestHttp3);
 }
 
 #[test]
 fn ht_upper () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp3);
+                RequestHttp3);
 }
 
 #[test]
 fn htt_lower () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"h",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp4);
+                RequestHttp4);
 }
 
 #[test]
 fn htt_upper () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp4);
+                RequestHttp4);
 }
 
 #[test]
 fn http_lower () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"h",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp4);
-    assert_eos!(p, h,
+                RequestHttp4);
+
+    assert_eos!(p,
                 b"p",
-                ParserState::RequestHttp5);
+                RequestHttp5);
 }
 
 #[test]
 fn http_upper () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp4);
-    assert_eos!(p, h,
+                RequestHttp4);
+
+    assert_eos!(p,
                 b"P",
-                ParserState::RequestHttp5);
+                RequestHttp5);
 }
 
 #[test]
 fn http_slash_lower () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"h",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"t",
-                ParserState::RequestHttp4);
-    assert_eos!(p, h,
+                RequestHttp4);
+
+    assert_eos!(p,
                 b"p",
-                ParserState::RequestHttp5);
-    assert_eos!(p, h,
+                RequestHttp5);
+
+    assert_eos!(p,
                 b"/",
-                ParserState::RequestVersionMajor);
+                RequestVersionMajor);
 }
 
 #[test]
 fn http_slash_upper () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"H",
-                ParserState::RequestHttp2);
-    assert_eos!(p, h,
+                RequestHttp2);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp3);
-    assert_eos!(p, h,
+                RequestHttp3);
+
+    assert_eos!(p,
                 b"T",
-                ParserState::RequestHttp4);
-    assert_eos!(p, h,
+                RequestHttp4);
+
+    assert_eos!(p,
                 b"P",
-                ParserState::RequestHttp5);
-    assert_eos!(p, h,
+                RequestHttp5);
+
+    assert_eos!(p,
                 b"/",
-                ParserState::RequestVersionMajor);
+                RequestVersionMajor);
 }

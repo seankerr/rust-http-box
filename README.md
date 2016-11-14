@@ -197,31 +197,29 @@ impl HttpHandler for Handler {
 
 fn main() {
     // init callback handler
-    let mut h = Handler{ headers: HashMap::new(),
-                         initial_finished: false,
-                         method: Vec::new(),
-                         name: Vec::new(),
-                         state: State::None,
-                         status: Vec::new(),
-                         status_code: 0,
-                         url: Vec::new(),
-                         value: Vec::new(),
-                         version_major: 0,
-                         version_minor: 0 };
-
-    // create parser
-    let mut p = Parser::new();
-
-    // initialize parser to process head data (everything before body)
-    p.init_head();
+    let mut p = Parser::new_head(
+                    Handler{ headers:          HashMap::new(),
+                             initial_finished: false,
+                             method:           Vec::new(),
+                             name:             Vec::new(),
+                             state:            State::None,
+                             status:           Vec::new(),
+                             status_code:      0,
+                             url:              Vec::new(),
+                             value:            Vec::new(),
+                             version_major:    0,
+                             version_minor:    0 }
+                );
 
     // parse some head data
-    p.resume(&mut h, b"GET /url?query HTTP/1.0\r\n\
-                       Header1: This is the first header\r\n\
-                       Header2: This is the second header\r\n\
-                       \r\n");
+    p.resume(b"GET /url?query HTTP/1.0\r\n\
+               Header1: This is the first header\r\n\
+               Header2: This is the second header\r\n\
+               \r\n");
 
     // compare our data
+    let h = p.handler();
+
     assert!(h.is_initial_finished());
     assert!(h.is_request());
     assert_eq!(h.method, b"GET");

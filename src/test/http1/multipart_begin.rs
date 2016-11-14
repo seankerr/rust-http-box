@@ -21,20 +21,19 @@ use test::http1::*;
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_multipart_begin(&mut self) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_multipart(CallbackHandler);
 
-    p.init_multipart(b"XXDebugBoundaryXX");
+    p.set_boundary(b"XXDebugBoundaryXX");
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"--XXDebugBoundaryXX\r",
-                     ParserState::PreHeadersLf1);
+                     PreHeadersLf1);
 }

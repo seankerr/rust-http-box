@@ -72,19 +72,16 @@ impl HttpHandler for UrlEncodedHandler {
 }
 
 #[test]
-fn head() {
+fn url_encoded() {
     let mut d = Vec::new();
 
     File::open("tests/data/url_encoded.dat").unwrap().read_to_end(&mut d);
 
     let mut s = d.as_slice();
-    let mut h = HeadHandler;
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(HeadHandler);
 
     // parse head
-    p.init_head();
-
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Finished(length)) => {
             // adjust the slice since we've parsed the head already
             s = &s[length..];
@@ -92,29 +89,30 @@ fn head() {
         _ => panic!()
     }
 
-    let mut h = UrlEncodedHandler{ name_buf:   Vec::new(),
-                                   parameters: HashMap::new(),
-                                   state:      State::None,
-                                   value_buf:  Vec::new() };
-    let mut p = Parser::new();
+    let mut p = Parser::new_url_encoded(
+                    UrlEncodedHandler{ name_buf:   Vec::new(),
+                                       parameters: HashMap::new(),
+                                       state:      State::None,
+                                       value_buf:  Vec::new() }
+                );
 
-    p.init_url_encoded(54);
+    p.set_length(54);
 
-    match p.resume(&mut h, &s) {
+    match p.resume(&s) {
         Ok(Success::Finished(_)) => {
         },
         _ => panic!()
     }
 
-    assert_eq!(h.parameters.get("first_name").unwrap(),
+    assert_eq!(p.handler().parameters.get("first_name").unwrap(),
                "Ada");
 
-    assert_eq!(h.parameters.get("last_name").unwrap(),
+    assert_eq!(p.handler().parameters.get("last_name").unwrap(),
                "Lovelace");
 
-    assert_eq!(h.parameters.get("age").unwrap(),
+    assert_eq!(p.handler().parameters.get("age").unwrap(),
                "36");
 
-    assert_eq!(h.parameters.get("gender").unwrap(),
+    assert_eq!(p.handler().parameters.get("gender").unwrap(),
                "Female");
 }

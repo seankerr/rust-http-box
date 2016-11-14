@@ -21,12 +21,14 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
-                   b"GET / HTTP/1.1\r\nFieldName: ",
-                   ParserState::StripHeaderValue);
+        assert_eos!(parser,
+                    b"GET / HTTP/1.1\r\nFieldName: ",
+                    StripHeaderValue);
+
+        parser
     });
 }
 
@@ -34,81 +36,97 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[b'"'],
-                    ParserState::HeaderQuotedValue);
+                    HeaderQuotedValue);
 
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::HeaderValue,
+                           HeaderValue,
                            byte);
     });
 
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
+        assert_eos!(p,
+                    &[b'"'],
+                    HeaderQuotedValue);
 
-        assert_eos!(p, h, &[b'"'], ParserState::HeaderQuotedValue, 1);
-        assert_eos!(p, h, &[byte], ParserState::HeaderQuotedValue, 1);
+        assert_eos!(p,
+                    &[byte],
+                    HeaderQuotedValue);
     });
 }
 
 #[test]
 fn escaped_multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"\"Value",
+                HeaderQuotedValue);
 
-    assert_eos!(p, h, b"\"Value", ParserState::HeaderQuotedValue, 6);
-    assert_eq!(h.header_value, b"Value");
-    assert_eos!(p, h, b"\\\"", ParserState::HeaderQuotedValue, 2);
-    assert_eq!(h.header_value, b"Value\"");
-    assert_eos!(p, h, b"Time\"", ParserState::HeaderCr1, 5);
-    assert_eq!(h.header_value, b"Value\"Time");
+    assert_eq!(p.handler().header_value,
+               b"Value");
+
+    assert_eos!(p,
+                b"\\\"",
+                HeaderQuotedValue);
+
+    assert_eq!(p.handler().header_value,
+               b"Value\"");
+
+    assert_eos!(p,
+                b"Time\"",
+                HeaderCr1);
+
+    assert_eq!(p.handler().header_value,
+               b"Value\"Time");
 }
 
 #[test]
 fn escaped_single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"\"Value\\\"Time\"",
+                HeaderCr1);
 
-    assert_eos!(p, h, b"\"Value\\\"Time\"", ParserState::HeaderCr1, 13);
-    assert_eq!(h.header_value, b"Value\"Time");
+    assert_eq!(p.handler().header_value,
+               b"Value\"Time");
 }
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"\"Value",
+                HeaderQuotedValue);
 
-    assert_eos!(p, h, b"\"Value", ParserState::HeaderQuotedValue, 6);
-    assert_eq!(h.header_value, b"Value");
-    assert_eos!(p, h, b"Time\"", ParserState::HeaderCr1, 5);
-    assert_eq!(h.header_value, b"ValueTime");
+    assert_eq!(p.handler().header_value,
+               b"Value");
+
+    assert_eos!(p,
+                b"Time\"",
+                HeaderCr1);
+
+    assert_eq!(p.handler().header_value,
+               b"ValueTime");
 }
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"\"Value Time\"",
-                ParserState::HeaderCr1);
-    assert_eq!(h.header_value, b"Value Time");
+                HeaderCr1);
+
+    assert_eq!(p.handler().header_value,
+               b"Value Time");
 }

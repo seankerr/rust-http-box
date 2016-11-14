@@ -21,127 +21,129 @@ use test::http1::*;
 
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"GET / HTTP/",
-                    ParserState::RequestVersionMajor);
+                    RequestVersionMajor);
+
+        parser
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_version(&mut self, _major: u16, _minor: u16) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / HTTP/",
+                RequestVersionMajor);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"1.0\r",
-                     ParserState::InitialEnd);
+                     InitialEnd);
 }
 
 #[test]
 fn v0_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"0.0\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 0);
-    assert_eq!(h.version_minor, 0);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               0);
+
+    assert_eq!(p.handler().version_minor,
+               0);
 }
 
 #[test]
 fn v1_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"1.0\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 1);
-    assert_eq!(h.version_minor, 0);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               1);
+
+    assert_eq!(p.handler().version_minor,
+               0);
 }
 
 #[test]
 fn v1_1 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"1.1\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 1);
-    assert_eq!(h.version_minor, 1);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               1);
+
+    assert_eq!(p.handler().version_minor,
+               1);
 }
 
 #[test]
 fn v2_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"2.0\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 2);
-    assert_eq!(h.version_minor, 0);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               2);
+
+    assert_eq!(p.handler().version_minor,
+               0);
 }
 
 #[test]
 fn v999_999 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"999.999\r",
-                ParserState::PreHeadersLf1);
-    assert_eq!(h.version_major, 999);
-    assert_eq!(h.version_minor, 999);
+                PreHeadersLf1);
+
+    assert_eq!(p.handler().version_major,
+               999);
+
+    assert_eq!(p.handler().version_minor,
+               999);
 }
 
 #[test]
 fn v1000_0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_error_byte!(p, h,
+    assert_error_byte!(p,
                        b"1000",
-                       ParserError::Version,
+                       Version,
                        b'0');
 }
 
 #[test]
 fn v0_1000 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_error_byte!(p, h,
+    assert_error_byte!(p,
                        b"0.1000",
-                       ParserError::Version,
+                       Version,
                        b'0');
 }

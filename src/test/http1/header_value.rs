@@ -21,12 +21,14 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
-                   b"GET / HTTP/1.1\r\nFieldName: ",
-                   ParserState::StripHeaderValue);
+        assert_eos!(parser,
+                    b"GET / HTTP/1.1\r\nFieldName: ",
+                    StripHeaderValue);
+
+        parser
     });
 }
 
@@ -34,105 +36,103 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r\t ", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::HeaderValue,
+                           HeaderValue,
                            byte);
     });
 
     // valid bytes
     loop_visible(b"\"", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
-                    &[byte], ParserState::HeaderValue);
+        assert_eos!(p,
+                    &[byte],
+                    HeaderValue);
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_header_value(&mut self, _field: &[u8]) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / HTTP/1.1\r\nFieldName: ",
+                StripHeaderValue);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"F",
-                     ParserState::HeaderValue);
+                     HeaderValue);
 }
 
 #[test]
 fn multiline() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Value1\r\n",
-                ParserState::HeaderCr2);
-    assert_eq!(h.header_value, b"Value1");
-    assert_eos!(p, h,
+                HeaderCr2);
+
+    assert_eq!(p.handler().header_value,
+               b"Value1");
+
+    assert_eos!(p,
                 b" Value2\r",
-                ParserState::HeaderLf1);
-    assert_eq!(h.header_value, b"Value1 Value2");
+                HeaderLf1);
+
+    assert_eq!(p.handler().header_value,
+               b"Value1 Value2");
 }
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Value",
-                ParserState::HeaderValue);
-    assert_eq!(h.header_value, b"Value");
-    assert_eos!(p, h,
+                HeaderValue);
+
+    assert_eq!(p.handler().header_value,
+               b"Value");
+
+    assert_eos!(p,
                 b"Time\r",
-                ParserState::HeaderLf1);
-    assert_eq!(h.header_value, b"ValueTime");
+                HeaderLf1);
+
+    assert_eq!(p.handler().header_value,
+               b"ValueTime");
 }
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"ValueTime\r",
-                ParserState::HeaderLf1);
-    assert_eq!(h.header_value, b"ValueTime");
+                HeaderLf1);
+
+    assert_eq!(p.handler().header_value,
+               b"ValueTime");
 }
 
 #[test]
 fn space() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Value Time\r",
-                ParserState::HeaderLf1);
-    assert_eq!(h.header_value, b"Value Time");
+                HeaderLf1);
+
+    assert_eq!(p.handler().header_value,
+               b"Value Time");
 }

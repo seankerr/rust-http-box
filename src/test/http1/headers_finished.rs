@@ -20,43 +20,44 @@ use http1::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
-                   b"GET / HTTP/1.1\r\nFieldName: Value",
-                   ParserState::HeaderValue);
+        assert_eos!(parser,
+                    b"GET / HTTP/1.1\r\nFieldName: Value",
+                    HeaderValue);
+
+        parser
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_headers_finished(&mut self) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / HTTP/1.1\r\nFieldName: Value",
+                HeaderValue);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"\r\n\r\n",
-                     ParserState::Finished);
+                     Finished);
 }
 
 #[test]
 fn finished() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_finished!(p, h,
+    assert_finished!(p,
                      b"\r\n\r\n");
-    assert!(h.headers_finished);
+
+    assert!(p.handler().headers_finished);
 }

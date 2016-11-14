@@ -21,12 +21,11 @@ use test::http1::*;
 
 #[test]
 fn data_ok () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = Parser::new_multipart(DebugHandler::new());
 
-    p.init_multipart(b"XXDebugBoundaryXX");
+    p.set_boundary(b"XXDebugBoundaryXX");
 
-    assert_finished!(p, h,
+    assert_finished!(p,
                      b"--XXDebugBoundaryXX\r\n\r\n\
                        DATA1\r\n\
                        --XXDebugBoundaryXX\r\n\
@@ -36,8 +35,13 @@ fn data_ok () {
                        DATA2\r\n\
                        --XXDebugBoundaryXX--");
 
-    assert_eq!(h.multipart_data, b"DATA1DATA2");
-    assert_eq!(h.header_name, b"header1header2");
-    assert_eq!(h.header_value, b"Value1Value2");
+    assert_eq!(p.handler().multipart_data,
+               b"DATA1DATA2");
+
+    assert_eq!(p.handler().header_name,
+               b"header1header2");
+
+    assert_eq!(p.handler().header_value,
+               b"Value1Value2");
 }
 

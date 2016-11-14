@@ -21,12 +21,14 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"HTTP/1.0 ",
-                    ParserState::StripResponseStatusCode);
+                    StripResponseStatusCode);
+
+        parser
     });
 }
 
@@ -34,85 +36,76 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_digits(b" \t", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::StatusCode,
+                           StatusCode,
                            byte);
     });
 
     // valid bytes
     loop_digits(b"", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[byte],
-                    ParserState::ResponseStatusCode);
+                    ResponseStatusCode);
     });
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_status_code(&mut self, _code: u16) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"HTTP/1.0 ",
+                StripResponseStatusCode);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"100 ",
-                     ParserState::StripResponseStatus, 3);
+                     StripResponseStatus,
+                     3);
 }
 
 #[test]
 fn v0 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"0 ",
-                ParserState::StripResponseStatus);
-    assert_eq!(h.status_code, 0);
+                StripResponseStatus);
+
+    assert_eq!(p.handler().status_code,
+               0);
 }
 
 #[test]
 fn v999 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"999 ",
-                ParserState::StripResponseStatus);
-    assert_eq!(h.status_code, 999);
+                StripResponseStatus);
+
+    assert_eq!(p.handler().status_code,
+               999);
 }
 
 #[test]
 fn v1000 () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_error_byte!(p, h,
+    assert_error_byte!(p,
                        b"1000",
-                       ParserError::StatusCode,
+                       StatusCode,
                        b'0');
 }

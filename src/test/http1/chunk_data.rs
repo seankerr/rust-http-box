@@ -20,75 +20,78 @@ use http1::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_chunked();
+    () => ({
+        let mut parser = Parser::new_chunked(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"F;extension1=value1\r\n",
-                    ParserState::ChunkData);
+                    ChunkData);
+
+        parser
     });
 }
 
 #[test]
 fn byte_check() {
     for byte in 0..255 {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_eos!(p, h,
+        assert_eos!(p,
                     &[byte],
-                    ParserState::ChunkData);
+                    ChunkData);
     }
 }
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"abcdefg",
-                ParserState::ChunkData);
-    assert_eq!(h.chunk_data, b"abcdefg");
-    assert_eos!(p, h,
+                ChunkData);
+
+    assert_eq!(p.handler().chunk_data,
+               b"abcdefg");
+
+    assert_eos!(p,
                 b"hijklmno",
-                ParserState::ChunkDataNewline1);
-    assert_eq!(h.chunk_data, b"abcdefghijklmno");
+                ChunkDataNewline1);
+
+    assert_eq!(p.handler().chunk_data,
+               b"abcdefghijklmno");
 }
 
 #[test]
 fn multiple_chunks() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"abcdefghijklmno\r\n",
-                ParserState::ChunkLength1);
-    assert_eq!(h.chunk_data, b"abcdefghijklmno");
-    assert_eos!(p, h,
+                ChunkLength1);
+
+    assert_eq!(p.handler().chunk_data,
+               b"abcdefghijklmno");
+
+    assert_eos!(p,
                 b"5\r\n",
-                ParserState::ChunkData);
-    assert_eos!(p, h,
+                ChunkData);
+
+    assert_eos!(p,
                 b"pqrst",
-                ParserState::ChunkDataNewline1);
-    assert_eq!(h.chunk_data, b"abcdefghijklmnopqrst");
+                ChunkDataNewline1);
+
+    assert_eq!(p.handler().chunk_data,
+               b"abcdefghijklmnopqrst");
 }
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"abcdefghijklmno",
-                ParserState::ChunkDataNewline1);
-    assert_eq!(h.chunk_data, b"abcdefghijklmno");
+                ChunkDataNewline1);
+
+    assert_eq!(p.handler().chunk_data,
+               b"abcdefghijklmno");
 }

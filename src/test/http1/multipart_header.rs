@@ -21,19 +21,22 @@ use test::http1::*;
 
 #[test]
 fn headers_ok () {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = Parser::new_multipart(DebugHandler::new());
 
-    p.init_multipart(b"XXDebugBoundaryXX");
+    p.set_boundary(b"XXDebugBoundaryXX");
 
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"--XXDebugBoundaryXX\r\n\
                   H1: V1\r\n\
                   H2: V2\r\n\
                   \r\n",
-                ParserState::MultipartDataByByte);
+                MultipartDataByByte);
 
-    assert_eq!(h.header_name, b"h1h2");
-    assert_eq!(h.header_value, b"V1V2");
-    assert!(h.headers_finished);
+    assert_eq!(p.handler().header_name,
+               b"h1h2");
+
+    assert_eq!(p.handler().header_value,
+               b"V1V2");
+
+    assert!(p.handler().headers_finished);
 }

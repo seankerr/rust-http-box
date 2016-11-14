@@ -21,12 +21,14 @@ use test::*;
 use test::http1::*;
 
 macro_rules! setup {
-    ($parser:expr, $handler:expr) => ({
-        $parser.init_head();
+    () => ({
+        let mut parser = Parser::new_head(DebugHandler::new());
 
-        assert_eos!($parser, $handler,
+        assert_eos!(parser,
                     b"GET / HTTP/1.1\r\n",
-                    ParserState::PreHeadersCr2);
+                    PreHeadersCr2);
+
+        parser
     });
 }
 
@@ -34,428 +36,369 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\n \t:", |byte| {
-        let mut h = DebugHandler::new();
-        let mut p = Parser::new();
+        let mut p = setup!();
 
-        setup!(p, h);
-
-        assert_error_byte!(p, h,
+        assert_error_byte!(p,
                            &[byte],
-                           ParserError::HeaderName,
+                           HeaderName,
                            byte);
     });
 
     // valid non-alphabetical bytes
     loop_tokens(b"\r\n \t:", |byte| {
         if !is_alpha!(byte) {
-            let mut h = DebugHandler::new();
-            let mut p = Parser::new();
+            let mut p = setup!();
 
-            setup!(p, h);
-
-            assert_eos!(p, h, &[byte], ParserState::LowerHeaderName, 1);
+            assert_eos!(p,
+                        &[byte],
+                        LowerHeaderName);
         }
     });
 
     // valid lower-cased alphabetical bytes
     loop_tokens(b"\r\n \t:", |byte| {
         if byte > 0x60 && byte < 0x7B {
-            let mut h = DebugHandler::new();
-            let mut p = Parser::new();
+            let mut p = setup!();
 
-            setup!(p, h);
-
-            assert_eos!(p, h,
+            assert_eos!(p,
                         &[byte],
-                        ParserState::LowerHeaderName);
+                        LowerHeaderName);
         }
     });
 
     // valid upper-cased alphabetical bytes
     loop_tokens(b"\r\n \t:", |byte| {
         if byte > 0x40 && byte < 0x5B {
-            let mut h = DebugHandler::new();
-            let mut p = Parser::new();
+            let mut p = setup!();
 
-            setup!(p, h);
-
-            assert_eos!(p, h,
+            assert_eos!(p,
                         &[byte],
-                        ParserState::LowerHeaderName);
+                        LowerHeaderName);
         }
     });
 }
 
 #[test]
 fn by_name_accept() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Accept:                   ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_accept_charset() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Accept-Charset:           ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_accept_encoding() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Accept-Encoding:          ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_accept_language() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Accept-Language:          ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_authorization() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Authorization:            ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_connection() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Connection:               ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_content_type() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Content-Type:             ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_content_length() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Content-Length:           ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_cookie() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Cookie:                   ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_cache_control() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Cache-Control:            ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_content_security_policy() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Content-Security-Policy:  ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_location() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Location:                 ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_last_modified() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Last-Modified:            ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_pragma() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Pragma:                   ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_set_cookie() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Set-Cookie:               ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_transfer_encoding() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Transfer-Encoding:        ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_user_agent() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"User-Agent:               ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 #[test]
 fn by_name_upgrade() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"Upgrade:                  ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_x_powered_by() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"X-Powered-By:             ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_x_forwarded_for() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"X-Forwarded-For:          ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_x_forwarded_host() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"X-Forwarded-Host:         ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_x_xss_protection() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"X-XSS-Protection:         ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_x_webkit_csp() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"X-WebKit-CSP:             ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn by_name_www_authenticate() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"WWW-Authenticate:         ",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn callback_exit() {
-    struct X;
+    struct CallbackHandler;
 
-    impl HttpHandler for X {
+    impl HttpHandler for CallbackHandler {
         fn on_header_name(&mut self, _field: &[u8]) -> bool {
             false
         }
     }
 
-    let mut h = X{};
-    let mut p = Parser::new();
+    let mut p = Parser::new_head(CallbackHandler);
 
-    setup!(p, h);
+    assert_eos!(p,
+                b"GET / HTTP/1.1\r\n",
+                PreHeadersCr2);
 
-    assert_callback!(p, h,
+    assert_callback!(p,
                      b"F",
-                     ParserState::LowerHeaderName);
+                     LowerHeaderName);
 }
 
 #[test]
 fn multiple() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"F",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"f");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"f");
+
+    assert_eos!(p,
                 b"i",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fi");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fi");
+
+    assert_eos!(p,
                 b"e",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fie");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fie");
+
+    assert_eos!(p,
                 b"l",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fiel");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fiel");
+
+    assert_eos!(p,
                 b"d",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"field");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"field");
+
+    assert_eos!(p,
                 b"N",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fieldn");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fieldn");
+
+    assert_eos!(p,
                 b"a",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fieldna");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fieldna");
+
+    assert_eos!(p,
                 b"m",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fieldnam");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fieldnam");
+
+    assert_eos!(p,
                 b"e",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"fieldname");
-    assert_eos!(p, h,
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"fieldname");
+
+    assert_eos!(p,
                 b":",
-                ParserState::StripHeaderValue);
+                StripHeaderValue);
 }
 
 #[test]
 fn normalize() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"HEADER-FIELD",
-                ParserState::LowerHeaderName);
-    assert_eq!(h.header_name, b"header-field");
+                LowerHeaderName);
+
+    assert_eq!(p.handler().header_name,
+               b"header-field");
 }
 
 #[test]
 fn single() {
-    let mut h = DebugHandler::new();
-    let mut p = Parser::new();
+    let mut p = setup!();
 
-    setup!(p, h);
-
-    assert_eos!(p, h,
+    assert_eos!(p,
                 b"FieldName:",
-                ParserState::StripHeaderValue);
-    assert_eq!(h.header_name, b"fieldname");
+                StripHeaderValue);
+
+    assert_eq!(p.handler().header_name,
+               b"fieldname");
 }
