@@ -864,7 +864,7 @@ pub struct Parser<'a, T: HttpHandler> {
     /// Multipart boundary.
     boundary: Option<&'a [u8]>,
 
-    /// Total byte count processed for headers, and body.
+    /// Total byte count processed.
     byte_count: usize,
 
     /// Handler implementation.
