@@ -973,7 +973,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.byte_count
     }
 
-    /// Receive the handler implementation.
+    /// Retrieve the handler implementation.
     pub fn handler(&mut self) -> &mut T {
         &mut self.handler
     }
