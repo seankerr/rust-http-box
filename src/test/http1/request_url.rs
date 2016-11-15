@@ -33,6 +33,15 @@ macro_rules! setup {
 }
 
 #[test]
+fn asterisk() {
+    let mut p = setup!();
+
+    assert_eos!(p,
+                b"* ",
+                StripRequestHttp);
+}
+
+#[test]
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b" \t", |byte| {

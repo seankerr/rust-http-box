@@ -25,8 +25,7 @@ use fsm::{ ParserValue,
            Success };
 
 use byte_slice::ByteStream;
-use std::{ fmt,
-           str };
+use std::fmt;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -1622,6 +1621,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 method!(b"HEAD", 5);
             } else if bs_starts_with6!(context, b"TRACE ") {
                 method!(b"TRACE", 6);
+            } else if bs_starts_with4!(context, b"PRI ") {
+                method!(b"PRI", 4);
             }
         }
 
