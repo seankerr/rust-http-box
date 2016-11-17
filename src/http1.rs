@@ -880,8 +880,7 @@ pub struct Parser<'a, T: HttpHandler> {
     state: ParserState,
 
     /// Current state function.
-    state_function: fn(&mut Parser<'a, T>, &mut ByteStream)
-                    -> Result<ParserValue, ParserError>
+    state_function: fn(&mut Parser<'a, T>, &mut ByteStream) -> Result<ParserValue, ParserError>
 }
 
 impl<'a, T: HttpHandler> Parser<'a, T> {
