@@ -19,37 +19,34 @@
 #[macro_export]
 macro_rules! field {
     ($map:expr, $stream:expr, $length:expr) => ({
-        assert!(match parse_field($stream, b';', true,
-                                  |s: FieldSegment| {
-                                      match s {
-                                          FieldSegment::Name(x) => {
-                                              let mut n = String::new();
-                                              let mut v = String::new();
+        let fun = |s: FieldSegment| {
+                      match s {
+                          FieldSegment::Name(x) => {
+                              let mut n = String::new();
+                              let v = String::new();
 
-                                              unsafe {
-                                                  n.as_mut_vec().extend_from_slice(x);
-                                              }
+                              unsafe {
+                                  n.as_mut_vec().extend_from_slice(x);
+                              }
 
-                                              $map.insert(n, v);
+                              $map.insert(n, v);
+                          },
+                          FieldSegment::NameValue(x,y) => {
+                              let mut n = String::new();
+                              let mut v = String::new();
 
-                                              println!("{:?}", FieldSegment::Name(x));
-                                          },
-                                          FieldSegment::NameValue(x,y) => {
-                                              let mut n = String::new();
-                                              let mut v = String::new();
+                              unsafe {
+                                  n.as_mut_vec().extend_from_slice(x);
+                                  v.as_mut_vec().extend_from_slice(y);
+                              }
 
-                                              unsafe {
-                                                  n.as_mut_vec().extend_from_slice(x);
-                                                  v.as_mut_vec().extend_from_slice(y);
-                                              }
+                              $map.insert(n, v);
+                          }
+                      }
+                      true
+                 };
 
-                                              $map.insert(n, v);
-
-                                              println!("{:?}", FieldSegment::NameValue(x,y));
-                                          }
-                                      }
-                                      true
-                                  }) {
+        assert!(match parse_field($stream, b';', true, fun) {
             Ok($length) => {
                 true
             },
@@ -61,7 +58,9 @@ macro_rules! field {
 #[macro_export]
 macro_rules! field_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_field($stream, b';', true, |s: FieldSegment|{true}) {
+        let fun = |_: FieldSegment| { true };
+
+        assert!(match parse_field($stream, b';', true, fun) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true
@@ -74,38 +73,35 @@ macro_rules! field_error {
 #[macro_export]
 macro_rules! query {
     ($map:expr, $stream:expr, $length:expr) => ({
-        assert!(match parse_query($stream,
-                                  |s| {
-                                      match s {
-                                          QuerySegment::Name(x) => {
-                                              let mut f = String::new();
-                                              let v = String::new();
+        let fun = |s: QuerySegment| {
+            match s {
+                QuerySegment::Name(x) => {
+                    let mut f = String::new();
+                    let v = String::new();
 
-                                              unsafe {
-                                                  f.as_mut_vec().extend_from_slice(x);
-                                              }
+                    unsafe {
+                        f.as_mut_vec().extend_from_slice(x);
+                    }
 
-                                              $map.insert(f, v);
+                    $map.insert(f, v);
+                },
+                QuerySegment::NameValue(x,y) => {
+                    let mut f = String::new();
+                    let mut v = String::new();
 
-                                              println!("{:?}", QuerySegment::Name(x));
-                                          },
-                                          QuerySegment::NameValue(x,y) => {
-                                              let mut f = String::new();
-                                              let mut v = String::new();
+                    unsafe {
+                        f.as_mut_vec().extend_from_slice(x);
+                        v.as_mut_vec().extend_from_slice(y);
+                    }
 
-                                              unsafe {
-                                                  f.as_mut_vec().extend_from_slice(x);
-                                                  v.as_mut_vec().extend_from_slice(y);
-                                              }
+                    $map.insert(f, v);
+                }
+            }
 
-                                              $map.insert(f, v);
+            true
+        };
 
-                                              println!("{:?}", QuerySegment::NameValue(x,y));
-                                          }
-                                      }
-
-                                      true
-                                  }) {
+        assert!(match parse_query($stream, fun) {
             Ok($length) => {
                 true
             },
@@ -117,7 +113,9 @@ macro_rules! query {
 #[macro_export]
 macro_rules! query_error {
     ($stream:expr, $byte:expr, $error:path) => ({
-        assert!(match parse_query($stream, |_|{true}) {
+        let fun = |_: QuerySegment| { true };
+
+        assert!(match parse_query($stream, fun) {
             Err($error(x)) => {
                 assert_eq!(x, $byte);
                 true

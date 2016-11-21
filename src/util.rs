@@ -170,8 +170,8 @@ impl<'a> FieldSegment<'a> {
     /// Retrieve the name.
     pub fn name(&self) -> &'a [u8] {
         match *self {
-            FieldSegment::Name(name) => name,
-            FieldSegment::NameValue(name, _) => name
+              FieldSegment::Name(name)
+            | FieldSegment::NameValue(name, _) => name
         }
     }
 
@@ -274,8 +274,8 @@ impl<'a> QuerySegment<'a> {
     /// Retrieve the name.
     pub fn name(&self) -> &'a [u8] {
         match *self {
-            QuerySegment::Name(name) => name,
-            QuerySegment::NameValue(name, _) => name
+              QuerySegment::Name(name)
+            | QuerySegment::NameValue(name, _) => name
         }
     }
 

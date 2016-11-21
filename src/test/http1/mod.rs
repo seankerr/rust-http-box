@@ -192,28 +192,6 @@ impl DebugHandler {
                       version_major:         0,
                       version_minor:         0 }
     }
-
-    /// Reset the handler to its original state.
-    pub fn reset(&mut self) {
-        self.body_finished         = false;
-        self.chunk_data            = Vec::new();
-        self.chunk_extension_name  = Vec::new();
-        self.chunk_extension_value = Vec::new();
-        self.chunk_length          = 0;
-        self.header_name           = Vec::new();
-        self.header_value          = Vec::new();
-        self.headers_finished      = false;
-        self.initial_finished      = false;
-        self.method                = Vec::new();
-        self.multipart_data        = Vec::new();
-        self.status                = Vec::new();
-        self.status_code           = 0;
-        self.url                   = Vec::new();
-        self.url_encoded_name      = Vec::new();
-        self.url_encoded_value     = Vec::new();
-        self.version_major         = 0;
-        self.version_minor         = 0;
-    }
 }
 
 impl HttpHandler for DebugHandler {
@@ -355,6 +333,7 @@ impl HttpHandler for DebugHandler {
 }
 
 // -------------------------------------------------------------------------------------------------
+
 // test mods
 mod chunk_data;
 mod chunk_extension_finished;
