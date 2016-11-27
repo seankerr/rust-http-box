@@ -159,7 +159,7 @@ macro_rules! data_with_padding {
             bs_jump!($context, ($parser.length_flags & 0xFFFFFF) as usize
                                - $parser.bit_data2 as usize);
 
-            set_state!($parser, FrameLength1, frame_length1);
+            set_state!($parser, FramePadding, frame_padding);
 
             if $parser.handler.$callback(bs_slice!($context), true) {
                 transition!($parser, $context);
@@ -518,7 +518,7 @@ impl fmt::Display for FrameType {
 /// Type that handles HTTP/2.x parser events.
 #[allow(unused_variables)]
 pub trait HttpHandler {
-    /// Callback that is executed when data frame data has been located.
+    /// Callback that is executed when a data frame has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -536,7 +536,7 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_data_data(&mut self, data: &[u8], finished: bool) -> bool {
+    fn on_data(&mut self, data: &[u8], finished: bool) -> bool {
         true
     }
 
@@ -631,6 +631,26 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when a headers frame has been located.
+    ///
+    /// **Arguments:**
+    ///
+    /// **`exclusive`**
+    ///
+    /// Indicates the stream identifier is exclusive.
+    ///
+    /// **`stream_id`**
+    ///
+    /// The stream identifier.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    fn on_headers(&mut self, exclusive: bool, stream_id: u32) -> bool {
+        true
+    }
+
     /// Callback that is executed when a headers frame fragment has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
@@ -653,7 +673,7 @@ pub trait HttpHandler {
         true
     }
 
-    /// Callback that is executed when ping frame data has been located.
+    /// Callback that is executed when a ping frame has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -671,11 +691,11 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_ping_data(&mut self, data: &[u8], finished: bool) -> bool {
+    fn on_ping(&mut self, data: &[u8], finished: bool) -> bool {
         true
     }
 
-    /// Callback that is executed when a priority frame stream identifier has been located.
+    /// Callback that is executed when a priority frame has been located.
     ///
     /// **Arguments:**
     ///
@@ -687,33 +707,19 @@ pub trait HttpHandler {
     ///
     /// The stream identifier.
     ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_priority_stream_id(&mut self, exclusive: bool, stream_id: u32) -> bool {
-        true
-    }
-
-    /// Callback that is executed when a priority frame weight has been located.
-    ///
-    /// *Note:* This may be executed multiple times in order to supply the entire segment.
-    ///
-    /// **Arguments:**
-    ///
     /// **`weight`**
     ///
-    /// The priority weight.
+    /// The weight.
     ///
     /// **Returns:**
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_priority_weight(&mut self, weight: u8) -> bool {
+    fn on_priority(&mut self, exclusive: bool, stream_id: u32, weight: u8) -> bool {
         true
     }
 
-    /// Callback that is executed when a push promise frame stream identifier has been located.
+    /// Callback that is executed when a push promise frame has been located.
     ///
     /// **Arguments:**
     ///
@@ -729,11 +735,11 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_push_promise_stream_id(&mut self, reserved: bool, stream_id: u32) -> bool {
+    fn on_push_promise(&mut self, reserved: bool, stream_id: u32) -> bool {
         true
     }
 
-    /// Callback that is executed when a rst stream frame error code has been located.
+    /// Callback that is executed when a rst stream frame has been located.
     ///
     /// **Arguments:**
     ///
@@ -745,43 +751,31 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_rst_stream_error_code(&mut self, error_code: u32) -> bool {
+    fn on_rst_stream(&mut self, error_code: u32) -> bool {
         true
     }
 
-    /// Callback that is executed when a settings frame identifier has been located.
+    /// Callback that is executed when a settings frame has been located.
     ///
     /// **Arguments:**
     ///
     /// **`id`**
     ///
-    /// The setting identifier.
-    ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_settings_id(&mut self, id: u16) -> bool {
-        true
-    }
-
-    /// Callback that is executed when a settings frame value has been located.
-    ///
-    /// **Arguments:**
+    /// The identifier.
     ///
     /// **`value`**
     ///
-    /// The setting value.
+    /// The value.
     ///
     /// **Returns:**
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_settings_value(&mut self, value: u32) -> bool {
+    fn on_settings(&mut self, id: u16, value: u32) -> bool {
         true
     }
 
-    /// Callback that is executed when unknown frame data has been located.
+    /// Callback that is executed when an unknown frame has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
     ///
@@ -799,13 +793,11 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_unknown_data(&mut self, data: &[u8], finished: bool) -> bool {
+    fn on_unknown(&mut self, data: &[u8], finished: bool) -> bool {
         true
     }
 
-    /// Callback that is executed when a window update frame size increment has been located.
-    ///
-    /// *Note:* This may be executed multiple times in order to supply the entire segment.
+    /// Callback that is executed when a window update frame has been located.
     ///
     /// **Arguments:**
     ///
@@ -817,7 +809,7 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_window_update_size_increment(&mut self, size_increment: u32) -> bool {
+    fn on_window_update(&mut self, size_increment: u32) -> bool {
         true
     }
 }
@@ -1200,6 +1192,7 @@ pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details.
     bit_data1: u32,
     bit_data2: u8,
+    bit_data3: u8,
 
     /// Total byte count processed.
     byte_count: usize,
@@ -1228,6 +1221,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     fn new(handler: T) -> Parser<'a, T> {
         Parser{ bit_data1:      0,
                 bit_data2:      0,
+                bit_data3:      0,
                 byte_count:     0,
                 handler:        handler,
                 length_flags:   0,
@@ -1254,6 +1248,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     pub fn reset(&mut self) {
         self.bit_data1       = 0;
         self.bit_data2       = 0;
+        self.bit_data3       = 0;
         self.byte_count      = 0;
         self.length_flags    = 0;
         self.state           = ParserState::FrameLength1;
@@ -1272,6 +1267,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         // reset frame details
         self.bit_data1    = 0;
         self.bit_data2    = 0;
+        self.bit_data3    = 0;
         self.length_flags = 0;
 
         if bs_available!(context) >= 3 {
@@ -1512,7 +1508,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        data_without_padding!(self, context, on_data_data);
+        data_without_padding!(self, context, on_data);
     }
 
     #[inline]
@@ -1520,7 +1516,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        data_with_padding!(self, context, on_data_data);
+        data_with_padding!(self, context, on_data);
     }
 
     // ---------------------------------------------------------------------------------------------
