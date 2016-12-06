@@ -13,7 +13,7 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
+// | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
 //! HTTP 1.x parser, states, and errors.

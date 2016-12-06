@@ -13,7 +13,7 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
+// | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
 //! HTTP 2.x parser, states, and errors.
@@ -150,14 +150,14 @@ const S_MAX_HEADER_LIST_SIZE: u16 = 0x6;
 // MACROS
 // -------------------------------------------------------------------------------------------------
 
-/// Handle data with padding state.
+/// Handle data with padding.
 macro_rules! data_with_padding {
     ($parser:expr, $context:expr, $callback:ident) => ({
-        if bs_available!($context) >= (($parser.length_flags & 0xFFFFFF) as usize)
-                                      - $parser.bit_data2 as usize {
+        if bs_available!($context) >= (($parser.bit_data1 & 0xFFFFFF) as usize)
+                                      - $parser.bit_data3 as usize {
             // collect remaining data
-            bs_jump!($context, ($parser.length_flags & 0xFFFFFF) as usize
-                               - $parser.bit_data2 as usize);
+            bs_jump!($context, ($parser.bit_data1 & 0xFFFFFF) as usize
+                               - $parser.bit_data3 as usize);
 
             set_state!($parser, FramePadding, frame_padding);
 
@@ -179,12 +179,12 @@ macro_rules! data_with_padding {
     });
 }
 
-/// Handle data without padding state.
+/// Handle data without padding.
 macro_rules! data_without_padding {
     ($parser:expr, $context:expr, $callback:ident) => ({
-        if bs_available!($context) >= ($parser.length_flags & 0xFFFFFF) as usize {
+        if bs_available!($context) >= ($parser.bit_data1 & 0xFFFFFF) as usize {
             // collect remaining data
-            bs_jump!($context, ($parser.length_flags & 0xFFFFFF) as usize);
+            bs_jump!($context, ($parser.bit_data1 & 0xFFFFFF) as usize);
 
             set_state!($parser, FrameLength1, frame_length1);
 
@@ -218,7 +218,7 @@ macro_rules! get_u8 {
 /// Indicates that a flag is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => (
-        ($parser.length_flags >> 24) as u8 & $flag == $flag
+        ($parser.bit_data1 >> 24) as u8 & $flag == $flag
     );
 }
 
@@ -573,6 +573,30 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when a go away frame has been located.
+    ///
+    /// **Arguments:**
+    ///
+    /// **`reserved`**
+    ///
+    /// Indicates the reserved bit was set.
+    ///
+    /// **`stream_id`**
+    ///
+    /// The stream identifier.
+    ///
+    /// **`error_code`**
+    ///
+    /// The error code.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    fn on_go_away(&mut self, reserved: bool, stream_id: u32, error_code: u32) -> bool {
+        true
+    }
+
     /// Callback that is executed when go away frame debug data has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.
@@ -592,42 +616,6 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     fn on_go_away_debug_data(&mut self, data: &[u8], finished: bool) -> bool {
-        true
-    }
-
-    /// Callback that is executed when a go away frame error code has been located.
-    ///
-    /// **Arguments:**
-    ///
-    /// **`error_code`**
-    ///
-    /// The error code.
-    ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_go_away_error_code(&mut self, error_code: u32) -> bool {
-        true
-    }
-
-    /// Callback that is executed when a go away frame stream identifier has been located.
-    ///
-    /// **Arguments:**
-    ///
-    /// **`reserved`**
-    ///
-    /// Indicates the reserved bit was set.
-    ///
-    /// **`stream_id`**
-    ///
-    /// The stream identifier.
-    ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_go_away_stream_id(&mut self, reserved: bool, stream_id: u32) -> bool {
         true
     }
 
@@ -1191,17 +1179,21 @@ impl fmt::Display for Setting {
 pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details.
     bit_data1: u32,
-    bit_data2: u8,
+
+    /// Bit data that stores parser state details.
+    bit_data2: u32,
+
+    /// Bit data that stores parser state details.
     bit_data3: u8,
+
+    /// Bit data that stores parser state details.
+    bit_data4: u8,
 
     /// Total byte count processed.
     byte_count: usize,
 
     /// Handler implementation.
     handler: T,
-
-    /// Frame length and flags.
-    length_flags: u32,
 
     /// Current state.
     state: ParserState,
@@ -1222,9 +1214,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         Parser{ bit_data1:      0,
                 bit_data2:      0,
                 bit_data3:      0,
+                bit_data4:      0,
                 byte_count:     0,
                 handler:        handler,
-                length_flags:   0,
                 state:          ParserState::FrameLength1,
                 state_function: Parser::frame_length1 }
     }
@@ -1249,8 +1241,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.bit_data1       = 0;
         self.bit_data2       = 0;
         self.bit_data3       = 0;
+        self.bit_data4       = 0;
         self.byte_count      = 0;
-        self.length_flags    = 0;
         self.state           = ParserState::FrameLength1;
         self.state_function  = Parser::frame_length1;
     }
@@ -1268,17 +1260,17 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         self.bit_data1    = 0;
         self.bit_data2    = 0;
         self.bit_data3    = 0;
-        self.length_flags = 0;
+        self.bit_data4    = 0;
 
         if bs_available!(context) >= 3 {
-            self.length_flags |= (context.stream[context.stream_index]  as u32) << 16;
-            self.length_flags |= (context.stream[context.stream_index + 1] as u32) << 8;
-            self.length_flags |= context.stream[context.stream_index + 2] as u32;
-            self.length_flags  = u32::from_be(self.length_flags);
+            self.bit_data1 |= (context.stream[context.stream_index]  as u32) << 16;
+            self.bit_data1 |= (context.stream[context.stream_index + 1] as u32) << 8;
+            self.bit_data1 |= context.stream[context.stream_index + 2] as u32;
+            self.bit_data1  = u32::from_be(self.bit_data1);
 
             bs_jump!(context, 3);
         } else {
-            self.length_flags = get_u8!(context) as u32;
+            self.bit_data1 = get_u8!(context) as u32;
         }
 
         transition_fast!(self, context,
@@ -1290,8 +1282,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.length_flags <<= 8;
-        self.length_flags  |= get_u8!(context) as u32;
+        self.bit_data1 <<= 8;
+        self.bit_data1  |= get_u8!(context) as u32;
 
         transition_fast!(self, context,
                          FrameLength3, frame_length3);
@@ -1302,9 +1294,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.length_flags <<= 8;
-        self.length_flags  |= get_u8!(context) as u32;
-        self.length_flags   = u32::from_be(self.length_flags);
+        self.bit_data1 <<= 8;
+        self.bit_data1  |= get_u8!(context) as u32;
+        self.bit_data1   = u32::from_be(self.bit_data1);
 
         transition_fast!(self, context,
                          FrameType, frame_type);
@@ -1315,7 +1307,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data2 = get_u8!(context);
+        self.bit_data3 = get_u8!(context);
 
         transition_fast!(self, context,
                          FrameFlags, frame_flags);
@@ -1326,7 +1318,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.length_flags |= (get_u8!(context) as u32) << 24;
+        self.bit_data1 |= (get_u8!(context) as u32) << 24;
 
         transition_fast!(self, context,
                          FrameStreamId1, frame_stream_id1);
@@ -1338,14 +1330,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         exit_if_eos!(self, context);
 
         if bs_available!(context) >= 4 {
-            read_u32!(context, self.bit_data1);
+            read_u32!(context, self.bit_data2);
 
-            self.bit_data1 = u32::from_be(self.bit_data1);
+            self.bit_data2 = u32::from_be(self.bit_data2);
 
             transition_fast!(self, context,
                              FrameEnd, frame_end);
         } else {
-            self.bit_data1 = get_u8!(context) as u32;
+            self.bit_data2 = get_u8!(context) as u32;
 
             transition_fast!(self, context,
                              FrameStreamId2, frame_stream_id2);
@@ -1357,8 +1349,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 <<= 8;
-        self.bit_data1   = get_u8!(context) as u32;
+        self.bit_data2 <<= 8;
+        self.bit_data2   = get_u8!(context) as u32;
 
         transition_fast!(self, context,
                          FrameStreamId3, frame_stream_id3);
@@ -1369,8 +1361,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 <<= 8;
-        self.bit_data1   = get_u8!(context) as u32;
+        self.bit_data2 <<= 8;
+        self.bit_data2   = get_u8!(context) as u32;
 
         transition_fast!(self, context,
                          FrameStreamId4, frame_stream_id4);
@@ -1381,9 +1373,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 <<= 8;
-        self.bit_data1   = get_u8!(context) as u32;
-        self.bit_data1   = u32::from_be(self.bit_data1);
+        self.bit_data2 <<= 8;
+        self.bit_data2   = get_u8!(context) as u32;
+        self.bit_data2   = u32::from_be(self.bit_data2);
 
         transition_fast!(self, context,
                          FrameEnd, frame_end);
@@ -1393,7 +1385,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     fn frame_end(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         // match frame type
-        match self.bit_data2 {
+        match self.bit_data3 {
             FR_DATA => {
                 if has_flag!(self, FL_PADDED) {
                     set_state!(self, DataPadLength, data_pad_length);
@@ -1448,20 +1440,24 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             }
         }
 
-        if self.handler.on_frame(self.length_flags & 0xFFFFFF,
-                                 self.bit_data2,
-                                 (self.length_flags >> 24) as u8,
-                                 self.bit_data1 >> 31 == 1,
-                                 self.bit_data1 & 0x7FFFFFFF) {
+        if self.handler.on_frame(self.bit_data1 & 0xFFFFFF,
+                                 self.bit_data3,
+                                 (self.bit_data1 >> 24) as u8,
+                                 self.bit_data2 >> 31 == 1,
+                                 self.bit_data2 & 0x7FFFFFFF) {
             // reset bit data
             self.bit_data1 = 0;
             self.bit_data2 = 0;
+            self.bit_data3 = 0;
+            self.bit_data4 = 0;
 
             transition_fast!(self, context);
         } else {
             // reset bit data
             self.bit_data1 = 0;
             self.bit_data2 = 0;
+            self.bit_data3 = 0;
+            self.bit_data4 = 0;
 
             exit_callback!(self, context);
         }
@@ -1472,15 +1468,15 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        if bs_available!(context) >= self.bit_data2 as usize {
+        if bs_available!(context) >= self.bit_data3 as usize {
             // consume remaining padding
-            bs_jump!(context, self.bit_data2 as usize);
+            bs_jump!(context, self.bit_data3 as usize);
 
             transition!(self, context,
                         FrameLength1, frame_length1);
         } else {
             // consume remaining stream
-            self.bit_data2 -= bs_available!(context) as u8;
+            self.bit_data3 -= bs_available!(context) as u8;
 
             bs_jump!(context, bs_available!(context));
 
@@ -1497,7 +1493,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data2 = get_u8!(context);
+        self.bit_data3 = get_u8!(context);
 
         transition_fast!(self, context,
                          DataDataWithPadding, data_data_with_padding);
