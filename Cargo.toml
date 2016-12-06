@@ -19,7 +19,7 @@ byte-slice = "0.1.11"
 skeptic = "0.6.1"
 
 [dev-dependencies]
-byte-slice = "*"
+byte-slice = "0.1.11"
 #byte-slice = { path = "../rust-byte-slice" }
-#clippy     = "*"
-skeptic    = "*"
+#clippy     = "0.0.103"
+skeptic    = "0.6.1"
