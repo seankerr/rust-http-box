@@ -45,12 +45,12 @@ https://docs.rs/http-box/0.1.0/http_box/
 
 ### Parser
 
-[Parser](http://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) is the guts of
+[Parser](https://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) is the guts of
 the library. It provides only necessary components for parsing HTTP data.
 
 ### HttpHandler
 
-Implementing [HttpHandler](http://docs.rs/http-box/0.1.0/http_box/http1/trait.HttpHandler.html)
+Implementing [HttpHandler](https://docs.rs/http-box/0.1.0/http_box/http1/trait.HttpHandler.html)
 is how you provide a custom callback implementation. It is optional to provide multiple
 implementations based on which type of data is being parsed: head, chunked transfer-encoded,
 multipart, URL encoded, etc. It is also suggested since it lends itself to clarity.
@@ -58,7 +58,7 @@ multipart, URL encoded, etc. It is also suggested since it lends itself to clari
 ### Callbacks
 
 In a typical application, callbacks receive arguments that are complete pieces of data. However,
-[Parser](http://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) parses data, and
+[Parser](https://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) parses data, and
 because of this, it must operate one byte at a type. Moreoever, the data being parsed is often
 coming from a network connection, and is received as incomplete pieces of data. To stick to the
 zero-copy philosophy, and to avoid buffering, callbacks are executed as frequent as necessary.
@@ -70,7 +70,7 @@ is when headers are being parsed. The callback for the header name may be called
 order to receive the full header name. And the same is true for the header value. It isn't until the
 header value is complete, that the header name/value pair can be stored.
 
-This is where the [State](http://docs.rs/http-box/0.1.0/http_box/http1/enum.State.html) enum
+This is where the [State](https://docs.rs/http-box/0.1.0/http_box/http1/enum.State.html) enum
 comes into play. You can use this to track the current state when a callback is executed. There is
 nothing mysterious about this enum. It's a helper type with the objective of simplifying state
 tracking.
