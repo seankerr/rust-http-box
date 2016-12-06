@@ -12,14 +12,14 @@ exclude     = [".gitignore"]
 build       = "build.rs"
 
 [dependencies]
-byte-slice = "*"
+byte-slice = "0.1.11"
 #byte-slice = { path = "../rust-byte-slice" }
 
 [build-dependencies]
 skeptic = "*"
 
 [dev-dependencies]
-byte-slice = "*"
+byte-slice = "0.1.11"
 #byte-slice = { path = "../rust-byte-slice" }
 clippy     = "*"
 skeptic    = "*"
