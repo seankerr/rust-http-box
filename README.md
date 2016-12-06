@@ -39,7 +39,7 @@ processed.
 
 ## API Documentation
 
-http://metatomic.io/docs/api/http_box/index.html
+http://docs.rs/http-box/0.1.0/http_box/
 
 ## Quick Docs
 
