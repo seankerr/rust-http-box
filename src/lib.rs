@@ -18,8 +18,8 @@
 
 #![crate_name = "http_box"]
 
-//#![cfg_attr(test, feature(plugin))]
-//#![cfg_attr(test, plugin(clippy))]
+#![cfg_attr(test, feature(plugin))]
+#![cfg_attr(test, plugin(clippy))]
 
 #[macro_use]
 extern crate byte_slice;
