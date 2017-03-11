@@ -683,7 +683,7 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
                 loop {
                     bs_mark!(context);
 
-                    collect_quoted_field!(
+                    collect_quoted!(
                         context,
                         FieldError::Value,
 
@@ -949,7 +949,7 @@ where T : FnMut(QuerySegment) -> bool {
             collect_visible!(
                 context,
                 QueryError::Value,
-                
+
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'

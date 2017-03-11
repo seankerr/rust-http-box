@@ -898,10 +898,10 @@ pub enum ParserState {
     ChunkData,
 
     /// Parsing carriage return after chunk data.
-    ChunkDataNewline1,
+    ChunkDataCr1,
 
     /// Parsing line feed after chunk data.
-    ChunkDataNewline2,
+    ChunkDataLf1,
 
     // ---------------------------------------------------------------------------------------------
     // MULTIPART
@@ -1613,7 +1613,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
         if context.byte > 0x40 && context.byte < 0x5B {
             // upper-cased byte, let's lower-case it
-            callback_transition!(
+            callback_transition_fast!(
                 self,
                 context,
                 on_header_name,
@@ -1624,7 +1624,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else {
             bs_replay!(context);
 
-            transition!(
+            transition_fast!(
                 self,
                 context,
                 LowerHeaderName,
@@ -1649,7 +1649,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         );
 
         if context.byte == b':' {
-            callback_ignore_transition_fast!(
+            callback_ignore_transition!(
                 self,
                 context,
                 on_header_name,
@@ -1660,7 +1660,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             // upper-cased byte
             bs_replay!(context);
 
-            callback_transition_fast!(
+            callback_transition!(
                 self,
                 context,
                 on_header_name,
@@ -1727,7 +1727,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn header_quoted_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_quoted_field!(
+        collect_quoted!(
             context,
             ParserError::HeaderValue,
 
@@ -2361,7 +2361,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             if context.byte == b'\r' {
                 break;
             } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
-                // do nothing
+                continue;
             } else {
                 exit_error!(Status, context.byte);
             },
@@ -2529,7 +2529,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte > 0x40 && context.byte < 0x5B {
-            callback_transition!(
+            callback_transition_fast!(
                 self,
                 context,
                 on_chunk_extension_name,
@@ -2540,7 +2540,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         } else {
             bs_replay!(context);
 
-            transition!(
+            transition_fast!(
                 self,
                 context,
                 LowerChunkExtensionName,
@@ -2567,7 +2567,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         );
 
         if context.byte == b'=' {
-            callback_ignore_transition_fast!(
+            callback_ignore_transition!(
                 self,
                 context,
                 on_chunk_extension_name,
@@ -2578,7 +2578,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             // extension name without a value
             bs_replay!(context);
 
-            callback_transition_fast!(
+            callback_transition!(
                 self,
                 context,
                 on_chunk_extension_name,
@@ -2589,7 +2589,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             // upper-cased byte
             bs_replay!(context);
 
-            callback_transition_fast!(
+            callback_transition!(
                 self,
                 context,
                 on_chunk_extension_name,
@@ -2656,7 +2656,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn chunk_extension_quoted_value(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_quoted_field!(
+        collect_quoted!(
             context,
             ParserError::ChunkExtensionValue,
 
@@ -2757,8 +2757,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 self,
                 context,
                 on_chunk_data,
-                ChunkDataNewline1,
-                chunk_data_newline1
+                ChunkDataCr1,
+                chunk_data_cr1
             );
         } else {
             // collect remaining stream data
@@ -2777,7 +2777,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_newline1(&mut self, context: &mut ByteStream)
+    fn chunk_data_cr1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2786,8 +2786,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             transition_fast!(
                 self,
                 context,
-                ChunkDataNewline2,
-                chunk_data_newline2
+                ChunkDataLf1,
+                chunk_data_lf1
             );
         } else {
             exit_error!(CrlfSequence, context.byte);
@@ -2795,7 +2795,7 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_newline2(&mut self, context: &mut ByteStream)
+    fn chunk_data_lf1(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);

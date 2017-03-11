@@ -55,7 +55,7 @@ fn multiple() {
 
     assert_eos!(p,
                 b"hijklmno",
-                ChunkDataNewline1);
+                ChunkDataCr1);
 
     assert_eq!(p.handler().chunk_data,
                b"abcdefghijklmno");
@@ -78,7 +78,7 @@ fn multiple_chunks() {
 
     assert_eos!(p,
                 b"pqrst",
-                ChunkDataNewline1);
+                ChunkDataCr1);
 
     assert_eq!(p.handler().chunk_data,
                b"abcdefghijklmnopqrst");
@@ -90,7 +90,7 @@ fn single() {
 
     assert_eos!(p,
                 b"abcdefghijklmno",
-                ChunkDataNewline1);
+                ChunkDataCr1);
 
     assert_eq!(p.handler().chunk_data,
                b"abcdefghijklmno");

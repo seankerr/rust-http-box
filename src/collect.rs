@@ -77,11 +77,11 @@ macro_rules! collect_hex64 {
     });
 }
 
-/// Collect a quoted field value.
+/// Collect a quoted value.
 ///
 /// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
 /// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
-macro_rules! collect_quoted_field {
+macro_rules! collect_quoted {
     ($context:expr, $error:expr, $byte_error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if $context.byte == b'"' || $context.byte == b'\\' {
