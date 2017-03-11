@@ -75,7 +75,7 @@ impl HttpHandler for UrlEncodedHandler {
 fn url_encoded() {
     let mut d = Vec::new();
 
-    File::open("tests/data/url_encoded.dat").unwrap().read_to_end(&mut d);
+    File::open("tests/http1/data/url_encoded.dat").unwrap().read_to_end(&mut d);
 
     let mut s = d.as_slice();
     let mut p = Parser::new_head(HeadHandler);

@@ -133,7 +133,7 @@ impl HttpHandler for ChunkEncodedHandler {
 fn chunk_encoded_body() {
     let mut d = Vec::new();
 
-    File::open("tests/data/chunk_encoded.dat").unwrap().read_to_end(&mut d);
+    File::open("tests/http1/data/chunk_encoded.dat").unwrap().read_to_end(&mut d);
 
     let mut s = d.as_slice();
     let mut p = Parser::new_head(HeadHandler);
