@@ -96,7 +96,7 @@ macro_rules! callback_ignore_transition_fast {
     });
 }
 
-/// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
+/// Execute callback `$function`. If it returns `true`, transition to `$state`. Otherwise exit
 /// with `Success::Callback`.
 ///
 /// This macro exists to enforce the design decision that after each callback, state must either
@@ -118,7 +118,7 @@ macro_rules! callback_transition {
     });
 }
 
-/// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
+/// Execute callback `$function`. If it returns `true`, transition to `$state` quickly by
 /// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
 ///
 /// This macro exists to enforce the design decision that after each callback, state must either

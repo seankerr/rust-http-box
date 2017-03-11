@@ -42,6 +42,7 @@ macro_rules! collect_field {
                     break;
                 } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
                     // space + visible + no byte error
+                    continue;
                 } else {
                     return Err($error($context.byte));
                 }
@@ -86,6 +87,7 @@ macro_rules! collect_quoted_field {
             if $context.byte == b'"' || $context.byte == b'\\' {
                 break;
             } else if is_visible_7bit!($context.byte) || $context.byte == b' ' || !$byte_error {
+                continue;
             } else {
                 return Err($error($context.byte));
             },
@@ -98,6 +100,7 @@ macro_rules! collect_quoted_field {
             if $context.byte == b'"' || $context.byte == b'\\' {
                 break;
             } else if is_visible_7bit!($context.byte) || $context.byte == b' ' {
+                continue;
             } else {
                 return Err($error($context.byte));
             },
@@ -115,6 +118,7 @@ macro_rules! collect_tokens {
             if $stop {
                 break;
             } else if is_token($context.byte) {
+                continue;
             } else {
                 return Err($error($context.byte));
             },
@@ -125,6 +129,7 @@ macro_rules! collect_tokens {
     ($context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if is_token($context.byte) {
+                continue;
             } else {
                 return Err($error($context.byte));
             },
@@ -178,6 +183,7 @@ macro_rules! consume_empty_space {
 
                 if $context.byte == b'\r' || $context.byte == b'\n'
                 || $context.byte == b' ' || $context.byte == b'\t' {
+                    continue;
                 } else {
                     bs_replay!($context);
 
@@ -206,6 +212,7 @@ macro_rules! consume_linear_space {
                 bs_next!($context);
 
                 if $context.byte == b' ' || $context.byte == b'\t' {
+                    continue;
                 } else {
                     bs_replay!($context);
 
@@ -234,6 +241,7 @@ macro_rules! consume_spaces {
                 bs_next!($context);
 
                 if $context.byte == b' ' {
+                    continue;
                 } else {
                     bs_replay!($context);
 
