@@ -1925,7 +1925,10 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
             }
         }
 
-        collect_tokens!(context, ParserError::Method,
+        collect_tokens!(
+            context,
+            ParserError::Method,
+
             // stop on these bytes
                context.byte == b' '
             || (context.byte > 0x60 && context.byte < 0x7B),
@@ -2281,7 +2284,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn strip_response_status_code(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(context,
+        consume_linear_space!(
+            context,
+
             // on end-of-stream
             exit_eos!(self, context)
         );
@@ -2333,7 +2338,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn strip_response_status(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        consume_linear_space!(context,
+        consume_linear_space!(
+            context,
+
             // on end-of-stream
             exit_eos!(self, context)
         );
@@ -3107,7 +3114,9 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     #[inline]
     fn multipart_data_by_byte(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        bs_collect_until!(context,
+        bs_collect_until!(
+            context,
+
             // collect bytes until
             context.byte == b'\r',
 
