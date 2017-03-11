@@ -24,9 +24,7 @@ use fsm::{ ParserValue,
            Success };
 
 use byte_slice::ByteStream;
-use std::{ fmt,
-           u16,
-           u32 };
+use std::{ fmt };
 
 // -------------------------------------------------------------------------------------------------
 // ERROR CODES
@@ -124,6 +122,9 @@ const FR_SETTINGS: u8 = 0x4;
 /// Window update frame type.
 const FR_WINDOW_UPDATE: u8 = 0x8;
 
+/// Unsupported frame type.
+const FR_UNSUPPORTED: u8 = 0xFF;
+
 // -------------------------------------------------------------------------------------------------
 // SETTINGS
 // -------------------------------------------------------------------------------------------------
@@ -150,59 +151,18 @@ const S_MAX_HEADER_LIST_SIZE: u16 = 0x6;
 // MACROS
 // -------------------------------------------------------------------------------------------------
 
-/// Handle data with padding.
-macro_rules! data_with_padding {
-    ($parser:expr, $context:expr, $callback:ident) => ({
-        if bs_available!($context) >= (($parser.bit_data1 & 0xFFFFFF) as usize)
-                                      - $parser.bit_data3 as usize {
-            // collect remaining data
-            bs_jump!($context, ($parser.bit_data1 & 0xFFFFFF) as usize
-                               - $parser.bit_data3 as usize);
-
-            set_state!($parser, FramePadding, frame_padding);
-
-            if $parser.handler.$callback(bs_slice!($context), true) {
-                transition!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            // collect remaining slice
-            bs_jump!($context, bs_available!($context));
-
-            if $parser.handler.$callback(bs_slice!($context), false) {
-                exit_eos!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        }
+/// Retrieve the remaining frame payload length sans padding data.
+macro_rules! actual_length {
+    ($parser:expr) => ({
+        payload_length!($parser) - pad_length!($parser)
     });
 }
 
-/// Handle data without padding.
-macro_rules! data_without_padding {
-    ($parser:expr, $context:expr, $callback:ident) => ({
-        if bs_available!($context) >= ($parser.bit_data1 & 0xFFFFFF) as usize {
-            // collect remaining data
-            bs_jump!($context, ($parser.bit_data1 & 0xFFFFFF) as usize);
-
-            set_state!($parser, FrameLength1, frame_length1);
-
-            if $parser.handler.$callback(bs_slice!($context), true) {
-                transition!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            // collect remaining slice
-            bs_jump!($context, bs_available!($context));
-
-            if $parser.handler.$callback(bs_slice!($context), false) {
-                exit_eos!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        }
+/// Decrease payload length.
+macro_rules! dec_payload_length {
+    ($parser:expr, $length:expr) => ({
+        $parser.bit_data32a = ($parser.bit_data32a & 0xFF)
+                            | (($parser.bit_data32a >> 8) - $length) << 8;
     });
 }
 
@@ -218,8 +178,53 @@ macro_rules! get_u8 {
 /// Indicates that a flag is set.
 macro_rules! has_flag {
     ($parser:expr, $flag:expr) => (
-        ($parser.bit_data1 >> 24) as u8 & $flag == $flag
+        $parser.bit_data8a & $flag == $flag
     );
+}
+
+/// Retrieve the pad length.
+macro_rules! pad_length {
+    ($parser:expr) => ({
+        $parser.bit_data32a & 0xFF
+    });
+}
+
+/// Retrieve the remaining frame payload length.
+macro_rules! payload_length {
+    ($parser:expr) => ({
+        $parser.bit_data32a >> 8
+    });
+}
+
+/// Parse payload data.
+macro_rules! parse_payload_data {
+    ($parser:expr, $context:expr, $callback:ident, $state:ident, $state_function:ident) => ({
+        if bs_available!($context) >= actual_length!($parser) as usize {
+            // collect remaining data
+            dec_payload_length!($parser, actual_length!($parser));
+
+            bs_jump!($context, actual_length!($parser) as usize);
+
+            set_state!($parser, $state, $state_function);
+
+            if $parser.handler.$callback(bs_slice!($context), true) {
+                transition!($parser, $context);
+            } else {
+                exit_callback!($parser, $context);
+            }
+        }
+
+        // collect remaining slice
+        dec_payload_length!($parser, bs_available!($context) as u32);
+
+        bs_jump!($context, bs_available!($context));
+
+        if $parser.handler.$callback(bs_slice!($context), false) {
+            exit_eos!($parser, $context);
+        } else {
+            exit_callback!($parser, $context);
+        }
+    });
 }
 
 /// Read a u16.
@@ -247,6 +252,7 @@ macro_rules! read_u32 {
 // -------------------------------------------------------------------------------------------------
 
 /// Error codes.
+#[derive(Clone,Copy,PartialEq)]
 #[repr(u8)]
 pub enum ErrorCode {
     /// Cancel error.
@@ -318,75 +324,141 @@ impl ErrorCode {
 // -------------------------------------------------------------------------------------------------
 
 /// Flags.
-#[repr(u8)]
-pub enum Flag {
-    /// End headers flag.
-    EndHeaders = FL_END_HEADERS,
-
-    /// End stream flag.
-    EndStream = FL_END_STREAM,
-
-    /// Padded flag.
-    Padded = FL_PADDED,
-
-    /// Priority flag.
-    Priority = FL_PRIORITY
+#[derive(Clone,Copy,PartialEq)]
+pub struct Flags {
+    flags: u8
 }
 
-impl Flag {
-    /// Create a new `Flag` from a `u8`.
-    pub fn from_u8(byte: u8) -> Option<Flag> {
-        match byte {
-            FL_END_STREAM  => Some(Flag::EndStream),
-            FL_END_HEADERS => Some(Flag::EndHeaders),
-            FL_PADDED      => Some(Flag::Padded),
-            FL_PRIORITY    => Some(Flag::Priority),
-            _              => None
+/// Flags.
+impl Flags {
+    /// Create a new `Flags` from a `u8`.
+    pub fn from_u8(byte: u8) -> Flags {
+        Flags {
+            flags: byte
         }
+    }
+
+    /// Indicates that the end headers flag has been set.
+    pub fn is_end_headers(&self) -> bool {
+        self.flags & FL_END_HEADERS == FL_END_HEADERS
+    }
+
+    /// Indicates that the end stream flag has been set.
+    pub fn is_end_stream(&self) -> bool {
+        self.flags & FL_END_STREAM == FL_END_STREAM
+    }
+
+    /// Indicates that the padded flag has been set.
+    pub fn is_padded(&self) -> bool {
+        self.flags & FL_PADDED == FL_PADDED
+    }
+
+    /// Indicates that the priority flag has been set.
+    pub fn is_priority(&self) -> bool {
+        self.flags & FL_PRIORITY == FL_PRIORITY
     }
 }
 
-impl fmt::Debug for Flag {
+impl fmt::Debug for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Flag::EndHeaders => {
-                write!(formatter, "Flag::EndHeaders")
-            }
-            Flag::EndStream => {
-                write!(formatter, "Flag::EndStream")
-            },
-            Flag::Padded => {
-                write!(formatter, "Flag::Padded")
-            },
-            Flag::Priority => {
-                write!(formatter, "Flag::Priority")
-            }
-        }
+        write!(
+            formatter,
+            "Flags(EndHeaders: {}, EndStream: {}, Padded: {}, Priority: {})",
+            self.flags & FL_END_HEADERS == FL_END_HEADERS,
+            self.flags & FL_END_STREAM == FL_END_STREAM,
+            self.flags & FL_PADDED == FL_PADDED,
+            self.flags & FL_PRIORITY == FL_PRIORITY
+        )
     }
 }
 
-impl fmt::Display for Flag {
+impl fmt::Display for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Flag::EndHeaders => {
-                write!(formatter, "EndHeaders")
-            }
-            Flag::EndStream => {
-                write!(formatter, "EndStream")
-            },
-            Flag::Padded => {
-                write!(formatter, "Padded")
-            },
-            Flag::Priority => {
-                write!(formatter, "Priority")
-            }
+        write!(
+            formatter,
+            "Flags(EndHeaders: {}, EndStream: {}, Padded: {}, Priority: {})",
+            self.flags & FL_END_HEADERS == FL_END_HEADERS,
+            self.flags & FL_END_STREAM == FL_END_STREAM,
+            self.flags & FL_PADDED == FL_PADDED,
+            self.flags & FL_PRIORITY == FL_PRIORITY
+        )
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// Frame format.
+#[derive(Clone,Copy,PartialEq)]
+pub struct FrameFormat {
+    flags:          Flags,
+    frame_type:     FrameType,
+    payload_length: u32,
+    stream_id:      u32
+}
+
+impl FrameFormat {
+    /// Create a new `FrameFormat`.
+    pub fn new(&mut self, payload_length: u32, frame_type: u8, flags: u8, stream_id: u32)
+    -> FrameFormat {
+        FrameFormat{
+            flags:          Flags::from_u8(flags),
+            frame_type:     FrameType::from_u8(frame_type),
+            payload_length: payload_length,
+            stream_id:      stream_id
         }
+   }
+
+   /// Retrieve the frame flags.
+   pub fn flags(&self) -> &Flags {
+       &self.flags
+   }
+
+   /// Retrieve the frame type.
+   pub fn frame_type(&self) -> &FrameType {
+       &self.frame_type
+   }
+
+   /// Retrieve the payload length.
+   pub fn payload_length(&self) -> u32 {
+       self.payload_length
+   }
+
+   /// Retrieve the stream identifier.
+   pub fn stream_id(&self) -> u32 {
+       self.stream_id
+   }
+}
+
+impl fmt::Display for FrameFormat {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
+            self.flags,
+            self.frame_type,
+            self.payload_length,
+            self.stream_id
+        )
+    }
+}
+
+impl fmt::Debug for FrameFormat {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
+            self.flags,
+            self.frame_type,
+            self.payload_length,
+            self.stream_id
+        )
     }
 }
 
 // -------------------------------------------------------------------------------------------------
 
 /// Frame types.
+#[derive(Clone,Copy,PartialEq)]
 #[repr(u8)]
 pub enum FrameType {
     /// Continuation frame.
@@ -417,24 +489,115 @@ pub enum FrameType {
     Settings = FR_SETTINGS,
 
     /// Window update frame.
-    WindowUpdate = FR_WINDOW_UPDATE
+    WindowUpdate = FR_WINDOW_UPDATE,
+
+    /// Unsupported frame.
+    Unsupported = FR_UNSUPPORTED
 }
 
 impl FrameType {
     /// Create a new `FrameType` from a `u8`.
-    pub fn from_u8(byte: u8) -> Option<FrameType> {
+    pub fn from_u8(byte: u8) -> FrameType {
         match byte {
-            FR_DATA          => Some(FrameType::Data),
-            FR_HEADERS       => Some(FrameType::Headers),
-            FR_PRIORITY      => Some(FrameType::Priority),
-            FR_RST_STREAM    => Some(FrameType::RstStream),
-            FR_SETTINGS      => Some(FrameType::Settings),
-            FR_PUSH_PROMISE  => Some(FrameType::PushPromise),
-            FR_PING          => Some(FrameType::Ping),
-            FR_GO_AWAY       => Some(FrameType::GoAway),
-            FR_WINDOW_UPDATE => Some(FrameType::WindowUpdate),
-            FR_CONTINUATION  => Some(FrameType::Continuation),
-            _                => None
+            FR_DATA          => FrameType::Data,
+            FR_HEADERS       => FrameType::Headers,
+            FR_PRIORITY      => FrameType::Priority,
+            FR_RST_STREAM    => FrameType::RstStream,
+            FR_SETTINGS      => FrameType::Settings,
+            FR_PUSH_PROMISE  => FrameType::PushPromise,
+            FR_PING          => FrameType::Ping,
+            FR_GO_AWAY       => FrameType::GoAway,
+            FR_WINDOW_UPDATE => FrameType::WindowUpdate,
+            FR_CONTINUATION  => FrameType::Continuation,
+            _                => FrameType::Unsupported
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Continuation`.
+    pub fn is_continuation(&self) -> bool {
+        match *self {
+            FrameType::Continuation => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Data`.
+    pub fn is_data(&self) -> bool {
+        match *self {
+            FrameType::Data => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::GoAway`.
+    pub fn is_go_away(&self) -> bool {
+        match *self {
+            FrameType::GoAway => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Headers`.
+    pub fn is_headers(&self) -> bool {
+        match *self {
+            FrameType::Headers => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Ping`.
+    pub fn is_push_ping(&self) -> bool {
+        match *self {
+            FrameType::Ping => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Priority`.
+    pub fn is_priority(&self) -> bool {
+        match *self {
+            FrameType::Priority => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::PushPromise`.
+    pub fn is_push_promise(&self) -> bool {
+        match *self {
+            FrameType::PushPromise => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::RstStream`.
+    pub fn is_rst_stream(&self) -> bool {
+        match *self {
+            FrameType::RstStream => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Settings`.
+    pub fn is_settings(&self) -> bool {
+        match *self {
+            FrameType::Settings => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::Unsupported`.
+    pub fn is_unsupported(&self) -> bool {
+        match *self {
+            FrameType::Unsupported => true,
+            _ => false
+        }
+    }
+
+    /// Indicates that this `FrameType` is `FrameType::WindowUpdate`.
+    pub fn is_window_update(&self) -> bool {
+        match *self {
+            FrameType::WindowUpdate => true,
+            _ => false
         }
     }
 }
@@ -471,6 +634,9 @@ impl fmt::Debug for FrameType {
             },
             FrameType::WindowUpdate => {
                 write!(formatter, "FrameType::WindowUpdate")
+            },
+            FrameType::Unsupported => {
+                write!(formatter, "FrameType::Unsupported")
             }
         }
     }
@@ -508,6 +674,9 @@ impl fmt::Display for FrameType {
             },
             FrameType::WindowUpdate => {
                 write!(formatter, "WindowUpdate")
+            },
+            FrameType::Unsupported => {
+                write!(formatter, "Unsupported")
             }
         }
     }
@@ -544,9 +713,9 @@ pub trait HttpHandler {
     ///
     /// **Arguments:**
     ///
-    /// **`length`**
+    /// **`payload_length`**
     ///
-    /// The length.
+    /// The payload length.
     ///
     /// **`frame_type`**
     ///
@@ -556,10 +725,6 @@ pub trait HttpHandler {
     ///
     /// The flags.
     ///
-    /// **`reserved`**
-    ///
-    /// Indicates the reserved bit was set.
-    ///
     /// **`stream_id`**
     ///
     /// The stream identifier.
@@ -568,18 +733,13 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_frame(&mut self, length: u32, frame_type: u8, flags: u8, reserved: bool,
-                stream_id: u32) -> bool {
+    fn on_frame(&mut self, payload_length: u32, frame_type: u8, flags: u8, stream_id: u32) -> bool {
         true
     }
 
     /// Callback that is executed when a go away frame has been located.
     ///
     /// **Arguments:**
-    ///
-    /// **`reserved`**
-    ///
-    /// Indicates the reserved bit was set.
     ///
     /// **`stream_id`**
     ///
@@ -593,7 +753,7 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_go_away(&mut self, reserved: bool, stream_id: u32, error_code: u32) -> bool {
+    fn on_go_away(&mut self, stream_id: u32, error_code: u32) -> bool {
         true
     }
 
@@ -711,10 +871,6 @@ pub trait HttpHandler {
     ///
     /// **Arguments:**
     ///
-    /// **`reserved`**
-    ///
-    /// Indicates the reserved bit was set.
-    ///
     /// **`stream_id`**
     ///
     /// The stream identifier.
@@ -723,7 +879,7 @@ pub trait HttpHandler {
     ///
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_push_promise(&mut self, reserved: bool, stream_id: u32) -> bool {
+    fn on_push_promise(&mut self, stream_id: u32) -> bool {
         true
     }
 
@@ -760,28 +916,6 @@ pub trait HttpHandler {
     /// `true` when parsing should continue, `false` to exit the parser function prematurely with
     /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
     fn on_settings(&mut self, id: u16, value: u32) -> bool {
-        true
-    }
-
-    /// Callback that is executed when an unknown frame has been located.
-    ///
-    /// *Note:* This may be executed multiple times in order to supply the entire segment.
-    ///
-    /// **Arguments:**
-    ///
-    /// **`data`**
-    ///
-    /// The data.
-    ///
-    /// **`finished`**
-    ///
-    /// Indicates this is the last chunk of the data.
-    ///
-    /// **Returns:**
-    ///
-    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
-    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
-    fn on_unknown(&mut self, data: &[u8], finished: bool) -> bool {
         true
     }
 
@@ -1055,19 +1189,6 @@ pub enum ParserState {
     SettingsValue4,
 
     // ---------------------------------------------------------------------------------------------
-    // UNKNOWN STATES
-    // ---------------------------------------------------------------------------------------------
-
-    /// Parsing unknown pad length.
-    UnknownPadLength,
-
-    /// Parsing unknown data without padding.
-    UnknownDataWithoutPadding,
-
-    /// Parsing unknown data with padding.
-    UnknownDataWithPadding,
-
-    // ---------------------------------------------------------------------------------------------
     // WINDOW UPDATE STATES
     // ---------------------------------------------------------------------------------------------
 
@@ -1081,7 +1202,21 @@ pub enum ParserState {
     WindowUpdateIncrement3,
 
     /// Parsing window update increment fourth byte.
-    WindowUpdateIncrement4
+    WindowUpdateIncrement4,
+
+    // ---------------------------------------------------------------------------------------------
+    // UNKNOWN STATES
+    // ---------------------------------------------------------------------------------------------
+
+    /// Parsing unknown payload.
+    UnknownPayload,
+
+    // ---------------------------------------------------------------------------------------------
+    // FINISHED
+    // ---------------------------------------------------------------------------------------------
+
+    /// Parsing entire message has finished.
+    Finished
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1178,16 +1313,16 @@ impl fmt::Display for Setting {
 /// HTTP 2.x parser.
 pub struct Parser<'a, T: HttpHandler> {
     /// Bit data that stores parser state details.
-    bit_data1: u32,
+    bit_data32a: u32,
 
     /// Bit data that stores parser state details.
-    bit_data2: u32,
+    bit_data32b: u32,
 
     /// Bit data that stores parser state details.
-    bit_data3: u8,
+    bit_data8a: u8,
 
     /// Bit data that stores parser state details.
-    bit_data4: u8,
+    bit_data8b: u8,
 
     /// Total byte count processed.
     byte_count: usize,
@@ -1210,11 +1345,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     /// **`handler`**
     ///
     /// The handler implementation.
-    fn new(handler: T) -> Parser<'a, T> {
-        Parser{ bit_data1:      0,
-                bit_data2:      0,
-                bit_data3:      0,
-                bit_data4:      0,
+    pub fn new(handler: T) -> Parser<'a, T> {
+        Parser{ bit_data32a:    0,
+                bit_data32b:    0,
+                bit_data8a:     0,
+                bit_data8b:     0,
                 byte_count:     0,
                 handler:        handler,
                 state:          ParserState::FrameLength1,
@@ -1238,13 +1373,59 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
 
     /// Reset `Parser` to its initial state.
     pub fn reset(&mut self) {
-        self.bit_data1       = 0;
-        self.bit_data2       = 0;
-        self.bit_data3       = 0;
-        self.bit_data4       = 0;
-        self.byte_count      = 0;
-        self.state           = ParserState::FrameLength1;
-        self.state_function  = Parser::frame_length1;
+        self.byte_count     = 0;
+        self.state          = ParserState::FrameLength1;
+        self.state_function = Parser::frame_length1;
+
+        self.reset_bit_data();
+    }
+
+    /// Reset bit data.
+    fn reset_bit_data(&mut self) {
+        self.bit_data32a = 0;
+        self.bit_data32b = 0;
+        self.bit_data8a  = 0;
+        self.bit_data8b  = 0;
+    }
+
+    /// Resume parsing an additional slice of data.
+    ///
+    /// # Arguments
+    ///
+    /// **`stream`**
+    ///
+    /// The stream of data to be parsed.
+    #[inline]
+    pub fn resume(&mut self, stream: &[u8]) -> Result<Success, ParserError> {
+        let mut context = ByteStream::new(stream);
+
+        loop {
+            match (self.state_function)(self, &mut context) {
+                Ok(ParserValue::Continue) => {
+                },
+                Ok(ParserValue::Exit(success)) => {
+                    self.byte_count += context.stream_index;
+
+                    if let Success::Finished(_) = success {
+                        self.state = ParserState::Finished;
+                    }
+
+                    return Ok(success);
+                },
+                Err(error) => {
+                    self.byte_count     += context.stream_index;
+                    self.state           = ParserState::Dead;
+                    self.state_function  = Parser::dead;
+
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    /// Retrieve the current state.
+    pub fn state(&self) -> ParserState {
+        self.state
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1256,25 +1437,29 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        // reset frame details
-        self.bit_data1    = 0;
-        self.bit_data2    = 0;
-        self.bit_data3    = 0;
-        self.bit_data4    = 0;
+        self.reset_bit_data();
 
-        if bs_available!(context) >= 3 {
-            self.bit_data1 |= (context.stream[context.stream_index]  as u32) << 16;
-            self.bit_data1 |= (context.stream[context.stream_index + 1] as u32) << 8;
-            self.bit_data1 |= context.stream[context.stream_index + 2] as u32;
-            self.bit_data1  = u32::from_be(self.bit_data1);
+        if bs_available!(context) >= 4 {
+            // read entire length and type
+            read_u32!(context, self.bit_data32a);
 
-            bs_jump!(context, 3);
-        } else {
-            self.bit_data1 = get_u8!(context) as u32;
+            transition_fast!(
+                self,
+                context,
+                FrameFlags,
+                frame_flags
+            )
         }
 
-        transition_fast!(self, context,
-                         FrameLength2, frame_length2);
+        // read first length byte
+        self.bit_data32a |= (get_u8!(context) as u32) << 24;
+
+        transition_fast!(
+            self,
+            context,
+            FrameLength2,
+            frame_length2
+        );
     }
 
     #[inline]
@@ -1282,11 +1467,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 <<= 8;
-        self.bit_data1  |= get_u8!(context) as u32;
+        self.bit_data32a |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(self, context,
-                         FrameLength3, frame_length3);
+        transition_fast!(
+            self,
+            context,
+            FrameLength3,
+            frame_length3
+        );
     }
 
     #[inline]
@@ -1294,12 +1482,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 <<= 8;
-        self.bit_data1  |= get_u8!(context) as u32;
-        self.bit_data1   = u32::from_be(self.bit_data1);
+        self.bit_data32a |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(self, context,
-                         FrameType, frame_type);
+        transition_fast!(
+            self,
+            context,
+            FrameType,
+            frame_type
+        );
     }
 
     #[inline]
@@ -1307,10 +1497,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data3 = get_u8!(context);
+        self.bit_data32a |= get_u8!(context) as u32;
 
-        transition_fast!(self, context,
-                         FrameFlags, frame_flags);
+        transition_fast!(
+            self,
+            context,
+            FrameFlags,
+            frame_flags
+        );
     }
 
     #[inline]
@@ -1318,10 +1512,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data1 |= (get_u8!(context) as u32) << 24;
+        self.bit_data8a = get_u8!(context);
 
-        transition_fast!(self, context,
-                         FrameStreamId1, frame_stream_id1);
+        transition_fast!(
+            self,
+            context,
+            FrameStreamId1,
+            frame_stream_id1
+        );
     }
 
     #[inline]
@@ -1330,18 +1528,26 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
         exit_if_eos!(self, context);
 
         if bs_available!(context) >= 4 {
-            read_u32!(context, self.bit_data2);
+            // read entire stream id
+            read_u32!(context, self.bit_data32b);
 
-            self.bit_data2 = u32::from_be(self.bit_data2);
-
-            transition_fast!(self, context,
-                             FrameEnd, frame_end);
-        } else {
-            self.bit_data2 = get_u8!(context) as u32;
-
-            transition_fast!(self, context,
-                             FrameStreamId2, frame_stream_id2);
+            transition_fast!(
+                self,
+                context,
+                FrameEnd,
+                frame_end
+            );
         }
+
+        // read first stream id byte
+        self.bit_data32b = (get_u8!(context) as u32) << 24;
+
+        transition_fast!(
+            self,
+            context,
+            FrameStreamId2,
+            frame_stream_id2
+        );
     }
 
     #[inline]
@@ -1349,11 +1555,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data2 <<= 8;
-        self.bit_data2   = get_u8!(context) as u32;
+        self.bit_data32b = (get_u8!(context) as u32) << 16;
 
-        transition_fast!(self, context,
-                         FrameStreamId3, frame_stream_id3);
+        transition_fast!(
+            self,
+            context,
+            FrameStreamId3,
+            frame_stream_id3
+        );
     }
 
     #[inline]
@@ -1361,11 +1570,14 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data2 <<= 8;
-        self.bit_data2   = get_u8!(context) as u32;
+        self.bit_data32b = (get_u8!(context) as u32) << 8;
 
-        transition_fast!(self, context,
-                         FrameStreamId4, frame_stream_id4);
+        transition_fast!(
+            self,
+            context,
+            FrameStreamId4,
+            frame_stream_id4
+        );
     }
 
     #[inline]
@@ -1373,19 +1585,21 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data2 <<= 8;
-        self.bit_data2   = get_u8!(context) as u32;
-        self.bit_data2   = u32::from_be(self.bit_data2);
+        self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(self, context,
-                         FrameEnd, frame_end);
+        transition_fast!(
+            self,
+            context,
+            FrameEnd,
+            frame_end
+        );
     }
 
     #[inline]
     fn frame_end(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         // match frame type
-        match self.bit_data3 {
+        match (self.bit_data32a & 0xFF) as u8 {
             FR_DATA => {
                 if has_flag!(self, FL_PADDED) {
                     set_state!(self, DataPadLength, data_pad_length);
@@ -1432,32 +1646,19 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 set_state!(self, HeadersFragmentWithoutPadding, headers_fragment_without_padding);
             },
             _ => {
-                if has_flag!(self, FL_PADDED) {
-                    set_state!(self, UnknownPadLength, unknown_pad_length);
-                } else {
-                    set_state!(self, UnknownDataWithoutPadding, unknown_data_without_padding);
-                }
+                set_state!(self, UnknownPayload, unknown_payload);
             }
         }
 
-        if self.handler.on_frame(self.bit_data1 & 0xFFFFFF,
-                                 self.bit_data3,
-                                 (self.bit_data1 >> 24) as u8,
-                                 self.bit_data2 >> 31 == 1,
-                                 self.bit_data2 & 0x7FFFFFFF) {
-            // reset bit data
-            self.bit_data1 = 0;
-            self.bit_data2 = 0;
-            self.bit_data3 = 0;
-            self.bit_data4 = 0;
+        if self.handler.on_frame(payload_length!(self),
+                                 (self.bit_data32a & 0xFF) as u8,
+                                 self.bit_data8a,
+                                 self.bit_data32b & 0x7FFFFFFF) {
+            self.reset_bit_data();
 
             transition_fast!(self, context);
         } else {
-            // reset bit data
-            self.bit_data1 = 0;
-            self.bit_data2 = 0;
-            self.bit_data3 = 0;
-            self.bit_data4 = 0;
+            self.reset_bit_data();
 
             exit_callback!(self, context);
         }
@@ -1468,15 +1669,19 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        if bs_available!(context) >= self.bit_data3 as usize {
+        if bs_available!(context) >= self.bit_data8a as usize {
             // consume remaining padding
-            bs_jump!(context, self.bit_data3 as usize);
+            bs_jump!(context, self.bit_data8a as usize);
 
-            transition!(self, context,
-                        FrameLength1, frame_length1);
+            transition!(
+                self,
+                context,
+                FrameLength1,
+                frame_length1
+            );
         } else {
             // consume remaining stream
-            self.bit_data3 -= bs_available!(context) as u8;
+            self.bit_data8a -= bs_available!(context) as u8;
 
             bs_jump!(context, bs_available!(context));
 
@@ -1493,18 +1698,16 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        self.bit_data3 = get_u8!(context);
+        self.bit_data32a |= get_u8!(context) as u32;
 
-        transition_fast!(self, context,
-                         DataDataWithPadding, data_data_with_padding);
-    }
+        dec_payload_length!(self, 1);
 
-    #[inline]
-    fn data_data_without_padding(&mut self, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-
-        data_without_padding!(self, context, on_data);
+        transition_fast!(
+            self,
+            context,
+            DataDataWithPadding,
+            data_data_with_padding
+        );
     }
 
     #[inline]
@@ -1512,7 +1715,27 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        data_with_padding!(self, context, on_data);
+        parse_payload_data!(
+            self,
+            context,
+            on_data,
+            FramePadding,
+            frame_padding
+        );
+    }
+
+    #[inline]
+    fn data_data_without_padding(&mut self, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+
+        parse_payload_data!(
+            self,
+            context,
+            on_data,
+            FrameLength1,
+            frame_length1
+        );
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -1822,12 +2045,48 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // DEAD STATE
+    // UNKNOWN STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn unknown_payload(&mut self, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+
+        if bs_available!(context) >= payload_length!(self) as usize {
+            // consume the rest of the payload
+            bs_jump!(context, payload_length!(self) as usize);
+
+            transition!(
+                self,
+                context,
+                FrameLength1,
+                frame_length1
+            )
+        } else {
+            // consume the rest of the stream
+            bs_jump!(context, bs_available!(context));
+
+            transition!(
+                self,
+                context
+            )
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // DEAD AND FINISHED STATE
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
     fn dead(&mut self, _context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_error!(Dead);
+    }
+
+    #[inline]
+    fn finished(&mut self, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_finished!(self, context);
     }
 }

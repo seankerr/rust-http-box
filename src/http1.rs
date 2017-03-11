@@ -2889,8 +2889,10 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                     &boundary[get_upper14!(self) as usize..]
                 } else {
                     // compare remainder of stream
-                    &boundary[get_upper14!(self) as usize..
-                              get_upper14!(self) as usize + bs_available!(context)]
+                    &boundary[
+                        get_upper14!(self) as usize..
+                        get_upper14!(self) as usize + bs_available!(context)
+                    ]
                 };
 
             if bs_starts_with!(context, slice) {
