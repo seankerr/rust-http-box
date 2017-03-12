@@ -72,6 +72,9 @@ const E_SETTINGS_TIMEOUT: u8 = 0x4;
 /// Stream closed error code.
 const E_STREAM_CLOSED: u8 = 0x5;
 
+/// Unsupported error code.
+const E_UNSUPPORTED: u8 = 0xFF;
+
 // -------------------------------------------------------------------------------------------------
 // FLAGS
 // -------------------------------------------------------------------------------------------------
@@ -169,7 +172,7 @@ macro_rules! dec_payload_length {
 /// Retrieve a u8.
 macro_rules! get_u8 {
     ($context:expr) => ({
-        $context.stream_index += 1;
+        bs_jump!($context, 1);
 
         $context.stream[$context.stream_index - 1]
     });
@@ -201,9 +204,9 @@ macro_rules! parse_payload_data {
     ($parser:expr, $context:expr, $callback:ident, $state:ident, $state_function:ident) => ({
         if bs_available!($context) >= actual_length!($parser) as usize {
             // collect remaining data
-            dec_payload_length!($parser, actual_length!($parser));
-
             bs_jump!($context, actual_length!($parser) as usize);
+
+            dec_payload_length!($parser, actual_length!($parser));
 
             set_state!($parser, $state, $state_function);
 
@@ -295,29 +298,123 @@ pub enum ErrorCode {
     SettingsTimeout = E_SETTINGS_TIMEOUT,
 
     /// Stream closed error.
-    StreamClosed = E_STREAM_CLOSED
+    StreamClosed = E_STREAM_CLOSED,
+
+    /// Unsupported error.
+    Unsupported = E_UNSUPPORTED
 }
 
 impl ErrorCode {
     /// Create a new `ErrorCode` from a `u8`.
-    pub fn from_u8(byte: u8) -> Option<ErrorCode> {
+    pub fn from_u8(byte: u8) -> ErrorCode {
         match byte {
-            E_CANCEL              => Some(ErrorCode::Cancel),
-            E_COMPRESSION         => Some(ErrorCode::Compression),
-            E_CONNECT             => Some(ErrorCode::Connect),
-            E_ENHANCE_YOUR_CALM   => Some(ErrorCode::EnhanceYourCalm),
-            E_FLOW_CONTROL        => Some(ErrorCode::FlowControl),
-            E_FRAME_SIZE          => Some(ErrorCode::FrameSize),
-            E_HTTP_1_1_REQUIRED   => Some(ErrorCode::Http11Required),
-            E_INADEQUATE_SECURITY => Some(ErrorCode::InadequateSecurity),
-            E_INTERNAL            => Some(ErrorCode::Internal),
-            E_NO_ERROR            => Some(ErrorCode::NoError),
-            E_PROTOCOL            => Some(ErrorCode::Protocol),
-            E_REFUSED_STREAM      => Some(ErrorCode::RefusedStream),
-            E_SETTINGS_TIMEOUT    => Some(ErrorCode::SettingsTimeout),
-            E_STREAM_CLOSED       => Some(ErrorCode::StreamClosed),
-            _                     => None
+            E_CANCEL              => ErrorCode::Cancel,
+            E_COMPRESSION         => ErrorCode::Compression,
+            E_CONNECT             => ErrorCode::Connect,
+            E_ENHANCE_YOUR_CALM   => ErrorCode::EnhanceYourCalm,
+            E_FLOW_CONTROL        => ErrorCode::FlowControl,
+            E_FRAME_SIZE          => ErrorCode::FrameSize,
+            E_HTTP_1_1_REQUIRED   => ErrorCode::Http11Required,
+            E_INADEQUATE_SECURITY => ErrorCode::InadequateSecurity,
+            E_INTERNAL            => ErrorCode::Internal,
+            E_NO_ERROR            => ErrorCode::NoError,
+            E_PROTOCOL            => ErrorCode::Protocol,
+            E_REFUSED_STREAM      => ErrorCode::RefusedStream,
+            E_SETTINGS_TIMEOUT    => ErrorCode::SettingsTimeout,
+            E_STREAM_CLOSED       => ErrorCode::StreamClosed,
+            _                     => ErrorCode::Unsupported
         }
+    }
+
+    /// Convert this error code to byte value.
+    pub fn as_byte(&self) -> u8 {
+        match *self {
+            ErrorCode::Cancel             => E_CANCEL,
+            ErrorCode::Compression        => E_COMPRESSION,
+            ErrorCode::Connect            => E_CONNECT,
+            ErrorCode::EnhanceYourCalm    => E_ENHANCE_YOUR_CALM,
+            ErrorCode::FlowControl        => E_FLOW_CONTROL,
+            ErrorCode::FrameSize          => E_FRAME_SIZE,
+            ErrorCode::Http11Required     => E_HTTP_1_1_REQUIRED,
+            ErrorCode::InadequateSecurity => E_INADEQUATE_SECURITY,
+            ErrorCode::Internal           => E_INTERNAL,
+            ErrorCode::NoError            => E_NO_ERROR,
+            ErrorCode::Protocol           => E_PROTOCOL,
+            ErrorCode::RefusedStream      => E_REFUSED_STREAM,
+            ErrorCode::SettingsTimeout    => E_SETTINGS_TIMEOUT,
+            ErrorCode::StreamClosed       => E_STREAM_CLOSED,
+            ErrorCode::Unsupported        => E_UNSUPPORTED
+        }
+    }
+
+    /// Indicates that this an `ErrorCode::Cancel`.
+    pub fn is_cancel(&self) -> bool {
+        *self == ErrorCode::Cancel
+    }
+
+    /// Indicates that this an `ErrorCode::Compression`.
+    pub fn is_compression(&self) -> bool {
+        *self == ErrorCode::Compression
+    }
+
+    /// Indicates that this an `ErrorCode::Connect`.
+    pub fn is_connect(&self) -> bool {
+        *self == ErrorCode::Connect
+    }
+
+    /// Indicates that this an `ErrorCode::EnhanceYourCalm`.
+    pub fn is_enhance_your_calm(&self) -> bool {
+        *self == ErrorCode::EnhanceYourCalm
+    }
+
+    /// Indicates that this an `ErrorCode::FlowControl`.
+    pub fn is_flow_control(&self) -> bool {
+        *self == ErrorCode::FlowControl
+    }
+
+    /// Indicates that this an `ErrorCode::FrameSize`.
+    pub fn is_frame_size(&self) -> bool {
+        *self == ErrorCode::FrameSize
+    }
+
+    /// Indicates that this an `ErrorCode::Http11Required`.
+    pub fn is_http_1_1_required(&self) -> bool {
+        *self == ErrorCode::Http11Required
+    }
+
+    /// Indicates that this an `ErrorCode::InadequateSecurity`.
+    pub fn is_inadequate_security(&self) -> bool {
+        *self == ErrorCode::InadequateSecurity
+    }
+
+    /// Indicates that this an `ErrorCode::Internal`.
+    pub fn is_internal(&self) -> bool {
+        *self == ErrorCode::Internal
+    }
+
+    /// Indicates that this an `ErrorCode::NoError`.
+    pub fn is_no_error(&self) -> bool {
+        *self == ErrorCode::NoError
+    }
+
+    /// Indicates that this an `ErrorCode::Protocol`.
+    pub fn is_protocol(&self) -> bool {
+        *self == ErrorCode::Protocol
+    }
+
+    /// Indicates that this an `ErrorCode::RefusedStream`.
+    pub fn is_refused_stream(&self) -> bool {
+        *self == ErrorCode::RefusedStream
+    }
+
+    /// Indicates that this an `ErrorCode::SettingsTimeout`.
+    pub fn is_settings_timeout(&self) -> bool {
+        *self == ErrorCode::SettingsTimeout
+    }
+
+    /// Indicates that this an `ErrorCode::StreamClosed`.
+    pub fn is_stream_closed(&self) -> bool {
+        *self == ErrorCode::StreamClosed
     }
 }
 
@@ -336,6 +433,11 @@ impl Flags {
         Flags {
             flags: byte
         }
+    }
+
+    /// Convert this flags to its byte value.
+    pub fn as_byte(&self) -> u8 {
+        self.flags
     }
 
     /// Indicates that the end headers flag has been set.
@@ -390,10 +492,9 @@ impl fmt::Display for Flags {
 /// Frame format.
 #[derive(Clone,Copy,PartialEq)]
 pub struct FrameFormat {
-    flags:          Flags,
-    frame_type:     FrameType,
-    payload_length: u32,
-    stream_id:      u32
+    flags:                     u8,
+    payload_length_frame_type: u32,
+    stream_id:                 u32
 }
 
 impl FrameFormat {
@@ -401,26 +502,25 @@ impl FrameFormat {
     pub fn new(&mut self, payload_length: u32, frame_type: u8, flags: u8, stream_id: u32)
     -> FrameFormat {
         FrameFormat{
-            flags:          Flags::from_u8(flags),
-            frame_type:     FrameType::from_u8(frame_type),
-            payload_length: payload_length,
-            stream_id:      stream_id
+            flags:                     flags,
+            payload_length_frame_type: (payload_length << 8) | frame_type as u32,
+            stream_id:                 stream_id
         }
    }
 
    /// Retrieve the frame flags.
-   pub fn flags(&self) -> &Flags {
-       &self.flags
+   pub fn flags(&self) -> Flags {
+       Flags::from_u8(self.flags)
    }
 
    /// Retrieve the frame type.
-   pub fn frame_type(&self) -> &FrameType {
-       &self.frame_type
+   pub fn frame_type(&self) -> FrameType {
+       FrameType::from_u8((self.payload_length_frame_type & 0xFF) as u8)
    }
 
    /// Retrieve the payload length.
    pub fn payload_length(&self) -> u32 {
-       self.payload_length
+       self.payload_length_frame_type >> 8
    }
 
    /// Retrieve the stream identifier.
@@ -434,9 +534,9 @@ impl fmt::Display for FrameFormat {
         write!(
             formatter,
             "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
-            self.flags,
-            self.frame_type,
-            self.payload_length,
+            self.flags(),
+            self.frame_type(),
+            self.payload_length(),
             self.stream_id
         )
     }
@@ -447,9 +547,9 @@ impl fmt::Debug for FrameFormat {
         write!(
             formatter,
             "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
-            self.flags,
-            self.frame_type,
-            self.payload_length,
+            self.flags(),
+            self.frame_type(),
+            self.payload_length(),
             self.stream_id
         )
     }
@@ -513,7 +613,24 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Continuation`.
+    /// Convert this frame type to a byte value.
+    pub fn as_byte(&self) -> u8 {
+        match *self {
+            FrameType::Continuation => FR_CONTINUATION,
+            FrameType::Data         => FR_DATA,
+            FrameType::GoAway       => FR_GO_AWAY,
+            FrameType::Headers      => FR_HEADERS,
+            FrameType::Ping         => FR_PING,
+            FrameType::PushPromise  => FR_PUSH_PROMISE,
+            FrameType::Priority     => FR_PRIORITY,
+            FrameType::RstStream    => FR_RST_STREAM,
+            FrameType::Settings     => FR_SETTINGS,
+            FrameType::WindowUpdate => FR_WINDOW_UPDATE,
+            _                       => FR_UNSUPPORTED
+        }
+    }
+
+    /// Indicates that this is a `FrameType::Continuation`.
     pub fn is_continuation(&self) -> bool {
         match *self {
             FrameType::Continuation => true,
@@ -521,7 +638,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Data`.
+    /// Indicates that this is a `FrameType::Data`.
     pub fn is_data(&self) -> bool {
         match *self {
             FrameType::Data => true,
@@ -529,7 +646,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::GoAway`.
+    /// Indicates that this is a `FrameType::GoAway`.
     pub fn is_go_away(&self) -> bool {
         match *self {
             FrameType::GoAway => true,
@@ -537,7 +654,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Headers`.
+    /// Indicates that this is a `FrameType::Headers`.
     pub fn is_headers(&self) -> bool {
         match *self {
             FrameType::Headers => true,
@@ -545,7 +662,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Ping`.
+    /// Indicates that this is a `FrameType::Ping`.
     pub fn is_push_ping(&self) -> bool {
         match *self {
             FrameType::Ping => true,
@@ -553,7 +670,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Priority`.
+    /// Indicates that this is a `FrameType::Priority`.
     pub fn is_priority(&self) -> bool {
         match *self {
             FrameType::Priority => true,
@@ -561,7 +678,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::PushPromise`.
+    /// Indicates that this is a `FrameType::PushPromise`.
     pub fn is_push_promise(&self) -> bool {
         match *self {
             FrameType::PushPromise => true,
@@ -569,7 +686,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::RstStream`.
+    /// Indicates that this is a `FrameType::RstStream`.
     pub fn is_rst_stream(&self) -> bool {
         match *self {
             FrameType::RstStream => true,
@@ -577,7 +694,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Settings`.
+    /// Indicates that this is a `FrameType::Settings`.
     pub fn is_settings(&self) -> bool {
         match *self {
             FrameType::Settings => true,
@@ -585,7 +702,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::Unsupported`.
+    /// Indicates that this is a `FrameType::Unsupported`.
     pub fn is_unsupported(&self) -> bool {
         match *self {
             FrameType::Unsupported => true,
@@ -593,7 +710,7 @@ impl FrameType {
         }
     }
 
-    /// Indicates that this `FrameType` is `FrameType::WindowUpdate`.
+    /// Indicates that this is a `FrameType::WindowUpdate`.
     pub fn is_window_update(&self) -> bool {
         match *self {
             FrameType::WindowUpdate => true,
@@ -919,6 +1036,28 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when an unsupported frame has been located.
+    ///
+    /// *Note:* This may be executed multiple times in order to supply the entire segment.
+    ///
+    /// **Arguments:**
+    ///
+    /// **`data`**
+    ///
+    /// The data.
+    ///
+    /// **`finished`**
+    ///
+    /// Indicates this is the last chunk of the data.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    fn on_unsupported(&mut self, data: &[u8], finished: bool) -> bool {
+        true
+    }
+
     /// Callback that is executed when a window update frame has been located.
     ///
     /// **Arguments:**
@@ -1208,8 +1347,11 @@ pub enum ParserState {
     // UNKNOWN STATES
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing unknown payload.
-    UnknownPayload,
+    /// Parsing unsupported with padding.
+    UnsupportedWithPadding,
+
+    /// Parsing unsupported without padding.
+    UnsupportedWithoutPadding,
 
     // ---------------------------------------------------------------------------------------------
     // FINISHED
@@ -1646,7 +1788,11 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                 set_state!(self, HeadersFragmentWithoutPadding, headers_fragment_without_padding);
             },
             _ => {
-                set_state!(self, UnknownPayload, unknown_payload);
+                if has_flag!(self, FL_PADDED) {
+                    set_state!(self, UnsupportedWithPadding, unsupported_with_padding);
+                } else {
+                    set_state!(self, UnsupportedWithoutPadding, unsupported_without_padding);
+                }
             }
         }
 
@@ -1654,12 +1800,8 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
                                  (self.bit_data32a & 0xFF) as u8,
                                  self.bit_data8a,
                                  self.bit_data32b & 0x7FFFFFFF) {
-            self.reset_bit_data();
-
             transition_fast!(self, context);
         } else {
-            self.reset_bit_data();
-
             exit_callback!(self, context);
         }
     }
@@ -2045,33 +2187,35 @@ impl<'a, T: HttpHandler> Parser<'a, T> {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // UNKNOWN STATES
+    // UNSUPPORTED STATES
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn unknown_payload(&mut self, context: &mut ByteStream)
+    fn unsupported_with_padding(&mut self, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
-        if bs_available!(context) >= payload_length!(self) as usize {
-            // consume the rest of the payload
-            bs_jump!(context, payload_length!(self) as usize);
+        parse_payload_data!(
+            self,
+            context,
+            on_unsupported,
+            FramePadding,
+            frame_padding
+        );
+    }
 
-            transition!(
-                self,
-                context,
-                FrameLength1,
-                frame_length1
-            )
-        } else {
-            // consume the rest of the stream
-            bs_jump!(context, bs_available!(context));
+    #[inline]
+    fn unsupported_without_padding(&mut self, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
 
-            transition!(
-                self,
-                context
-            )
-        }
+        parse_payload_data!(
+            self,
+            context,
+            on_unsupported,
+            FrameLength1,
+            frame_length1
+        );
     }
 
     // ---------------------------------------------------------------------------------------------
