@@ -60,9 +60,6 @@ macro_rules! pack_u32 {
 /// collecting the data don't consume too much memory.
 #[derive(Default)]
 pub struct DebugHandler {
-    /// Continuation header fragment.
-    pub continuation_header_fragment: Vec<u8>,
-
     /// Data frame data.
     pub data_data: Vec<u8>,
 
@@ -105,6 +102,9 @@ pub struct DebugHandler {
     /// Headers stream id.
     pub headers_stream_id: u32,
 
+    /// Headers weight.
+    pub headers_weight: u8,
+
     /// Ping data.
     pub ping_data: Vec<u8>,
 
@@ -119,9 +119,6 @@ pub struct DebugHandler {
 
     /// Priority weight.
     pub priority_weight: u8,
-
-    /// Push promise header fragment.
-    pub push_promise_header_fragment: Vec<u8>,
 
     /// Push promise stream id.
     pub push_promise_stream_id: u32,
@@ -149,7 +146,6 @@ impl DebugHandler {
     /// Create a new `DebugHandler`.
     pub fn new() -> DebugHandler {
         DebugHandler{
-            continuation_header_fragment: Vec::new(),
             data_data:                    Vec::new(),
             data_data_finished:           false,
             frame_flags:                  0,
@@ -164,12 +160,12 @@ impl DebugHandler {
             headers_data_finished:        false,
             headers_exclusive:            false,
             headers_stream_id:            0,
+            headers_weight:               0,
             ping_data:                    Vec::new(),
             ping_data_finished:           false,
             priority_exclusive:           false,
             priority_stream_id:           0,
             priority_weight:              0,
-            push_promise_header_fragment: Vec::new(),
             push_promise_stream_id:       0,
             rst_stream_error_code:        0,
             settings_id:                  0,
@@ -182,18 +178,6 @@ impl DebugHandler {
 }
 
 impl HttpHandler for DebugHandler {
-    fn on_continuation_header_fragment(&mut self, header_fragment: &[u8], finished: bool) -> bool {
-        println!(
-            "on_continuation_header_fragment [{}, {}]: {:?}",
-            header_fragment.len(),
-            finished,
-            &header_fragment
-        );
-
-        self.continuation_header_fragment.extend_from_slice(header_fragment);
-        true
-    }
-
     fn on_data(&mut self, data: &[u8], finished: bool) -> bool {
         println!(
             "on_data [{}, {}]: {:?}",
@@ -249,15 +233,17 @@ impl HttpHandler for DebugHandler {
         true
     }
 
-    fn on_headers(&mut self, exclusive: bool, stream_id: u32) -> bool {
+    fn on_headers(&mut self, exclusive: bool, stream_id: u32, weight: u8) -> bool {
         println!(
-            "on_headers: exclusive={}, stream_id={}",
+            "on_headers: exclusive={}, stream_id={}, weight={}",
             exclusive,
-            stream_id
+            stream_id,
+            weight
         );
 
         self.headers_exclusive = exclusive;
         self.headers_stream_id = stream_id;
+        self.headers_weight    = weight;
         true
     }
 
@@ -308,18 +294,6 @@ impl HttpHandler for DebugHandler {
         );
 
         self.push_promise_stream_id = stream_id;
-        true
-    }
-
-    fn on_push_promise_header_fragment(&mut self, header_fragment: &[u8], finished: bool) -> bool {
-        println!(
-            "on_push_promise_header_fragment [{}, {}]: {:?}",
-            header_fragment.len(),
-            finished,
-            &header_fragment
-        );
-
-        self.push_promise_header_fragment.extend_from_slice(header_fragment);
         true
     }
 
@@ -376,6 +350,7 @@ mod continuation;
 mod data;
 mod frame_format;
 mod go_away;
+mod headers;
 mod ping;
 mod priority;
 mod push_promise;

@@ -83,7 +83,7 @@ fn push_promise_with_padding() {
         );
 
         assert_eq!(
-            h.push_promise_header_fragment,
+            h.headers_data,
             b"Hello, world!"
         );
     }
@@ -142,7 +142,7 @@ fn push_promise_without_padding() {
         );
 
         assert_eq!(
-            h.push_promise_header_fragment,
+            h.headers_data,
             b"Hello, world!"
         );
     }

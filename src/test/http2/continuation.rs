@@ -60,9 +60,11 @@ fn continuation() {
         );
 
         assert_eq!(
-            h.continuation_header_fragment,
+            h.headers_data,
             b"Hello, world!"
         );
+
+        assert!(h.headers_data_finished);
     }
 
     assert_eq!(
