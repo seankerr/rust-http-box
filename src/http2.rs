@@ -1528,25 +1528,13 @@ impl Setting {
     /// Retrieve the value.
     pub fn value(&self) -> u32 {
         match *self {
-            Setting::EnablePush(x) => {
-                x
-            },
-            Setting::HeaderTableSize(x) => {
-                x
-            },
-            Setting::InitialWindowSize(x) => {
-                x
-            },
-            Setting::MaxConcurrentStreams(x) => {
-                x
-            },
-            Setting::MaxFrameSize(x) => {
-                x
-            },
-            Setting::MaxHeaderListSize(x) => {
-                x
-            },
-            Setting::Unsupported(x) => {
+              Setting::EnablePush(x)
+            | Setting::HeaderTableSize(x)
+            | Setting::InitialWindowSize(x)
+            | Setting::MaxConcurrentStreams(x)
+            | Setting::MaxFrameSize(x)
+            | Setting::MaxHeaderListSize(x)
+            | Setting::Unsupported(x) => {
                 x
             }
         }
