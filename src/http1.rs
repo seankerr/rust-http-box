@@ -146,7 +146,7 @@ macro_rules! unset_flag {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Type that handles HTTP/1.1 parser events.
+/// Type that handles HTTP/1.x parser events.
 #[allow(unused_variables)]
 pub trait HttpHandler {
     /// Retrieve the content length.
