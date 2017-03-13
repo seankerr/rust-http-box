@@ -142,6 +142,12 @@ macro_rules! callback_transition_fast {
 
 /// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
+    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
+    });
+
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });

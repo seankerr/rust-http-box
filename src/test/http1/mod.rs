@@ -103,7 +103,7 @@ macro_rules! assert_finished {
 
 // -------------------------------------------------------------------------------------------------
 
-/// `DebugHandler` works with all `Parser` parsing methods.
+/// `DebugHandler` works with all `http1::Parser` parsing methods.
 ///
 /// When in use, all parsed bytes will be printed, along with the callback name and length
 /// of parsed data.

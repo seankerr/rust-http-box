@@ -19,8 +19,9 @@
 use byte::is_token;
 use std::fmt::Debug;
 
-mod http1;
-mod util;
+//mod http1;
+mod http2;
+//mod util;
 
 pub fn loop_digits<F>(skip: &[u8], function: F) where F : Fn(u8) {
     'outer:
