@@ -1,21 +1,22 @@
 # rust-http-box
 
 ![Build: Passing](https://img.shields.io/badge/build-passing-brightgreen.svg)
-![dev: 0.1.0](https://img.shields.io/badge/dev-0.1.0-ff69b4.svg)
+![dev: 0.2.0](https://img.shields.io/badge/dev-0.2.0-ff69b4.svg)
 ![license: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
 ## What is http-box?
 
-http-box is a push oriented HTTP parser with the goal of remaining fast and bare bones. There are
-several HTTP client and server libraries available, but http-box attempts to stay as far away from
-abstract as possible, giving the developer absolute and full control over how HTTP data is
-processed.
+http-box is a push oriented HTTP parser with the goal of remaining fast and bare
+bones. There are several HTTP client and server libraries available, but
+http-box attempts to stay as far away from abstract as possible, giving the
+developer absolute and full control over how HTTP data is processed.
 
 ## Features
 
 - Push oriented and will process a single byte at a time
 - Callback oriented with the ability to break out of the parser loop
-- Headers are normalized to lower-case
+- HTTP/1.x Headers are normalized to lower-case
+- HTTP/2 support
 - Error handling is a breeze
 - Parse HTTP phases separately:
   - Head
@@ -39,18 +40,18 @@ processed.
 
 ## API Documentation
 
-https://docs.rs/http-box/0.1.0/http_box/
+https://docs.rs/http-box/0.1.1/http_box/
 
 ## Quick Docs
 
 ### Parser
 
-[Parser](https://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) is the guts of
+[Parser](https://docs.rs/http-box/0.1.1/http_box/http1/struct.Parser.html) is the guts of
 the library. It provides only necessary components for parsing HTTP data.
 
 ### HttpHandler
 
-Implementing [HttpHandler](https://docs.rs/http-box/0.1.0/http_box/http1/trait.HttpHandler.html)
+Implementing [HttpHandler](https://docs.rs/http-box/0.1.1/http_box/http1/trait.HttpHandler.html)
 is how you provide a custom callback implementation. It is optional to provide multiple
 implementations based on which type of data is being parsed: head, chunked transfer-encoded,
 multipart, URL encoded, etc. It is also suggested since it lends itself to clarity.
@@ -58,7 +59,7 @@ multipart, URL encoded, etc. It is also suggested since it lends itself to clari
 ### Callbacks
 
 In a typical application, callbacks receive arguments that are complete pieces of data. However,
-[Parser](https://docs.rs/http-box/0.1.0/http_box/http1/struct.Parser.html) parses data, and
+[Parser](https://docs.rs/http-box/0.1.1/http_box/http1/struct.Parser.html) parses data, and
 because of this, it must operate one byte at a type. Moreoever, the data being parsed is often
 coming from a network connection, and is received as incomplete pieces of data. To stick to the
 zero-copy philosophy, and to avoid buffering, callbacks are executed as frequent as necessary.
@@ -70,7 +71,7 @@ is when headers are being parsed. The callback for the header name may be called
 order to receive the full header name. And the same is true for the header value. It isn't until the
 header value is complete, that the header name/value pair can be stored.
 
-This is where the [State](https://docs.rs/http-box/0.1.0/http_box/http1/enum.State.html) enum
+This is where the [State](https://docs.rs/http-box/0.1.1/http_box/http1/enum.State.html) enum
 comes into play. You can use this to track the current state when a callback is executed. There is
 nothing mysterious about this enum. It's a helper type with the objective of simplifying state
 tracking.
