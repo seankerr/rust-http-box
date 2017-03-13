@@ -13,10 +13,10 @@ developer absolute and full control over how HTTP data is processed.
 
 ## Features
 
+- New: HTTP/2 support
 - Push oriented and will process a single byte at a time
 - Callback oriented with the ability to break out of the parser loop
-- HTTP/1.x Headers are normalized to lower-case
-- HTTP/2 support
+- Headers are normalized to lower-case
 - Error handling is a breeze
 - Parse HTTP phases separately:
   - Head
