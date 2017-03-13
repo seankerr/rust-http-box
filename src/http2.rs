@@ -24,7 +24,7 @@ use fsm::{ ParserValue,
            Success };
 
 use byte_slice::ByteStream;
-use std::{ fmt };
+use std::fmt;
 
 // -------------------------------------------------------------------------------------------------
 // ERROR CODES
