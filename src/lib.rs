@@ -34,6 +34,7 @@ pub mod fsm;
 mod collect;
 
 pub mod http1;
+pub mod http2;
 pub mod util;
 
 #[cfg(test)]

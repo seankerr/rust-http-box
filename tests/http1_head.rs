@@ -92,7 +92,7 @@ impl HttpHandler for HeadHandler {
 fn head() {
     let mut d = Vec::new();
 
-    File::open("tests/data/multipart.dat").unwrap().read_to_end(&mut d);
+    File::open("tests/http1_data/multipart.dat").unwrap().read_to_end(&mut d);
 
     let mut p = Parser::new_head(
                     HeadHandler{ headers:       HashMap::new(),

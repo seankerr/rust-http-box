@@ -57,10 +57,18 @@ impl fmt::Debug for DecodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodeError::Byte(x) => {
-                write!(formatter, "DecodeError::Byte(Invalid byte on byte {})", x)
+                write!(
+                    formatter,
+                    "DecodeError::Byte(Invalid byte on byte {})",
+                    x
+                )
             },
             DecodeError::HexSequence(x) => {
-                write!(formatter, "DecodeError::HexSequence(Invalid hex sequence on byte {})", x)
+                write!(
+                    formatter,
+                    "DecodeError::HexSequence(Invalid hex sequence on byte {})",
+                    x
+                )
             }
         }
     }
@@ -70,10 +78,18 @@ impl fmt::Display for DecodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodeError::Byte(x) => {
-                write!(formatter, "Invalid byte on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid byte on byte {}",
+                    x
+                )
             },
             DecodeError::HexSequence(x) => {
-                write!(formatter, "Invalid hex sequence on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid hex sequence on byte {}",
+                    x
+                )
             }
         }
     }
@@ -125,10 +141,18 @@ impl fmt::Debug for FieldError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldError::Name(x) => {
-                write!(formatter, "FieldError::Name(Invalid field name on byte {})", x)
+                write!(
+                    formatter,
+                    "FieldError::Name(Invalid field name on byte {})",
+                    x
+                )
             },
             FieldError::Value(x) => {
-                write!(formatter, "FieldError::Value(Invalid field value on byte {})", x)
+                write!(
+                    formatter,
+                    "FieldError::Value(Invalid field value on byte {})",
+                    x
+                )
             }
         }
     }
@@ -138,10 +162,18 @@ impl fmt::Display for FieldError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldError::Name(x) => {
-                write!(formatter, "Invalid field name on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid field name on byte {}",
+                    x
+                )
             },
             FieldError::Value(x) => {
-                write!(formatter, "Invalid field value on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid field value on byte {}",
+                    x
+                )
             }
         }
     }
@@ -170,8 +202,8 @@ impl<'a> FieldSegment<'a> {
     /// Retrieve the name.
     pub fn name(&self) -> &'a [u8] {
         match *self {
-            FieldSegment::Name(name) => name,
-            FieldSegment::NameValue(name, _) => name
+              FieldSegment::Name(name)
+            | FieldSegment::NameValue(name, _) => name
         }
     }
 
@@ -188,12 +220,19 @@ impl<'a> fmt::Debug for FieldSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldSegment::Name(x) => {
-                write!(formatter, "FieldSegment::Name({:?})", str::from_utf8(x).unwrap())
+                write!(
+                    formatter,
+                    "FieldSegment::Name({:?})",
+                    str::from_utf8(x).unwrap()
+                )
             },
             FieldSegment::NameValue(x,y) => {
-                write!(formatter, "FieldSegment::NameValue({:?}, {:?})",
-                       str::from_utf8(x).unwrap(),
-                       str::from_utf8(y).unwrap())
+                write!(
+                    formatter,
+                    "FieldSegment::NameValue({:?}, {:?})",
+                    str::from_utf8(x).unwrap(),
+                    str::from_utf8(y).unwrap()
+                )
             }
         }
     }
@@ -203,12 +242,19 @@ impl<'a> fmt::Display for FieldSegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldSegment::Name(x) => {
-                write!(formatter, "{:?}", str::from_utf8(x).unwrap())
+                write!(
+                    formatter,
+                    "{:?}",
+                    str::from_utf8(x).unwrap()
+                )
             },
             FieldSegment::NameValue(x,y) => {
-                write!(formatter, "{:?}={:?}",
-                       str::from_utf8(x).unwrap(),
-                       str::from_utf8(y).unwrap())
+                write!(
+                    formatter,
+                    "{:?}={:?}",
+                    str::from_utf8(x).unwrap(),
+                    str::from_utf8(y).unwrap()
+                )
             }
         }
     }
@@ -229,10 +275,18 @@ impl fmt::Debug for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QueryError::Name(x) => {
-                write!(formatter, "QueryError::Name(Invalid query name on byte {})", x)
+                write!(
+                    formatter,
+                    "QueryError::Name(Invalid query name on byte {})",
+                    x
+                )
             },
             QueryError::Value(x) => {
-                write!(formatter, "QueryError::Value(Invalid query value on byte {})", x)
+                write!(
+                    formatter,
+                    "QueryError::Value(Invalid query value on byte {})",
+                    x
+                )
             }
         }
     }
@@ -242,10 +296,18 @@ impl fmt::Display for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QueryError::Name(x) => {
-                write!(formatter, "Invalid query name on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid query name on byte {}",
+                    x
+                )
             },
             QueryError::Value(x) => {
-                write!(formatter, "Invalid query value on byte {}", x)
+                write!(
+                    formatter,
+                    "Invalid query value on byte {}",
+                    x
+                )
             }
         }
     }
@@ -274,8 +336,8 @@ impl<'a> QuerySegment<'a> {
     /// Retrieve the name.
     pub fn name(&self) -> &'a [u8] {
         match *self {
-            QuerySegment::Name(name) => name,
-            QuerySegment::NameValue(name, _) => name
+              QuerySegment::Name(name)
+            | QuerySegment::NameValue(name, _) => name
         }
     }
 
@@ -292,12 +354,19 @@ impl<'a> fmt::Debug for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Name(x) => {
-                write!(formatter, "QuerySegment::Name({:?})", str::from_utf8(x).unwrap())
+                write!(
+                    formatter,
+                    "QuerySegment::Name({:?})",
+                    str::from_utf8(x).unwrap()
+                )
             },
             QuerySegment::NameValue(x,y) => {
-                write!(formatter, "QuerySegment::NameValue({:?}, {:?})",
-                       str::from_utf8(x).unwrap(),
-                       str::from_utf8(y).unwrap())
+                write!(
+                    formatter,
+                    "QuerySegment::NameValue({:?}, {:?})",
+                    str::from_utf8(x).unwrap(),
+                    str::from_utf8(y).unwrap()
+                )
             }
         }
     }
@@ -307,12 +376,18 @@ impl<'a> fmt::Display for QuerySegment<'a> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuerySegment::Name(x) => {
-                write!(formatter, "{:?}", str::from_utf8(x).unwrap())
+                write!(
+                    formatter,
+                    "{:?}",
+                    str::from_utf8(x).unwrap()
+                )
             },
             QuerySegment::NameValue(x,y) => {
-                write!(formatter, "{:?}={:?}",
-                       str::from_utf8(x).unwrap(),
-                       str::from_utf8(y).unwrap())
+                write!(
+                    formatter, "{:?}={:?}",
+                    str::from_utf8(x).unwrap(),
+                    str::from_utf8(y).unwrap()
+                )
             }
         }
     }
@@ -369,7 +444,10 @@ where F : FnMut(&[u8]) {
     loop {
         bs_mark!(context);
 
-        collect_visible!(context, DecodeError::Byte,
+        collect_visible!(
+            context,
+            DecodeError::Byte,
+
             // stop on these bytes
                context.byte == b'%'
             || context.byte == b'+',
@@ -561,14 +639,19 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 
     loop {
         // parsing name
-        consume_spaces!(context,
+        consume_spaces!(
+            context,
+
             // on end-of-stream
             exit_ok!(context)
         );
 
         bs_mark!(context);
 
-        collect_tokens!(context, FieldError::Name,
+        collect_tokens!(
+            context,
+            FieldError::Name,
+
             // stop on these bytes
                context.byte == b'='
             || context.byte == delimiter
@@ -600,7 +683,10 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
                 loop {
                     bs_mark!(context);
 
-                    collect_quoted_field!(context, FieldError::Value,
+                    collect_quoted!(
+                        context,
+                        FieldError::Value,
+
                         // error on these bytes
                         !field_fn.validate(context.byte),
 
@@ -624,7 +710,9 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
                             exit_ok!(context);
                         }
 
-                        consume_spaces!(context,
+                        consume_spaces!(
+                            context,
+
                             // on end-of-stream
                             exit_ok!(context)
                         );
@@ -656,7 +744,10 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
                 bs_replay!(context);
                 bs_mark!(context);
 
-                collect_field!(context, FieldError::Value,
+                collect_field!(
+                    context,
+                    FieldError::Value,
+
                     // stop on these bytes
                     context.byte == delimiter,
 
@@ -765,7 +856,10 @@ where T : FnMut(QuerySegment) -> bool {
         loop {
             bs_mark!(context);
 
-            collect_visible!(context, QueryError::Name,
+            collect_visible!(
+                context,
+                QueryError::Name,
+
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'
@@ -852,7 +946,10 @@ where T : FnMut(QuerySegment) -> bool {
         loop {
             bs_mark!(context);
 
-            collect_visible!(context, QueryError::Value,
+            collect_visible!(
+                context,
+                QueryError::Value,
+
                 // stop on these bytes
                    context.byte == b'%'
                 || context.byte == b'+'

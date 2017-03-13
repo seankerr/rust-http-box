@@ -156,7 +156,7 @@ impl HttpHandler for MultipartHandler {
 fn multipart() {
     let mut d = Vec::new();
 
-    File::open("tests/data/multipart.dat").unwrap().read_to_end(&mut d);
+    File::open("tests/http1_data/multipart.dat").unwrap().read_to_end(&mut d);
 
     let mut s = d.as_slice();
     let mut p = Parser::new_head(

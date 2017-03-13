@@ -16,82 +16,57 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use http1::*;
-use test::http1::*;
+use http2::{ Flags,
+             FrameType,
+             Parser,
+             ParserState };
 
-macro_rules! setup {
-    () => ({
-        let mut parser = Parser::new_chunked(DebugHandler::new());
-
-        assert_eos!(parser,
-                    b"F;extension1=value1\r\n",
-                    ChunkData);
-
-        parser
-    });
-}
+use test::http2::*;
 
 #[test]
-fn byte_check() {
-    for byte in 0..255 {
-        let mut p = setup!();
+fn rst_stream() {
+    let mut v = Vec::new();
 
-        assert_eos!(p,
-                    &[byte],
-                    ChunkData);
+    // frame payload length and type
+    pack_u32!(
+        v,
+        (40 << 8) | 0x3
+    );
+
+    // frame frame flags
+    pack_u8!(v, 0);
+
+    // frame reserved bit and stream id
+    pack_u32!(v, 0x7FFFFFFF);
+
+    // rst stream error code
+    pack_u32!(
+        v,
+        0xFFFFFFFF
+    );
+
+    let mut p = Parser::new(DebugHandler::new());
+
+    p.resume(&v);
+
+    {
+        let h = p.handler();
+
+        assert!(Flags::from_u8(h.frame_flags).is_empty());
+
+        assert_eq!(
+            FrameType::from_u8(h.frame_type),
+            FrameType::RstStream
+        );
+
+        assert_eq!(
+            h.rst_stream_error_code,
+            0xFFFFFFFF
+        );
     }
-}
 
-#[test]
-fn multiple() {
-    let mut p = setup!();
-
-    assert_eos!(p,
-                b"abcdefg",
-                ChunkData);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefg");
-
-    assert_eos!(p,
-                b"hijklmno",
-                ChunkDataCr1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
-}
-
-#[test]
-fn multiple_chunks() {
-    let mut p = setup!();
-
-    assert_eos!(p,
-                b"abcdefghijklmno\r\n",
-                ChunkLength1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
-
-    assert_eos!(p,
-                b"5\r\n",
-                ChunkData);
-
-    assert_eos!(p,
-                b"pqrst",
-                ChunkDataCr1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmnopqrst");
-}
-
-#[test]
-fn single() {
-    let mut p = setup!();
-
-    assert_eos!(p,
-                b"abcdefghijklmno",
-                ChunkDataCr1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
+    assert_eq!(
+        p.state(),
+        ParserState::FrameLength1
+    );
 }

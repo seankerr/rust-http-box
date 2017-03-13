@@ -96,7 +96,7 @@ macro_rules! callback_ignore_transition_fast {
     });
 }
 
-/// Execute callback `$function`. If it returns `true`, transition to the `$state`. Otherwise exit
+/// Execute callback `$function`. If it returns `true`, transition to `$state`. Otherwise exit
 /// with `Success::Callback`.
 ///
 /// This macro exists to enforce the design decision that after each callback, state must either
@@ -118,7 +118,7 @@ macro_rules! callback_transition {
     });
 }
 
-/// Execute callback `$function`. If it returns `true`, transition to the `$state` quickly by
+/// Execute callback `$function`. If it returns `true`, transition to `$state` quickly by
 /// directly calling `$state_function`. Otherwise exit with `Success::Callback`.
 ///
 /// This macro exists to enforce the design decision that after each callback, state must either
@@ -142,6 +142,12 @@ macro_rules! callback_transition_fast {
 
 /// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
+    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
+    });
+
     ($parser:expr, $context:expr) => ({
         return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });

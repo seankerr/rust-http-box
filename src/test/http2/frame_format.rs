@@ -16,82 +16,98 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use http1::*;
-use test::http1::*;
+use http2::{ Flags,
+             FrameType,
+             Parser,
+             ParserState };
 
-macro_rules! setup {
-    () => ({
-        let mut parser = Parser::new_chunked(DebugHandler::new());
+use test::http2::*;
 
-        assert_eos!(parser,
-                    b"F;extension1=value1\r\n",
-                    ChunkData);
+#[test]
+fn all_flags() {
+    let mut v = Vec::new();
 
-        parser
-    });
+    // frame payload length and type
+    pack_u32!(
+        v,
+        (
+            255 // data length
+        ) << 8
+        | 0x0 // frame type
+    );
+
+    // frame frame flags
+    pack_u8!(v, 0xFF);
+
+    // frame reserved bit and stream id
+    pack_u32!(v, 0x7FFFFFFF);
+
+    let mut p = Parser::new(DebugHandler::new());
+
+    p.resume(&v);
+
+    let h = p.handler();
+
+    assert_eq!(
+        255,
+        h.frame_payload_length
+    );
+
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Data
+    );
+
+    assert!(Flags::from_u8(h.frame_flags).is_end_headers());
+    assert!(Flags::from_u8(h.frame_flags).is_end_stream());
+    assert!(Flags::from_u8(h.frame_flags).is_padded());
+    assert!(Flags::from_u8(h.frame_flags).is_priority());
+
+    assert_eq!(
+        h.frame_stream_id,
+        0x7FFFFFFF
+    );
 }
 
 #[test]
-fn byte_check() {
-    for byte in 0..255 {
-        let mut p = setup!();
+fn no_flags() {
+    let mut v = Vec::new();
 
-        assert_eos!(p,
-                    &[byte],
-                    ChunkData);
-    }
-}
+    // frame payload length and type
+    pack_u32!(
+        v,
+        (
+            255 // data length
+        ) << 8
+        | 0x0 // frame type
+    );
 
-#[test]
-fn multiple() {
-    let mut p = setup!();
+    // frame frame flags
+    pack_u8!(v, 0);
 
-    assert_eos!(p,
-                b"abcdefg",
-                ChunkData);
+    // frame reserved bit and stream id
+    pack_u32!(v, 0x7FFFFFFF);
 
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefg");
+    let mut p = Parser::new(DebugHandler::new());
 
-    assert_eos!(p,
-                b"hijklmno",
-                ChunkDataCr1);
+    p.resume(&v);
 
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
-}
+    let h = p.handler();
 
-#[test]
-fn multiple_chunks() {
-    let mut p = setup!();
+    assert_eq!(
+        255,
+        h.frame_payload_length
+    );
 
-    assert_eos!(p,
-                b"abcdefghijklmno\r\n",
-                ChunkLength1);
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Data
+    );
 
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-    assert_eos!(p,
-                b"5\r\n",
-                ChunkData);
-
-    assert_eos!(p,
-                b"pqrst",
-                ChunkDataCr1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmnopqrst");
-}
-
-#[test]
-fn single() {
-    let mut p = setup!();
-
-    assert_eos!(p,
-                b"abcdefghijklmno",
-                ChunkDataCr1);
-
-    assert_eq!(p.handler().chunk_data,
-               b"abcdefghijklmno");
+    assert_eq!(
+        h.frame_stream_id,
+        0x7FFFFFFF
+    );
 }

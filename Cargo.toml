@@ -1,25 +1,26 @@
 [package]
-name        = "http-box"
-version     = "0.1.0"
-authors     = ["Sean Kerr <sean@metatomic.io>"]
-license     = "Apache-2.0"
-description = "Fast push/callback oriented HTTP parser"
-homepage    = "https://github.com/seankerr/rust-http-box"
-repository  = "https://github.com/seankerr/rust-http-box"
-readme      = "README.md"
-keywords    = ["http", "parser", "callback", "push"]
-exclude     = [".gitignore"]
-build       = "build.rs"
+name          = "http-box"
+version       = "0.1.1"
+authors       = ["Sean Kerr <sean@metatomic.io>"]
+license       = "Apache-2.0"
+description   = "Fast push/callback oriented HTTP parser"
+documentation = "https://docs.rs/http-box"
+homepage      = "https://github.com/seankerr/rust-http-box"
+repository    = "https://github.com/seankerr/rust-http-box"
+readme        = "README.md"
+keywords      = ["http", "parser", "callback", "push"]
+exclude       = [".gitignore"]
+build         = "build.rs"
 
 [dependencies]
-byte-slice = "0.1.11"
+byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
 
 [build-dependencies]
-skeptic = "0.6.1"
+skeptic = "*"
 
 [dev-dependencies]
-byte-slice = "0.1.11"
+byte-slice = "*"
 #byte-slice = { path = "../rust-byte-slice" }
-clippy     = "0.0.103"
-skeptic    = "0.6.1"
+clippy     = "*"
+skeptic    = "*"
