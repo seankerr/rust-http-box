@@ -180,7 +180,7 @@ fn multipart() {
 
     let mut s  = d.as_slice();
     let mut hh = HeadHandler::new();
-    let mut p  = Parser::new_head();
+    let mut p  = Parser::new();
 
     // parse head
     match p.resume(&mut hh, &s) {
@@ -212,8 +212,9 @@ fn multipart() {
 
     // parse multipart
     let mut mh = MultipartHandler::new();
-    let mut p  = Parser::new_multipart();
+    let mut p  = Parser::new();
 
+    p.init_multipart();
     p.set_boundary(&b);
 
     // first multipart entry

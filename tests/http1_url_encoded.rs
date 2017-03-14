@@ -87,7 +87,7 @@ fn url_encoded() {
     File::open("tests/http1_data/url_encoded.dat").unwrap().read_to_end(&mut d);
 
     let mut s  = d.as_slice();
-    let mut hp = Parser::new_head();
+    let mut hp = Parser::new();
 
     // parse head
     match hp.resume(&mut HeadHandler, &s) {
@@ -99,7 +99,9 @@ fn url_encoded() {
     }
 
     let mut uh = UrlEncodedHandler::new();
-    let mut up = Parser::new_url_encoded();
+    let mut up = Parser::new();
+
+    up.init_url_encoded();
 
     // set url encoded data length, but subtract 2 since the CRLF still need handled
     up.set_length(s.len() - 2);

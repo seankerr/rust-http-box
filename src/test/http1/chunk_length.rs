@@ -22,8 +22,12 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
+        let mut parser = Parser::new();
+
+        parser.init_chunked();
+
         (
-            Parser::new_chunked(),
+            parser,
             DebugHandler::new()
         )
     });
@@ -84,7 +88,9 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_chunked();
+    let mut p = Parser::new();
+
+    p.init_chunked();
 
     assert_callback!(
         p,

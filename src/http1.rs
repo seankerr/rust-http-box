@@ -1013,53 +1013,45 @@ pub struct Parser<'a, T: 'a + HttpHandler> {
 }
 
 impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
-    /// Create a new `Parser`.
-    ///
-    /// # Arguments
-    ///
-    /// **`parser_type`**
-    ///
-    /// The type of parser.
-    fn new(parser_type: ParserType) -> Parser<'a, T> {
-         Parser{ bit_data:       0,
-                 boundary:       None,
-                 byte_count:     0,
-                 length:         0,
-                 parser_type:    parser_type,
-                 state:          ParserState::StripDetect,
-                 state_function: Parser::strip_detect }
+    /// Create a new `Parser` and initialize it for head parsing.
+    pub fn new() -> Parser<'a, T> {
+         Parser{
+            bit_data:       0,
+            boundary:       None,
+            byte_count:     0,
+            length:         0,
+            parser_type:    ParserType::Head,
+            state:          ParserState::StripDetect,
+            state_function: Parser::strip_detect
+        }
     }
 
-    /// Create a new `Parser` for chunked transfer encoding parsing.
-    pub fn new_chunked() -> Parser<'a, T> {
-        let mut p = Parser::new(ParserType::Chunked);
+    /// Initialize this `Parser` for chunked transfer encoding parsing.
+    pub fn init_chunked(&mut self) {
+        self.parser_type = ParserType::Chunked;
 
-        p.reset();
-        p
+        self.reset();
     }
 
-    /// Create a new `Parser` for head parsing.
-    pub fn new_head() -> Parser<'a, T> {
-        let mut p = Parser::new(ParserType::Head);
+    /// Initialize this `Parser` for head parsing.
+    pub fn init_head(&mut self) {
+        self.parser_type = ParserType::Head;
 
-        p.reset();
-        p
+        self.reset();
     }
 
-    /// Create a new `Parser` for multipart parsing.
-    pub fn new_multipart() -> Parser<'a, T> {
-        let mut p = Parser::new(ParserType::Multipart);
+    /// Initialize this `Parser` for multipart parsing.
+    pub fn init_multipart(&mut self) {
+        self.parser_type = ParserType::Multipart;
 
-        p.reset();
-        p
+        self.reset();
     }
 
-    /// Create a new `Parser` for URL encoded parsing.
-    pub fn new_url_encoded() -> Parser<'a, T> {
-        let mut p = Parser::new(ParserType::UrlEncoded);
+    /// Initialize this `Parser` for URL encoded parsing.
+    pub fn init_url_encoded(&mut self) {
+        self.parser_type = ParserType::UrlEncoded;
 
-        p.reset();
-        p
+        self.reset();
     }
 
     /// Retrieve the total byte count processed since the instantiation of `Parser`.

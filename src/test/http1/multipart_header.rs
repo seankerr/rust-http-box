@@ -22,8 +22,9 @@ use test::http1::*;
 #[test]
 fn headers_ok () {
     let mut h = DebugHandler::new();
-    let mut p = Parser::new_multipart();
+    let mut p = Parser::new();
 
+    p.init_multipart();
     p.set_boundary(b"XXDebugBoundaryXX");
 
     assert_eos!(

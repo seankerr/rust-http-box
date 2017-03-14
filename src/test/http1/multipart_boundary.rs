@@ -22,8 +22,9 @@ use test::http1::*;
 macro_rules! setup {
     () => ({
         let mut handler = DebugHandler::new();
-        let mut parser  = Parser::new_multipart();
+        let mut parser  = Parser::new();
 
+        parser.init_multipart();
         parser.set_boundary(b"XXDebugBoundaryXX");
 
         (parser, handler)

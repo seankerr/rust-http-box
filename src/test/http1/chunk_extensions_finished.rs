@@ -30,7 +30,9 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_chunked();
+    let mut p = Parser::new();
+
+    p.init_chunked();
 
     assert_eos!(
         p,

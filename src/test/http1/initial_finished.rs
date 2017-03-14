@@ -30,7 +30,7 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_head();
+    let mut p = Parser::new();
 
     assert_eos!(
         p,

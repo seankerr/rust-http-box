@@ -30,8 +30,9 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_multipart();
+    let mut p = Parser::new();
 
+    p.init_multipart();
     p.set_boundary(b"XXDebugBoundaryXX");
 
     assert_callback!(

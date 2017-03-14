@@ -23,7 +23,7 @@ use test::http1::*;
 macro_rules! setup {
     () => ({
         let mut handler = DebugHandler::new();
-        let mut parser  = Parser::new_head();
+        let mut parser  = Parser::new();
 
         assert_eos!(
             parser,

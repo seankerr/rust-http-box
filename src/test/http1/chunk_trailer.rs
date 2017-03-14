@@ -21,8 +21,12 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
+        let mut parser  = Parser::new();
+
+        parser.init_chunked();
+
         (
-            Parser::new_chunked(),
+            parser,
             DebugHandler::new()
         )
     });

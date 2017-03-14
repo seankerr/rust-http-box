@@ -22,7 +22,7 @@ use test::http1::*;
 macro_rules! setup {
     () => ({
         (
-            Parser::new_head(),
+            Parser::new(),
             DebugHandler::new()
         )
     });
@@ -39,7 +39,7 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_head();
+    let mut p = Parser::new();
 
     assert_callback!(
         p,

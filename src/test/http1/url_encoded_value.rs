@@ -23,8 +23,9 @@ use test::http1::*;
 macro_rules! setup {
     ($length:expr) => ({
         let mut handler = DebugHandler::new();
-        let mut parser  = Parser::new_url_encoded();
+        let mut parser  = Parser::new();
 
+        parser.init_url_encoded();
         parser.set_length($length);
 
         assert_eos!(
@@ -86,8 +87,9 @@ fn callback_exit() {
     }
 
     let mut h = CallbackHandler;
-    let mut p = Parser::new_url_encoded();
+    let mut p = Parser::new();
 
+    p.init_url_encoded();
     p.set_length(1000);
 
     assert_eos!(

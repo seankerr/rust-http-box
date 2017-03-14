@@ -137,7 +137,7 @@ fn chunk_encoded_body() {
 
     // parse head
     let mut s  = d.as_slice();
-    let mut hp = Parser::new_head();
+    let mut hp = Parser::new();
 
     match hp.resume(&mut HeadHandler, &s) {
         Ok(Success::Finished(length)) => {
@@ -147,7 +147,9 @@ fn chunk_encoded_body() {
     }
 
     // parse chunk encoded
-    let mut cp = Parser::new_chunked();
+    let mut cp = Parser::new();
+
+    cp.init_chunked();
 
     let mut h = ChunkEncodedHandler{
         count:      0,

@@ -108,7 +108,7 @@ fn head() {
     File::open("tests/http1_data/multipart.dat").unwrap().read_to_end(&mut d);
 
     let mut h = Handler::new();
-    let mut p = Parser::new_head();
+    let mut p = Parser::new();
 
     p.resume(&mut h, &d);
 
