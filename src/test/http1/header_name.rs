@@ -39,59 +39,71 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b"\r\n \t:", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_tokens(
+        b"\r\n \t:",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            HeaderName,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                HeaderName,
+                byte
+            );
+        }
+    );
 
     // valid non-alphabetical bytes
-    loop_tokens(b"\r\n \t:", |byte| {
-        if !is_alpha!(byte) {
-            let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"\r\n \t:",
+        |byte| {
+            if !is_alpha!(byte) {
+                let (mut p, mut h) = setup!();
 
-            assert_eos!(
-                p,
-                h,
-                &[byte],
-                LowerHeaderName
-            );
+                assert_eos!(
+                    p,
+                    h,
+                    &[byte],
+                    LowerHeaderName
+                );
+            }
         }
-    });
+    );
 
     // valid lower-cased alphabetical bytes
-    loop_tokens(b"", |byte| {
-        if byte > 0x60 && byte < 0x7B {
-            let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"",
+        |byte| {
+            if byte > 0x60 && byte < 0x7B {
+                let (mut p, mut h) = setup!();
 
-            assert_eos!(
-                p,
-                h,
-                &[byte],
-                LowerHeaderName
-            );
+                assert_eos!(
+                    p,
+                    h,
+                    &[byte],
+                    LowerHeaderName
+                );
+            }
         }
-    });
+    );
 
     // valid upper-cased alphabetical bytes
-    loop_tokens(b"", |byte| {
-        if byte > 0x40 && byte < 0x5B {
-            let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"",
+        |byte| {
+            if byte > 0x40 && byte < 0x5B {
+                let (mut p, mut h) = setup!();
 
-            assert_eos!(
-                p,
-                h,
-                &[byte],
-                LowerHeaderName
-            );
+                assert_eos!(
+                    p,
+                    h,
+                    &[byte],
+                    LowerHeaderName
+                );
+            }
         }
-    });
+    );
 }
 
 #[test]

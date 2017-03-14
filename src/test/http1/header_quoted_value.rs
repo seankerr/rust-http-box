@@ -39,43 +39,49 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_quoted(b"\r;\"\\", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_quoted(
+        b"\r;\"\\",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[b'"'],
-            HeaderQuotedValue
-        );
+            assert_eos!(
+                p,
+                h,
+                &[b'"'],
+                HeaderQuotedValue
+            );
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            HeaderValue,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                HeaderValue,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_quoted(b"\"\\", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_quoted(
+        b"\"\\",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[b'"'],
-            HeaderQuotedValue
-        );
+            assert_eos!(
+                p,
+                h,
+                &[b'"'],
+                HeaderQuotedValue
+            );
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            HeaderQuotedValue
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                HeaderQuotedValue
+            );
+        }
+    );
 }
 
 #[test]

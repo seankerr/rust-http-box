@@ -39,29 +39,35 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b"\r\t=; ", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_tokens(
+        b"\r\t=; ",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[b'a', byte],
-            ChunkExtensionName,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[b'a', byte],
+                ChunkExtensionName,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_tokens(b"", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            LowerChunkExtensionName
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                LowerChunkExtensionName
+            );
+        }
+    );
 }
 
 #[test]

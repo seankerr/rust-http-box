@@ -56,43 +56,49 @@ fn basic() {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_quoted(b"\r;\"\\", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_quoted(
+        b"\r;\"\\",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[b'"'],
-            ChunkExtensionQuotedValue
-        );
+            assert_eos!(
+                p,
+                h,
+                &[b'"'],
+                ChunkExtensionQuotedValue
+            );
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            ChunkExtensionValue,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                ChunkExtensionValue,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_quoted(b"\"\\", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_quoted(
+        b"\"\\",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[b'"'],
-            ChunkExtensionQuotedValue
-        );
+            assert_eos!(
+                p,
+                h,
+                &[b'"'],
+                ChunkExtensionQuotedValue
+            );
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            ChunkExtensionQuotedValue
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                ChunkExtensionQuotedValue
+            );
+        }
+    );
 }
 
 #[test]

@@ -32,29 +32,35 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_hex(b"", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_hex(
+        b"",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            ChunkLength,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                ChunkLength,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_hex(b"0", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_hex(
+        b"0",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            ChunkLength2
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                ChunkLength2
+            );
+        }
+    );
 
     // starting 0 (end chunk)
     let (mut p, mut h) = setup!();

@@ -51,29 +51,35 @@ fn asterisk() {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_visible(b" \t", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_visible(
+        b" \t",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            Url,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                Url,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_visible(b"", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_visible(
+        b"",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            RequestUrl
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                RequestUrl
+            );
+        }
+    );
 }
 
 #[test]

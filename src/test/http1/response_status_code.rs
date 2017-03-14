@@ -39,29 +39,35 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_digits(b" \t", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_digits(
+        b" \t",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            StatusCode,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                StatusCode,
+                byte
+            );
+        }
+    );
 
     // valid bytes
-    loop_digits(b"", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_digits(
+        b"",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_eos!(
-            p,
-            h,
-            &[byte],
-            ResponseStatusCode
-        );
-    });
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                ResponseStatusCode
+            );
+        }
+    );
 }
 
 #[test]

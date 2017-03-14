@@ -32,45 +32,54 @@ macro_rules! setup {
 #[test]
 fn byte_check() {
     // invalid bytes
-    loop_non_tokens(b"\r\n\t ", |byte| {
-        let (mut p, mut h) = setup!();
+    loop_non_tokens(
+        b"\r\n\t ",
+        |byte| {
+            let (mut p, mut h) = setup!();
 
-        assert_error_byte!(
-            p,
-            h,
-            &[byte],
-            Method,
-            byte
-        );
-    });
+            assert_error_byte!(
+                p,
+                h,
+                &[byte],
+                Method,
+                byte
+            );
+        }
+    );
 
     // valid lower-cased alphabetical bytes
-    loop_tokens(b"Hh", |byte| {
-        if byte > 0x60 && byte < 0x7B {
-            let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"Hh",
+        |byte| {
+            if byte > 0x60 && byte < 0x7B {
+                let (mut p, mut h) = setup!();
 
-            assert_eos!(
-                p,
-                h,
-                &[byte],
-                LowerRequestMethod
-            );
+                assert_eos!(
+                    p,
+                    h,
+                    &[byte],
+                    LowerRequestMethod
+                );
+            }
         }
-    });
+    );
 
     // valid upper-cased alphabetical bytes
-    loop_tokens(b"Hh", |byte| {
-        if !(byte > 0x60 && byte < 0x7B) {
-            let (mut p, mut h) = setup!();
+    loop_tokens(
+        b"Hh",
+        |byte| {
+            if !(byte > 0x60 && byte < 0x7B) {
+                let (mut p, mut h) = setup!();
 
-            assert_eos!(
-                p,
-                h,
-                &[byte],
-                UpperRequestMethod
-            );
+                assert_eos!(
+                    p,
+                    h,
+                    &[byte],
+                    UpperRequestMethod
+                );
+            }
         }
-    });
+    );
 
     for n in &[b'H', b'h'] {
         // valid H|h byte
