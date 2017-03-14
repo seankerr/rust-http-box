@@ -384,7 +384,8 @@ impl<'a> fmt::Display for QuerySegment<'a> {
             },
             QuerySegment::NameValue(x,y) => {
                 write!(
-                    formatter, "{:?}={:?}",
+                    formatter,
+                    "{:?}={:?}",
                     str::from_utf8(x).unwrap(),
                     str::from_utf8(y).unwrap()
                 )
@@ -673,132 +674,137 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
 
         name.extend_from_slice(bs_slice_ignore!(context));
 
-        if context.byte == b'=' {
-            // parsing value
-            exit_if_eos!(context);
-            bs_next!(context);
+        match context.byte {
+            b'=' => {
+                // parsing value
+                exit_if_eos!(context);
+                bs_next!(context);
 
-            if context.byte == b'"' {
-                // quoted value
-                loop {
+                if context.byte == b'"' {
+                    // quoted value
+                    loop {
+                        bs_mark!(context);
+
+                        collect_quoted!(
+                            context,
+                            FieldError::Value,
+
+                            // error on these bytes
+                            !field_fn.validate(context.byte),
+
+                            // on end-of-stream
+                            // didn't find an ending quote
+                            return Err(FieldError::Value(context.byte))
+                        );
+
+                        if context.byte == b'"' {
+                            // found end quote
+                            value.extend_from_slice(bs_slice_ignore!(context));
+
+                            if field_fn.run(FieldSegment::NameValue(&name, &value)) {
+                                name.clear();
+                                value.clear();
+                            } else {
+                                // callback exited
+                                name.clear();
+                                value.clear();
+
+                                exit_ok!(context);
+                            }
+
+                            consume_spaces!(
+                                context,
+
+                                // on end-of-stream
+                                exit_ok!(context)
+                            );
+
+                            exit_if_eos!(context);
+                            bs_next!(context);
+
+                            if context.byte == delimiter {
+                                break;
+                            }
+
+                            // expected a semicolon to end the value
+                            return Err(FieldError::Value(context.byte));
+                        } else {
+                            // found backslash
+                            if bs_is_eos!(context) {
+                                return Err(FieldError::Value(context.byte));
+                            }
+
+                            value.extend_from_slice(bs_slice_ignore!(context));
+
+                            bs_next!(context);
+
+                            value.push(context.byte);
+                        }
+                    }
+                } else {
+                    // unquoted value
+                    bs_replay!(context);
                     bs_mark!(context);
 
-                    collect_quoted!(
+                    collect_field!(
                         context,
                         FieldError::Value,
+
+                        // stop on these bytes
+                        context.byte == delimiter,
 
                         // error on these bytes
                         !field_fn.validate(context.byte),
 
                         // on end-of-stream
-                        // didn't find an ending quote
-                        return Err(FieldError::Value(context.byte))
-                    );
+                        {
+                            if bs_slice_length!(context) > 0 {
+                                value.extend_from_slice(bs_slice!(context));
+                            }
 
-                    if context.byte == b'"' {
-                        // found end quote
-                        value.extend_from_slice(bs_slice_ignore!(context));
-
-                        if field_fn.run(FieldSegment::NameValue(&name, &value)) {
-                            name.clear();
-                            value.clear();
-                        } else {
-                            // callback exited
-                            name.clear();
-                            value.clear();
+                            field_fn.run(FieldSegment::NameValue(&name, &value));
 
                             exit_ok!(context);
                         }
+                    );
 
-                        consume_spaces!(
-                            context,
-
-                            // on end-of-stream
-                            exit_ok!(context)
-                        );
-
-                        exit_if_eos!(context);
-                        bs_next!(context);
-
-                        if context.byte == delimiter {
-                            break;
+                    if bs_slice_length!(context) == 0 {
+                        // name without a value
+                        if !field_fn.run(FieldSegment::Name(&name)) {
+                            // callback exited
+                            exit_ok!(context);
                         }
-
-                        // expected a semicolon to end the value
-                        return Err(FieldError::Value(context.byte));
                     } else {
-                        // found backslash
-                        if bs_is_eos!(context) {
-                            return Err(FieldError::Value(context.byte));
+                        // name/value pair
+                        if !field_fn.run(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
+                            // callback exited
+                            exit_ok!(context);
                         }
-
-                        value.extend_from_slice(bs_slice_ignore!(context));
-
-                        bs_next!(context);
-
-                        value.push(context.byte);
                     }
+
+                    name.clear();
+                    value.clear();
                 }
-            } else {
-                // unquoted value
-                bs_replay!(context);
-                bs_mark!(context);
-
-                collect_field!(
-                    context,
-                    FieldError::Value,
-
-                    // stop on these bytes
-                    context.byte == delimiter,
-
-                    // error on these bytes
-                    !field_fn.validate(context.byte),
-
-                    // on end-of-stream
-                    {
-                        if bs_slice_length!(context) > 0 {
-                            value.extend_from_slice(bs_slice!(context));
-                        }
-
-                        field_fn.run(FieldSegment::NameValue(&name, &value));
-
-                        exit_ok!(context);
-                    }
-                );
-
-                if bs_slice_length!(context) == 0 {
-                    // name without a value
-                    if !field_fn.run(FieldSegment::Name(&name)) {
-                        // callback exited
-                        exit_ok!(context);
-                    }
+            },
+            b'/' => {
+                // this isn't allowed as a token, but since it's a name-only field, it's allowed
+                name.push(b'/');
+            },
+            byte if byte == delimiter => {
+                // name without a value
+                if field_fn.run(FieldSegment::Name(&name)) {
+                    name.clear();
                 } else {
-                    // name/value pair
-                    if !field_fn.run(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
-                        // callback exited
-                        exit_ok!(context);
-                    }
+                    // callback exited
+                    name.clear();
+
+                    exit_ok!(context);
                 }
-
-                name.clear();
-                value.clear();
+            },
+            _ => {
+                // upper-cased byte, let's lower-case it
+                name.push(context.byte + 0x20);
             }
-        } else if context.byte == delimiter {
-            // name without a value
-            if field_fn.run(FieldSegment::Name(&name)) {
-                name.clear();
-            } else {
-                // callback exited
-                name.clear();
-
-                exit_ok!(context);
-            }
-        } else if context.byte == b'/' {
-            // this isn't allowed as a token, but since it's a name-only field, it's allowed
-            name.push(b'/');
-        } else {
-            // upper-cased byte, let's lower-case it
-            name.push(context.byte + 0x20);
         }
     }
 }
