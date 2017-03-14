@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"GET / HTTP/1.1\r\n",
-                    PreHeadersCr2);
+        assert_eos!(
+            parser,
+            handler,
+            b"GET / HTTP/1.1\r\n",
+            PreHeadersCr2
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,254 +40,338 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\n \t:", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           HeaderName,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            HeaderName,
+            byte
+        );
     });
 
     // valid non-alphabetical bytes
     loop_tokens(b"\r\n \t:", |byte| {
         if !is_alpha!(byte) {
-            let mut p = setup!();
+            let (mut p, mut h) = setup!();
 
-            assert_eos!(p,
-                        &[byte],
-                        LowerHeaderName);
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                LowerHeaderName
+            );
         }
     });
 
     // valid lower-cased alphabetical bytes
     loop_tokens(b"", |byte| {
         if byte > 0x60 && byte < 0x7B {
-            let mut p = setup!();
+            let (mut p, mut h) = setup!();
 
-            assert_eos!(p,
-                        &[byte],
-                        LowerHeaderName);
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                LowerHeaderName
+            );
         }
     });
 
     // valid upper-cased alphabetical bytes
     loop_tokens(b"", |byte| {
         if byte > 0x40 && byte < 0x5B {
-            let mut p = setup!();
+            let (mut p, mut h) = setup!();
 
-            assert_eos!(p,
-                        &[byte],
-                        LowerHeaderName);
+            assert_eos!(
+                p,
+                h,
+                &[byte],
+                LowerHeaderName
+            );
         }
     });
 }
 
 #[test]
 fn by_name_accept() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Accept:                   ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Accept:                   ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_accept_charset() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Accept-Charset:           ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Accept-Charset:           ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_accept_encoding() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Accept-Encoding:          ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Accept-Encoding:          ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_accept_language() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Accept-Language:          ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Accept-Language:          ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_authorization() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Authorization:            ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Authorization:            ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_connection() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Connection:               ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Connection:               ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_content_type() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Content-Type:             ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Content-Type:             ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_content_length() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Content-Length:           ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Content-Length:           ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_cookie() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Cookie:                   ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Cookie:                   ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_cache_control() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Cache-Control:            ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Cache-Control:            ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_content_security_policy() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Content-Security-Policy:  ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Content-Security-Policy:  ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_location() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Location:                 ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Location:                 ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_last_modified() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Last-Modified:            ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Last-Modified:            ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_pragma() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Pragma:                   ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Pragma:                   ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_set_cookie() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Set-Cookie:               ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Set-Cookie:               ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_transfer_encoding() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Transfer-Encoding:        ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Transfer-Encoding:        ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_user_agent() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"User-Agent:               ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"User-Agent:               ",
+        StripHeaderValue
+    );
 }
 #[test]
 fn by_name_upgrade() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Upgrade:                  ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Upgrade:                  ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_x_powered_by() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"X-Powered-By:             ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"X-Powered-By:             ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_x_forwarded_for() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"X-Forwarded-For:          ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"X-Forwarded-For:          ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_x_forwarded_host() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"X-Forwarded-Host:         ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"X-Forwarded-Host:         ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_x_xss_protection() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"X-XSS-Protection:         ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"X-XSS-Protection:         ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_x_webkit_csp() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"X-WebKit-CSP:             ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"X-WebKit-CSP:             ",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn by_name_www_authenticate() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"WWW-Authenticate:         ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"WWW-Authenticate:         ",
+        StripHeaderValue
+    );
 }
 
 #[test]
@@ -296,109 +384,174 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"GET / HTTP/1.1\r\n",
-                PreHeadersCr2);
+    assert_eos!(
+        p,
+        h,
+        b"GET / HTTP/1.1\r\n",
+        PreHeadersCr2
+    );
 
-    assert_callback!(p,
-                     b"F",
-                     LowerHeaderName);
+    assert_callback!(
+        p,
+        h,
+        b"F",
+        LowerHeaderName
+    );
 }
 
 #[test]
 fn multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"F",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"F",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"f");
+    assert_eq!(
+        h.header_name,
+        b"f"
+    );
 
-    assert_eos!(p,
-                b"i",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"i",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fi");
+    assert_eq!(
+        h.header_name,
+        b"fi"
+    );
 
-    assert_eos!(p,
-                b"e",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"e",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fie");
+    assert_eq!(
+        h.header_name,
+        b"fie"
+    );
 
-    assert_eos!(p,
-                b"l",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"l",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fiel");
+    assert_eq!(
+        h.header_name,
+        b"fiel"
+    );
 
-    assert_eos!(p,
-                b"d",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"d",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"field");
+    assert_eq!(
+        h.header_name,
+        b"field"
+    );
 
-    assert_eos!(p,
-                b"N",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"N",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fieldn");
+    assert_eq!(
+        h.header_name,
+        b"fieldn"
+    );
 
-    assert_eos!(p,
-                b"a",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"a",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fieldna");
+    assert_eq!(
+        h.header_name,
+        b"fieldna"
+    );
 
-    assert_eos!(p,
-                b"m",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"m",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fieldnam");
+    assert_eq!(
+        h.header_name,
+        b"fieldnam"
+    );
 
-    assert_eos!(p,
-                b"e",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"e",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fieldname");
+    assert_eq!(
+        h.header_name,
+        b"fieldname"
+    );
 
-    assert_eos!(p,
-                b":",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b":",
+        StripHeaderValue
+    );
 }
 
 #[test]
 fn normalize() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"HEADER-FIELD",
-                LowerHeaderName);
+    assert_eos!(
+        p,
+        h,
+        b"HEADER-FIELD",
+        LowerHeaderName
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"header-field");
+    assert_eq!(
+        h.header_name,
+        b"header-field"
+    );
 }
 
 #[test]
 fn single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"FieldName:",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"FieldName:",
+        StripHeaderValue
+    );
 
-    assert_eq!(p.handler().header_name,
-               b"fieldname");
+    assert_eq!(
+        h.header_name,
+        b"fieldname"
+    );
 }

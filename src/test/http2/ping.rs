@@ -49,25 +49,22 @@ fn ping() {
         0xFFAADDAA
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_ack());
 
-        assert!(Flags::from_u8(h.frame_flags).is_ack());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Ping
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Ping
-        );
-
-        assert_eq!(
-            h.ping_data,
-            &[0xFF, 0xAA, 0xDD, 0xAA, 0xFF, 0xAA, 0xDD, 0xAA]
-        );
-    }
+    assert_eq!(
+        h.ping_data,
+        &[0xFF, 0xAA, 0xDD, 0xAA, 0xFF, 0xAA, 0xDD, 0xAA]
+    );
 
     assert_eq!(
         p.state(),

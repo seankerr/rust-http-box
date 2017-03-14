@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"GET / HTTP/1.1\r\nFieldName: ",
-                    StripHeaderValue);
+        assert_eos!(
+            parser,
+            handler,
+            b"GET / HTTP/1.1\r\nFieldName: ",
+            StripHeaderValue
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,21 +40,27 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r\t ", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           HeaderValue,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            HeaderValue,
+            byte
+        );
     });
 
     // valid bytes
     loop_visible(b"\"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    HeaderValue);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            HeaderValue
+        );
     });
 }
 
@@ -64,75 +74,112 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"GET / HTTP/1.1\r\nFieldName: ",
-                StripHeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"GET / HTTP/1.1\r\nFieldName: ",
+        StripHeaderValue
+    );
 
-    assert_callback!(p,
-                     b"F",
-                     HeaderValue);
+    assert_callback!(
+        p,
+        h,
+        b"F",
+        HeaderValue
+    );
 }
 
 #[test]
 fn multiline() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Value1\r\n",
-                HeaderCr2);
+    assert_eos!(
+        p,
+        h,
+        b"Value1\r\n",
+        HeaderCr2
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value1");
+    assert_eq!(
+        h.header_value,
+        b"Value1"
+    );
 
-    assert_eos!(p,
-                b" Value2\r",
-                HeaderLf1);
+    assert_eos!(
+        p,
+        h,
+        b" Value2\r",
+        HeaderLf1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value1 Value2");
+    assert_eq!(
+        h.header_value,
+        b"Value1 Value2"
+    );
 }
 
 #[test]
 fn multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Value",
-                HeaderValue);
+    assert_eos!(
+        p,
+        h,
+        b"Value",
+        HeaderValue
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value");
+    assert_eq!(
+        h.header_value,
+        b"Value"
+    );
 
-    assert_eos!(p,
-                b"Time\r",
-                HeaderLf1);
+    assert_eos!(
+        p,
+        h,
+        b"Time\r",
+        HeaderLf1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"ValueTime");
+    assert_eq!(
+        h.header_value,
+        b"ValueTime"
+    );
 }
 
 #[test]
 fn single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"ValueTime\r",
-                HeaderLf1);
+    assert_eos!(
+        p,
+        h,
+        b"ValueTime\r",
+        HeaderLf1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"ValueTime");
+    assert_eq!(
+        h.header_value,
+        b"ValueTime"
+    );
 }
 
 #[test]
 fn space() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Value Time\r",
-                HeaderLf1);
+    assert_eos!(
+        p,
+        h,
+        b"Value Time\r",
+        HeaderLf1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value Time");
+    assert_eq!(
+        h.header_value,
+        b"Value Time"
+    );
 }

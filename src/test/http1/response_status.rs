@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"HTTP/1.1 200 ",
-                    StripResponseStatus);
+        assert_eos!(
+            parser,
+            handler,
+            b"HTTP/1.1 200 ",
+            StripResponseStatus
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,21 +40,27 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\t ", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           Status,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            Status,
+            byte
+        );
     });
 
     // valid bytes
     loop_tokens(b"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    ResponseStatus);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            ResponseStatus
+        );
     });
 }
 
@@ -64,44 +74,66 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"HTTP/1.1 200 ",
-                StripResponseStatus);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/1.1 200 ",
+        StripResponseStatus
+    );
 
-    assert_callback!(p,
-                     b"A\tCOOL STATUS\r",
-                     InitialEnd);
+    assert_callback!(
+        p,
+        h,
+        b"A\tCOOL STATUS\r",
+        InitialEnd
+    );
 }
 
 #[test]
 fn multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"NOT ",
-                ResponseStatus);
+    assert_eos!(
+        p,
+        h,
+        b"NOT ",
+        ResponseStatus
+    );
 
-    assert_eq!(p.handler().status,
-               b"NOT ");
+    assert_eq!(
+        h.status,
+        b"NOT "
+    );
 
-    assert_eos!(p,
-                b"FOUND\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"FOUND\r",
+        PreHeadersLf1
+    );
 
-    assert_eq!(p.handler().status,
-               b"NOT FOUND");
+    assert_eq!(
+        h.status,
+        b"NOT FOUND"
+    );
 }
 
 #[test]
 fn single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"NOT FOUND\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"NOT FOUND\r",
+        PreHeadersLf1
+    );
 
-    assert_eq!(p.handler().status,
-               b"NOT FOUND");
+    assert_eq!(
+        h.status,
+        b"NOT FOUND"
+    );
 }

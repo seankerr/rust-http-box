@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_chunked(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_chunked();
 
-        assert_eos!(parser,
-                    b"F;",
-                    StripChunkExtensionName);
+        assert_eos!(
+            parser,
+            handler,
+            b"F;",
+            StripChunkExtensionName
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,21 +40,27 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_tokens(b"\r\t=; ", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[b'a', byte],
-                           ChunkExtensionName,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[b'a', byte],
+            ChunkExtensionName,
+            byte
+        );
     });
 
     // valid bytes
     loop_tokens(b"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    LowerChunkExtensionName);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            LowerChunkExtensionName
+        );
     });
 }
 
@@ -64,55 +74,79 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_chunked(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_chunked();
 
-    assert_eos!(p,
-                b"F;",
-                StripChunkExtensionName);
+    assert_eos!(
+        p,
+        h,
+        b"F;",
+        StripChunkExtensionName
+    );
 
     // because chunk extension name is processed by 2 states, the callback exit will first
     // happen on the first byte
-    assert_callback!(p,
-                     b"ChunkExtension=",
-                     LowerChunkExtensionName,
-                     1);
+    assert_callback!(
+        p,
+        h,
+        b"ChunkExtension=",
+        LowerChunkExtensionName,
+        1
+    );
 }
 
 #[test]
 fn normalize() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"CHANGE----LOWER",
-                LowerChunkExtensionName);
+    assert_eos!(
+        p,
+        h,
+        b"CHANGE----LOWER",
+        LowerChunkExtensionName
+    );
 
-    assert_eq!(p.handler().chunk_extension_name,
-               b"change----lower");
+    assert_eq!(
+        h.chunk_extension_name,
+        b"change----lower"
+    );
 }
 
 #[test]
 fn no_value() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"valid-extension;",
-                StripChunkExtensionName);
+    assert_eos!(
+        p,
+        h,
+        b"valid-extension;",
+        StripChunkExtensionName
+    );
 
-    assert_eq!(p.handler().chunk_extension_name,
-               b"valid-extension");
+    assert_eq!(
+        h.chunk_extension_name,
+        b"valid-extension"
+    );
 
-    assert_eq!(p.handler().chunk_extension_value,
-               b"");
+    assert_eq!(
+        h.chunk_extension_value,
+        b""
+    );
 }
 
 #[test]
 fn valid() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"valid-extension=",
-                StripChunkExtensionValue);
+    assert_eos!(
+        p,
+        h,
+        b"valid-extension=",
+        StripChunkExtensionValue
+    );
 
-    assert_eq!(p.handler().chunk_extension_name,
-               b"valid-extension");
+    assert_eq!(
+        h.chunk_extension_name,
+        b"valid-extension"
+    );
 }

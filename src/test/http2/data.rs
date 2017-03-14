@@ -53,27 +53,24 @@ fn with_padding() {
     // payload padding
     pack_bytes!(v, b"XXXXXXXXXX");
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_padded());
 
-        assert!(Flags::from_u8(h.frame_flags).is_padded());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Data
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Data
-        );
+    assert_eq!(
+        &h.data_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            &h.data_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.data_data_finished);
-    }
+    assert!(h.data_data_finished);
 
     assert_eq!(
         p.state(),
@@ -103,27 +100,24 @@ fn without_padding() {
     // payload
     pack_bytes!(v, b"Hello, world!");
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Data
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Data
-        );
+    assert_eq!(
+        &h.data_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            &h.data_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.data_data_finished);
-    }
+    assert!(h.data_data_finished);
 
     assert_eq!(
         p.state(),

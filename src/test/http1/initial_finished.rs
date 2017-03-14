@@ -29,13 +29,20 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"GET / HTTP/1.1",
-                RequestVersionMinor);
+    assert_eos!(
+        p,
+        h,
+        b"GET / HTTP/1.1",
+        RequestVersionMinor
+    );
 
-    assert_callback!(p,
-                     b"\r",
-                     PreHeadersLf1);
+    assert_callback!(
+        p,
+        h,
+        b"\r",
+        PreHeadersLf1
+    );
 }

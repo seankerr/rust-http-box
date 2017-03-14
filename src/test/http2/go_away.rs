@@ -57,37 +57,34 @@ fn go_away_with_debug_data() {
         b"Hello, world!"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::GoAway
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::GoAway
-        );
+    assert_eq!(
+        h.go_away_stream_id,
+        0x7FFFFFFF
+    );
 
-        assert_eq!(
-            h.go_away_stream_id,
-            0x7FFFFFFF
-        );
+    assert_eq!(
+        h.go_away_error_code,
+        0xBBEEBBEE
+    );
 
-        assert_eq!(
-            h.go_away_error_code,
-            0xBBEEBBEE
-        );
+    assert_eq!(
+        h.go_away_debug_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            h.go_away_debug_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.go_away_debug_data_finished);
-    }
+    assert!(h.go_away_debug_data_finished);
 
     assert_eq!(
         p.state(),
@@ -123,30 +120,27 @@ fn go_away_without_debug_data() {
         0xBBEEBBEE
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::GoAway
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::GoAway
-        );
+    assert_eq!(
+        h.go_away_stream_id,
+        0x7FFFFFFF
+    );
 
-        assert_eq!(
-            h.go_away_stream_id,
-            0x7FFFFFFF
-        );
-
-        assert_eq!(
-            h.go_away_error_code,
-            0xBBEEBBEE
-        );
-    }
+    assert_eq!(
+        h.go_away_error_code,
+        0xBBEEBBEE
+    );
 
     assert_eq!(
         p.state(),

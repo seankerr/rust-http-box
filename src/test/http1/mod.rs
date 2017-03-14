@@ -22,8 +22,8 @@ pub use fsm::Success;
 use std::str;
 
 macro_rules! assert_callback {
-    ($parser:expr, $stream:expr, $state:ident, $length:expr) => ({
-        assert!(match $parser.resume($stream) {
+    ($parser:expr, $handler:expr, $stream:expr, $state:ident, $length:expr) => ({
+        assert!(match $parser.resume(&mut $handler, $stream) {
             Ok(Success::Callback(byte_count)) => {
                 assert_eq!(byte_count, $length);
                 assert_eq!($parser.state(), ParserState::$state);
@@ -33,14 +33,14 @@ macro_rules! assert_callback {
         });
     });
 
-    ($parser:expr, $stream:expr, $state:ident) => ({
-        assert_callback!($parser, $stream, $state, $stream.len())
+    ($parser:expr, $handler:expr, $stream:expr, $state:ident) => ({
+        assert_callback!($parser, $handler, $stream, $state, $stream.len())
     });
 }
 
 macro_rules! assert_eos {
-    ($parser:expr, $stream:expr, $state:ident, $length:expr) => ({
-        assert!(match $parser.resume($stream) {
+    ($parser:expr, $handler:expr, $stream:expr, $state:ident, $length:expr) => ({
+        assert!(match $parser.resume(&mut $handler, $stream) {
             Ok(Success::Eos(byte_count)) => {
                 assert_eq!(byte_count, $length);
                 assert_eq!($parser.state(), ParserState::$state);
@@ -50,14 +50,14 @@ macro_rules! assert_eos {
         });
     });
 
-    ($parser:expr, $stream:expr, $state:ident) => ({
-        assert_eos!($parser, $stream, $state, $stream.len())
+    ($parser:expr, $handler:expr, $stream:expr, $state:ident) => ({
+        assert_eos!($parser, $handler, $stream, $state, $stream.len())
     });
 }
 
 macro_rules! assert_error {
-    ($parser:expr, $stream:expr, $error:ident) => ({
-        assert!(match $parser.resume($stream) {
+    ($parser:expr, $handler:expr, $stream:expr, $error:ident) => ({
+        assert!(match $parser.resume(&mut $handler, $stream) {
             Err(error) => {
                 assert_eq!(error, ParserError::$error);
                 assert_eq!($parser.state(), ParserState::Dead);
@@ -71,8 +71,8 @@ macro_rules! assert_error {
 }
 
 macro_rules! assert_error_byte {
-    ($parser:expr, $stream:expr, $error:ident, $byte:expr) => ({
-        assert!(match $parser.resume($stream) {
+    ($parser:expr, $handler:expr, $stream:expr, $error:ident, $byte:expr) => ({
+        assert!(match $parser.resume(&mut $handler, $stream) {
             Err(ParserError::$error(byte)) => {
                 assert_eq!(byte, $byte);
                 assert_eq!($parser.state(), ParserState::Dead);
@@ -86,8 +86,8 @@ macro_rules! assert_error_byte {
 }
 
 macro_rules! assert_finished {
-    ($parser:expr, $stream:expr, $length:expr) => ({
-        assert!(match $parser.resume($stream) {
+    ($parser:expr, $handler:expr, $stream:expr, $length:expr) => ({
+        assert!(match $parser.resume(&mut $handler, $stream) {
             Ok(Success::Finished(byte_count)) => {
                 assert_eq!(byte_count, $length);
             true
@@ -96,8 +96,8 @@ macro_rules! assert_finished {
         });
     });
 
-    ($parser:expr, $stream:expr) => ({
-        assert_finished!($parser, $stream, $stream.len())
+    ($parser:expr, $handler:expr, $stream:expr) => ({
+        assert_finished!($parser, $handler, $stream, $stream.len())
     });
 }
 
@@ -173,24 +173,26 @@ pub struct DebugHandler {
 impl DebugHandler {
     /// Create a new `DebugHandler`.
     pub fn new() -> DebugHandler {
-        DebugHandler{ body_finished:         false,
-                      chunk_data:            Vec::new(),
-                      chunk_extension_name:  Vec::new(),
-                      chunk_extension_value: Vec::new(),
-                      chunk_length:          0,
-                      header_name:           Vec::new(),
-                      header_value:          Vec::new(),
-                      headers_finished:      false,
-                      initial_finished:      false,
-                      method:                Vec::new(),
-                      multipart_data:        Vec::new(),
-                      status:                Vec::new(),
-                      status_code:           0,
-                      url:                   Vec::new(),
-                      url_encoded_name:      Vec::new(),
-                      url_encoded_value:     Vec::new(),
-                      version_major:         0,
-                      version_minor:         0 }
+        DebugHandler{
+            body_finished:         false,
+            chunk_data:            Vec::new(),
+            chunk_extension_name:  Vec::new(),
+            chunk_extension_value: Vec::new(),
+            chunk_length:          0,
+            header_name:           Vec::new(),
+            header_value:          Vec::new(),
+            headers_finished:      false,
+            initial_finished:      false,
+            method:                Vec::new(),
+            multipart_data:        Vec::new(),
+            status:                Vec::new(),
+            status_code:           0,
+            url:                   Vec::new(),
+            url_encoded_name:      Vec::new(),
+            url_encoded_value:     Vec::new(),
+            version_major:         0,
+            version_minor:         0
+        }
     }
 }
 
@@ -356,9 +358,9 @@ mod multipart_boundary;
 mod multipart_data;
 mod multipart_header;
 
+mod request_http;
 mod request_method;
 mod request_url;
-mod request_http;
 mod request_version;
 
 mod response_http;

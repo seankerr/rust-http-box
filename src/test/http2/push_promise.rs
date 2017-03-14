@@ -63,30 +63,27 @@ fn push_promise_with_padding() {
         b"XXXXXXXXXX"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_padded());
 
-        assert!(Flags::from_u8(h.frame_flags).is_padded());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::PushPromise
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::PushPromise
-        );
+    assert_eq!(
+        h.push_promise_stream_id,
+        0xFFEE
+    );
 
-        assert_eq!(
-            h.push_promise_stream_id,
-            0xFFEE
-        );
-
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-    }
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
     assert_eq!(
         p.state(),
@@ -122,30 +119,27 @@ fn push_promise_without_padding() {
         b"Hello, world!"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::PushPromise
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::PushPromise
-        );
+    assert_eq!(
+        h.push_promise_stream_id,
+        0xFFEE
+    );
 
-        assert_eq!(
-            h.push_promise_stream_id,
-            0xFFEE
-        );
-
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-    }
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
     assert_eq!(
         p.state(),

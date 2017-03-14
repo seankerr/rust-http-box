@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"GET / HTTP/1.1\r\nFieldName: ",
-                    StripHeaderValue);
+        assert_eos!(
+            parser,
+            handler,
+            b"GET / HTTP/1.1\r\nFieldName: ",
+            StripHeaderValue
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,97 +40,144 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[b'"'],
-                    HeaderQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[b'"'],
+            HeaderQuotedValue
+        );
 
-        assert_error_byte!(p,
-                           &[byte],
-                           HeaderValue,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            HeaderValue,
+            byte
+        );
     });
 
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[b'"'],
-                    HeaderQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[b'"'],
+            HeaderQuotedValue
+        );
 
-        assert_eos!(p,
-                    &[byte],
-                    HeaderQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            HeaderQuotedValue
+        );
     });
 }
 
 #[test]
 fn escaped_multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"Value",
-                HeaderQuotedValue);
+    assert_eos!(
+        p,
+        h,
+        b"\"Value",
+        HeaderQuotedValue
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value");
+    assert_eq!(
+        h.header_value,
+        b"Value"
+    );
 
-    assert_eos!(p,
-                b"\\\"",
-                HeaderQuotedValue);
+    assert_eos!(
+        p,
+        h,
+        b"\\\"",
+        HeaderQuotedValue
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value\"");
+    assert_eq!(
+        h.header_value,
+        b"Value\""
+    );
 
-    assert_eos!(p,
-                b"Time\"",
-                HeaderCr1);
+    assert_eos!(
+        p,
+        h,
+        b"Time\"",
+        HeaderCr1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value\"Time");
+    assert_eq!(
+        h.header_value,
+        b"Value\"Time"
+    );
 }
 
 #[test]
 fn escaped_single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"Value\\\"Time\"",
-                HeaderCr1);
+    assert_eos!(
+        p,
+        h,
+        b"\"Value\\\"Time\"",
+        HeaderCr1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value\"Time");
+    assert_eq!(
+        h.header_value,
+        b"Value\"Time"
+    );
 }
 
 #[test]
 fn multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"Value",
-                HeaderQuotedValue);
+    assert_eos!(
+        p,
+        h,
+        b"\"Value",
+        HeaderQuotedValue
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value");
+    assert_eq!(
+        h.header_value,
+        b"Value"
+    );
 
-    assert_eos!(p,
-                b"Time\"",
-                HeaderCr1);
+    assert_eos!(
+        p,
+        h,
+        b"Time\"",
+        HeaderCr1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"ValueTime");
+    assert_eq!(
+        h.header_value,
+        b"ValueTime"
+    );
 }
 
 #[test]
 fn single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"Value Time\"",
-                HeaderCr1);
+    assert_eos!(
+        p,
+        h,
+        b"\"Value Time\"",
+        HeaderCr1
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value Time");
+    assert_eq!(
+        h.header_value,
+        b"Value Time"
+    );
 }

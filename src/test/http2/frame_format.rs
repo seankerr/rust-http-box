@@ -42,11 +42,10 @@ fn all_flags() {
     // frame reserved bit and stream id
     pack_u32!(v, 0x7FFFFFFF);
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
-
-    let h = p.handler();
+    p.resume(&mut h, &v);
 
     assert_eq!(
         255,
@@ -88,11 +87,10 @@ fn no_flags() {
     // frame reserved bit and stream id
     pack_u32!(v, 0x7FFFFFFF);
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
-
-    let h = p.handler();
+    p.resume(&mut h, &v);
 
     assert_eq!(
         255,

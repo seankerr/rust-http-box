@@ -21,38 +21,55 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        Parser::new_chunked(DebugHandler::new())
+        (
+            Parser::new_chunked(),
+            DebugHandler::new()
+        )
     });
 }
 
 #[test]
 fn multiple() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_finished!(p,
-                     b"0\r\nField1: Value1\r\nField2: Value2\r\n\r\n");
+    assert_finished!(
+        p,
+        h,
+        b"0\r\nField1: Value1\r\nField2: Value2\r\n\r\n"
+    );
 
-    assert!(p.handler().headers_finished);
+    assert!(h.headers_finished);
 
-    assert_eq!(p.handler().header_name,
-               b"field1field2");
+    assert_eq!(
+        h.header_name,
+        b"field1field2"
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value1Value2");
+    assert_eq!(
+        h.header_value,
+        b"Value1Value2"
+    );
 }
 
 #[test]
 fn single() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_finished!(p,
-                     b"0\r\nField: Value\r\n\r\n");
+    assert_finished!(
+        p,
+        h,
+        b"0\r\nField: Value\r\n\r\n"
+    );
 
-    assert!(p.handler().headers_finished);
+    assert!(h.headers_finished);
 
-    assert_eq!(p.handler().header_name,
-               b"field");
+    assert_eq!(
+        h.header_name,
+        b"field"
+    );
 
-    assert_eq!(p.handler().header_value,
-               b"Value");
+    assert_eq!(
+        h.header_value,
+        b"Value"
+    );
 }

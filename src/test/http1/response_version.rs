@@ -21,13 +21,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"HTTP/",
-                    ResponseVersionMajor);
+        assert_eos!(
+            parser,
+            handler,
+            b"HTTP/",
+            ResponseVersionMajor
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -41,108 +45,156 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"HTTP/",
-                ResponseVersionMajor);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/",
+        ResponseVersionMajor
+    );
 
-    assert_callback!(p,
-                     b"1.0 ",
-                     StripResponseStatusCode);
+    assert_callback!(
+        p,
+        h,
+        b"1.0 ",
+        StripResponseStatusCode
+    );
 }
 
 #[test]
 fn v0_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"0.0 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"0.0 ",
+        StripResponseStatusCode
+    );
 
-    assert_eq!(p.handler().version_major,
-               0);
+    assert_eq!(
+        h.version_major,
+        0
+    );
 
-    assert_eq!(p.handler().version_minor,
-               0);
+    assert_eq!(
+        h.version_minor,
+        0
+    );
 }
 
 #[test]
 fn v1_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"1.0 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"1.0 ",
+        StripResponseStatusCode
+    );
 
-    assert_eq!(p.handler().version_major,
-               1);
+    assert_eq!(
+        h.version_major,
+        1
+    );
 
-    assert_eq!(p.handler().version_minor,
-               0);
+    assert_eq!(
+        h.version_minor,
+        0
+    );
 }
 
 #[test]
 fn v1_1 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"1.1 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"1.1 ",
+        StripResponseStatusCode
+    );
 
-    assert_eq!(p.handler().version_major,
-               1);
+    assert_eq!(
+        h.version_major,
+        1
+    );
 
-    assert_eq!(p.handler().version_minor,
-               1);
+    assert_eq!(
+        h.version_minor,
+        1
+    );
 }
 
 #[test]
 fn v2_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"2.0 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"2.0 ",
+        StripResponseStatusCode
+    );
 
-    assert_eq!(p.handler().version_major,
-               2);
+    assert_eq!(
+        h.version_major,
+        2
+    );
 
-    assert_eq!(p.handler().version_minor,
-               0);
+    assert_eq!(
+        h.version_minor,
+        0
+    );
 }
 
 #[test]
 fn v999_999 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"999.999 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"999.999 ",
+        StripResponseStatusCode
+    );
 
-    assert_eq!(p.handler().version_major,
-               999);
+    assert_eq!(
+        h.version_major,
+        999
+    );
 
-    assert_eq!(p.handler().version_minor,
-               999);
+    assert_eq!(
+        h.version_minor,
+        999
+    );
 }
 
 #[test]
 fn v1000_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"1000",
-                       Version,
-                       b'0');
+    assert_error_byte!(
+        p,
+        h,
+        b"1000",
+        Version,
+        b'0'
+    );
 }
 
 #[test]
 fn v0_1000 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"0.1000",
-                       Version,
-                       b'0');
+    assert_error_byte!(
+        p,
+        h,
+        b"0.1000",
+        Version,
+        b'0'
+    );
 }

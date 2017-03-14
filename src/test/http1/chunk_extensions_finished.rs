@@ -29,13 +29,21 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_chunked(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_chunked();
 
-    assert_eos!(p,
-                b"F;extension=value\r",
-                ChunkLengthLf);
+    assert_eos!(
+        p,
+        h,
+        b"F;extension=value\r",
+        ChunkLengthLf
+    );
 
-    assert_callback!(p,
-                     b"\nDATA",
-                     ChunkData, 1);
+    assert_callback!(
+        p,
+        h,
+        b"\nDATA",
+        ChunkData,
+        1
+    );
 }

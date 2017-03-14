@@ -22,17 +22,19 @@ use test::http1::*;
 
 macro_rules! setup {
     ($length:expr) => ({
-        let mut parser = Parser::new_url_encoded(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_url_encoded();
 
         parser.set_length($length);
-        parser
+        (parser, handler)
     });
 
     () => ({
-        let mut parser = Parser::new_url_encoded(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_url_encoded();
 
         parser.set_length(1000);
-        parser
+        (parser, handler)
     });
 }
 
@@ -40,20 +42,26 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"\r", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           UrlEncodedName,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            UrlEncodedName,
+            byte
+        );
     });
 
     // valid bytes
     loop_visible(b"=%&", |byte| {
-        let mut p = setup!(1);
+        let (mut p, mut h) = setup!(1);
 
-        assert_finished!(p,
-                         &[byte]);
+        assert_finished!(
+            p,
+            h,
+            &[byte]
+        );
     });
 }
 
@@ -67,93 +75,130 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_url_encoded(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_url_encoded();
 
     p.set_length(1000);
 
-    assert_callback!(p,
-                     b"Field",
-                     UrlEncodedName);
+    assert_callback!(
+        p,
+        h,
+        b"Field",
+        UrlEncodedName
+    );
 }
 
 #[test]
 fn basic() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field",
-                UrlEncodedName);
+    assert_eos!(
+        p,
+        h,
+        b"Field",
+        UrlEncodedName
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field"
+    );
 }
 
 #[test]
 fn ending_ampersand() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field1&",
-                UrlEncodedName);
+    assert_eos!(
+        p,
+        h,
+        b"Field1&",
+        UrlEncodedName
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field1");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field1"
+    );
 }
 
 #[test]
 fn ending_equal() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field=",
-                UrlEncodedValue);
+    assert_eos!(
+        p,
+        h,
+        b"Field=",
+        UrlEncodedValue
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field"
+    );
 }
 
 #[test]
 fn ending_percent() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field%",
-                UrlEncodedNameHex1);
+    assert_eos!(
+        p,
+        h,
+        b"Field%",
+        UrlEncodedNameHex1
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field"
+    );
 }
 
 #[test]
 fn ending_plus() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field+",
-                UrlEncodedName);
+    assert_eos!(
+        p,
+        h,
+        b"Field+",
+        UrlEncodedName
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field ");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field "
+    );
 }
 
 #[test]
 fn hex() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"Field%21",
-                UrlEncodedName);
+    assert_eos!(
+        p,
+        h,
+        b"Field%21",
+        UrlEncodedName
+    );
 
-    assert_eq!(p.handler().url_encoded_name,
-               b"Field!");
+    assert_eq!(
+        h.url_encoded_name,
+        b"Field!"
+    );
 }
 
 #[test]
 fn hex_error() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"%2z",
-                       UrlEncodedName,
-                       b'z');
+    assert_error_byte!(
+        p,
+        h,
+        b"%2z",
+        UrlEncodedName,
+        b'z'
+    );
 }

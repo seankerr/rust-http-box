@@ -21,13 +21,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"GET / ",
-                    StripRequestHttp);
+        assert_eos!(
+            parser,
+            handler,
+            b"GET / ",
+            StripRequestHttp
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -41,228 +45,346 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"GET / ",
-                StripRequestHttp);
+    assert_eos!(
+        p,
+        h,
+        b"GET / ",
+        StripRequestHttp
+    );
 
-    assert_callback!(p,
-                     b"HTTP/1.0\r",
-                     InitialEnd);
+    assert_callback!(
+        p,
+        h,
+        b"HTTP/1.0\r",
+        InitialEnd
+    );
 }
 
 #[test]
 fn http_1_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"HTTP/1.0\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/1.0\r",
+        PreHeadersLf1
+    );
 
-    assert_eq!(p.handler().version_major,
-               1);
+    assert_eq!(
+        h.version_major,
+        1
+    );
 
-    assert_eq!(p.handler().version_minor,
-               0);
+    assert_eq!(
+        h.version_minor,
+        0
+    );
 }
 
 #[test]
 fn http_1_1 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"HTTP/1.1\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/1.1\r",
+        PreHeadersLf1
+    );
 
-    assert_eq!(p.handler().version_major,
-               1);
+    assert_eq!(
+        h.version_major,
+        1
+    );
 
-    assert_eq!(p.handler().version_minor,
-               1);
+    assert_eq!(
+        h.version_minor,
+        1
+    );
 }
 
 #[test]
 fn http_2_0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"HTTP/2.0\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/2.0\r",
+        PreHeadersLf1
+    );
 
-    assert_eq!(p.handler().version_major,
-               2);
+    assert_eq!(
+        h.version_major,
+        2
+    );
 
-    assert_eq!(p.handler().version_minor,
-               0);
+    assert_eq!(
+        h.version_minor,
+        0
+    );
 }
 
 #[test]
 fn h_lower () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"h",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"h",
+        RequestHttp2
+    );
 }
 
 #[test]
 fn h_upper () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"H",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"H",
+        RequestHttp2
+    );
 }
 
 #[test]
 fn ht_lower () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"h",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"h",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp3
+    );
 }
 
 #[test]
 fn ht_upper () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"H",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"H",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp3
+    );
 }
 
 #[test]
 fn htt_lower () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"h",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"h",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp4
+    );
 }
 
 #[test]
 fn htt_upper () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"H",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"H",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp4
+    );
 }
 
 #[test]
 fn http_lower () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"h",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"h",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp4
+    );
 
-    assert_eos!(p,
-                b"p",
-                RequestHttp5);
+    assert_eos!(
+        p,
+        h,
+        b"p",
+        RequestHttp5
+    );
 }
 
 #[test]
 fn http_upper () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"H",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"H",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp4
+    );
 
-    assert_eos!(p,
-                b"P",
-                RequestHttp5);
+    assert_eos!(
+        p,
+        h,
+        b"P",
+        RequestHttp5
+    );
 }
 
 #[test]
 fn http_slash_lower () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"h",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"h",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"t",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"t",
+        RequestHttp4
+    );
 
-    assert_eos!(p,
-                b"p",
-                RequestHttp5);
+    assert_eos!(
+        p,
+        h,
+        b"p",
+        RequestHttp5
+    );
 
-    assert_eos!(p,
-                b"/",
-                RequestVersionMajor);
+    assert_eos!(
+        p,
+        h,
+        b"/",
+        RequestVersionMajor
+    );
 }
 
 #[test]
 fn http_slash_upper () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"H",
-                RequestHttp2);
+    assert_eos!(
+        p,
+        h,
+        b"H",
+        RequestHttp2
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp3);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp3
+    );
 
-    assert_eos!(p,
-                b"T",
-                RequestHttp4);
+    assert_eos!(
+        p,
+        h,
+        b"T",
+        RequestHttp4
+    );
 
-    assert_eos!(p,
-                b"P",
-                RequestHttp5);
+    assert_eos!(
+        p,
+        h,
+        b"P",
+        RequestHttp5
+    );
 
-    assert_eos!(p,
-                b"/",
-                RequestVersionMajor);
+    assert_eos!(
+        p,
+        h,
+        b"/",
+        RequestVersionMajor
+    );
 }

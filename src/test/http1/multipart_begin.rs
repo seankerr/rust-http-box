@@ -29,11 +29,15 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_multipart(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_multipart();
 
     p.set_boundary(b"XXDebugBoundaryXX");
 
-    assert_callback!(p,
-                     b"--XXDebugBoundaryXX\r",
-                     PreHeadersLf1);
+    assert_callback!(
+        p,
+        h,
+        b"--XXDebugBoundaryXX\r",
+        PreHeadersLf1
+    );
 }

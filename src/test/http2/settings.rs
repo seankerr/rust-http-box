@@ -51,30 +51,27 @@ fn settings() {
         0xFFFFFFFF
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Settings
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Settings
-        );
+    assert_eq!(
+        h.settings_id,
+        0xFFFF
+    );
 
-        assert_eq!(
-            h.settings_id,
-            0xFFFF
-        );
-
-        assert_eq!(
-            h.settings_value,
-            0xFFFFFFFF
-        );
-    }
+    assert_eq!(
+        h.settings_value,
+        0xFFFFFFFF
+    );
 
     assert_eq!(
         p.state(),

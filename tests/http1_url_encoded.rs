@@ -22,6 +22,15 @@ struct UrlEncodedHandler {
 }
 
 impl UrlEncodedHandler {
+    pub fn new() -> UrlEncodedHandler {
+        UrlEncodedHandler{
+            name_buf:   Vec::new(),
+            parameters: HashMap::new(),
+            state:      State::None,
+            value_buf:  Vec::new()
+        }
+    }
+
     fn flush_parameter(&mut self) {
         if self.name_buf.len() > 0 && self.value_buf.len() > 0 {
             self.parameters.insert(
@@ -77,11 +86,11 @@ fn url_encoded() {
 
     File::open("tests/http1_data/url_encoded.dat").unwrap().read_to_end(&mut d);
 
-    let mut s = d.as_slice();
-    let mut p = Parser::new_head(HeadHandler);
+    let mut s  = d.as_slice();
+    let mut hp = Parser::new_head();
 
     // parse head
-    match p.resume(&s) {
+    match hp.resume(&mut HeadHandler, &s) {
         Ok(Success::Finished(length)) => {
             // adjust the slice since we've parsed the head already
             s = &s[length..];
@@ -89,30 +98,35 @@ fn url_encoded() {
         _ => panic!()
     }
 
-    let mut p = Parser::new_url_encoded(
-                    UrlEncodedHandler{ name_buf:   Vec::new(),
-                                       parameters: HashMap::new(),
-                                       state:      State::None,
-                                       value_buf:  Vec::new() }
-                );
+    let mut uh = UrlEncodedHandler::new();
+    let mut up = Parser::new_url_encoded();
 
-    p.set_length(54);
+    // set url encoded data length, but subtract 2 since the CRLF still need handled
+    up.set_length(s.len() - 2);
 
-    match p.resume(&s) {
+    match up.resume(&mut uh, &s) {
         Ok(Success::Finished(_)) => {
         },
         _ => panic!()
     }
 
-    assert_eq!(p.handler().parameters.get("first_name").unwrap(),
-               "Ada");
+    assert_eq!(
+        uh.parameters.get("first_name").unwrap(),
+        "Ada"
+    );
 
-    assert_eq!(p.handler().parameters.get("last_name").unwrap(),
-               "Lovelace");
+    assert_eq!(
+        uh.parameters.get("last_name").unwrap(),
+        "Lovelace"
+    );
 
-    assert_eq!(p.handler().parameters.get("age").unwrap(),
-               "36");
+    assert_eq!(
+        uh.parameters.get("age").unwrap(),
+        "36"
+    );
 
-    assert_eq!(p.handler().parameters.get("gender").unwrap(),
-               "Female");
+    assert_eq!(
+        uh.parameters.get("gender").unwrap(),
+        "Female"
+    );
 }

@@ -45,27 +45,24 @@ fn continuation() {
         b"Hello, world!"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_end_headers());
 
-        assert!(Flags::from_u8(h.frame_flags).is_end_headers());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Continuation
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Continuation
-        );
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.headers_data_finished);
-    }
+    assert!(h.headers_data_finished);
 
     assert_eq!(
         p.state(),

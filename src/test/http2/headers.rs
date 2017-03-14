@@ -57,37 +57,34 @@ fn with_padding_without_priority() {
         b"XXXXXXXXXX"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_padded());
 
-        assert!(Flags::from_u8(h.frame_flags).is_padded());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Headers
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Headers
-        );
+    assert!(!h.headers_exclusive);
 
-        assert!(!h.headers_exclusive);
+    assert_eq!(
+        h.headers_stream_id,
+        0
+    );
 
-        assert_eq!(
-            h.headers_stream_id,
-            0
-        );
+    assert_eq!(
+        h.headers_weight,
+        0
+    );
 
-        assert_eq!(
-            h.headers_weight,
-            0
-        );
-
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-    }
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
     assert_eq!(
         p.state(),
@@ -141,38 +138,35 @@ fn with_padding_with_priority() {
         b"XXXXXXXXXX"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_padded());
+    assert!(Flags::from_u8(h.frame_flags).is_priority());
 
-        assert!(Flags::from_u8(h.frame_flags).is_padded());
-        assert!(Flags::from_u8(h.frame_flags).is_priority());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Headers
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Headers
-        );
+    assert!(h.headers_exclusive);
 
-        assert!(h.headers_exclusive);
+    assert_eq!(
+        h.headers_stream_id,
+        0x7FFFFFFF
+    );
 
-        assert_eq!(
-            h.headers_stream_id,
-            0x7FFFFFFF
-        );
+    assert_eq!(
+        h.headers_weight,
+        99
+    );
 
-        assert_eq!(
-            h.headers_weight,
-            99
-        );
-
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-    }
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
     assert_eq!(
         p.state(),
@@ -202,39 +196,36 @@ fn without_padding_without_priority() {
         b"Hello, world!"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Headers
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Headers
-        );
+    assert!(!h.headers_exclusive);
 
-        assert!(!h.headers_exclusive);
+    assert_eq!(
+        h.headers_stream_id,
+        0
+    );
 
-        assert_eq!(
-            h.headers_stream_id,
-            0
-        );
+    assert_eq!(
+        h.headers_weight,
+        0
+    );
 
-        assert_eq!(
-            h.headers_weight,
-            0
-        );
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.headers_data_finished);
-    }
+    assert!(h.headers_data_finished);
 
     assert_eq!(
         p.state(),
@@ -276,39 +267,36 @@ fn without_padding_with_priority() {
         b"Hello, world!"
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_priority());
 
-        assert!(Flags::from_u8(h.frame_flags).is_priority());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Headers
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Headers
-        );
+    assert!(h.headers_exclusive);
 
-        assert!(h.headers_exclusive);
+    assert_eq!(
+        h.headers_stream_id,
+        0x7FFFFFFF
+    );
 
-        assert_eq!(
-            h.headers_stream_id,
-            0x7FFFFFFF
-        );
+    assert_eq!(
+        h.headers_weight,
+        99
+    );
 
-        assert_eq!(
-            h.headers_weight,
-            99
-        );
+    assert_eq!(
+        h.headers_data,
+        b"Hello, world!"
+    );
 
-        assert_eq!(
-            h.headers_data,
-            b"Hello, world!"
-        );
-
-        assert!(h.headers_data_finished);
-    }
+    assert!(h.headers_data_finished);
 
     assert_eq!(
         p.state(),

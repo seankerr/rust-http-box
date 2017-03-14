@@ -22,13 +22,17 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"HTTP/1.0 ",
-                    StripResponseStatusCode);
+        assert_eos!(
+            parser,
+            handler,
+            b"HTTP/1.0 ",
+            StripResponseStatusCode
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
@@ -36,21 +40,27 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_digits(b" \t", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           StatusCode,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            StatusCode,
+            byte
+        );
     });
 
     // valid bytes
     loop_digits(b"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    ResponseStatusCode);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            ResponseStatusCode
+        );
     });
 }
 
@@ -64,48 +74,68 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"HTTP/1.0 ",
-                StripResponseStatusCode);
+    assert_eos!(
+        p,
+        h,
+        b"HTTP/1.0 ",
+        StripResponseStatusCode
+    );
 
-    assert_callback!(p,
-                     b"100 ",
-                     StripResponseStatus,
-                     3);
+    assert_callback!(
+        p,
+        h,
+        b"100 ",
+        StripResponseStatus,
+        3
+    );
 }
 
 #[test]
 fn v0 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"0 ",
-                StripResponseStatus);
+    assert_eos!(
+        p,
+        h,
+        b"0 ",
+        StripResponseStatus
+    );
 
-    assert_eq!(p.handler().status_code,
-               0);
+    assert_eq!(
+        h.status_code,
+        0
+    );
 }
 
 #[test]
 fn v999 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"999 ",
-                StripResponseStatus);
+    assert_eos!(
+        p,
+        h,
+        b"999 ",
+        StripResponseStatus
+    );
 
-    assert_eq!(p.handler().status_code,
-               999);
+    assert_eq!(
+        h.status_code,
+        999
+    );
 }
 
 #[test]
 fn v1000 () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"1000",
-                       StatusCode,
-                       b'0');
+    assert_error_byte!(
+        p,
+        h,
+        b"1000",
+        StatusCode,
+        b'0'
+    );
 }

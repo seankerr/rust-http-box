@@ -20,6 +20,15 @@ struct HeadHandler {
 }
 
 impl HeadHandler {
+    pub fn new() -> HeadHandler {
+        HeadHandler{
+            headers:   HashMap::new(),
+            name_buf:  Vec::new(),
+            state:     State::None,
+            value_buf: Vec::new()
+        }
+    }
+
     fn flush_header(&mut self) {
         if self.name_buf.len() > 0 && self.value_buf.len() > 0 {
             self.headers.insert(
@@ -79,6 +88,17 @@ struct MultipartHandler {
 }
 
 impl MultipartHandler {
+    pub fn new() -> MultipartHandler {
+        MultipartHandler{
+            count:     0,
+            data:      Vec::new(),
+            headers:   HashMap::new(),
+            name_buf:  Vec::new(),
+            state:     State::None,
+            value_buf: Vec::new()
+        }
+    }
+
     fn clear(&mut self) {
         self.data.clear();
         self.headers.clear();
@@ -158,16 +178,12 @@ fn multipart() {
 
     File::open("tests/http1_data/multipart.dat").unwrap().read_to_end(&mut d);
 
-    let mut s = d.as_slice();
-    let mut p = Parser::new_head(
-                    HeadHandler{ headers:   HashMap::new(),
-                                 name_buf:  Vec::new(),
-                                 state:     State::None,
-                                 value_buf: Vec::new() }
-                );
+    let mut s  = d.as_slice();
+    let mut hh = HeadHandler::new();
+    let mut p  = Parser::new_head();
 
     // parse head
-    match p.resume(&s) {
+    match p.resume(&mut hh, &s) {
         Ok(Success::Finished(length)) => {
             // adjust the slice since we've parsed the head already
             s = &s[length..];
@@ -178,7 +194,7 @@ fn multipart() {
     // get boundary
     let mut b = Vec::new();
 
-    util::parse_field(p.handler().headers.get("content-type").unwrap().as_bytes(),
+    util::parse_field(hh.headers.get("content-type").unwrap().as_bytes(),
                       b';', true,
         |s: FieldSegment| {
             match s {
@@ -195,19 +211,13 @@ fn multipart() {
     );
 
     // parse multipart
-    let mut p = Parser::new_multipart(
-                    MultipartHandler{ count:     0,
-                                      data:      Vec::new(),
-                                      headers:   HashMap::new(),
-                                      name_buf:  Vec::new(),
-                                      state:     State::None,
-                                      value_buf: Vec::new() }
-                );
+    let mut mh = MultipartHandler::new();
+    let mut p  = Parser::new_multipart();
 
     p.set_boundary(&b);
 
     // first multipart entry
-    match p.resume(&s) {
+    match p.resume(&mut mh, &s) {
         Ok(Success::Callback(length)) => {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
@@ -215,20 +225,26 @@ fn multipart() {
         _ => panic!()
     }
 
-    assert_eq!(p.handler().headers.len(),
-               1);
+    assert_eq!(
+        mh.headers.len(),
+        1
+    );
 
-    assert_eq!(p.handler().headers.get("content-disposition").unwrap(),
-               "form-data; name=\"first_name\"");
+    assert_eq!(
+        mh.headers.get("content-disposition").unwrap(),
+        "form-data; name=\"first_name\""
+    );
 
-    assert_eq!(p.handler().data,
-               b"Ada");
+    assert_eq!(
+        mh.data,
+        b"Ada"
+    );
 
     // clear saved data
-    p.handler().clear();
+    mh.clear();
 
     // second multipart entry
-    match p.resume(&s) {
+    match p.resume(&mut mh, &s) {
         Ok(Success::Callback(length)) => {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
@@ -236,20 +252,26 @@ fn multipart() {
         _ => panic!()
     }
 
-    assert_eq!(p.handler().headers.len(),
-               1);
+    assert_eq!(
+        mh.headers.len(),
+        1
+    );
 
-    assert_eq!(p.handler().headers.get("content-disposition").unwrap(),
-               "form-data; name=\"last_name\"");
+    assert_eq!(
+        mh.headers.get("content-disposition").unwrap(),
+        "form-data; name=\"last_name\""
+    );
 
-    assert_eq!(p.handler().data,
-               b"Lovelace");
+    assert_eq!(
+        mh.data,
+        b"Lovelace"
+    );
 
     // clear saved data
-    p.handler().clear();
+    mh.clear();
 
     // third multipart entry
-    match p.resume(&s) {
+    match p.resume(&mut mh, &s) {
         Ok(Success::Callback(length)) => {
             // adjust the slice since we've parsed one entry already
             s = &s[length..];
@@ -257,37 +279,53 @@ fn multipart() {
         _ => panic!()
     }
 
-    assert_eq!(p.handler().headers.len(),
-               2);
+    assert_eq!(
+        mh.headers.len(),
+        2
+    );
 
-    assert_eq!(p.handler().headers.get("content-disposition").unwrap(),
-               "form-data; name=\"file1\"; filename=\"rust-slide.jpg\"");
+    assert_eq!(
+        mh.headers.get("content-disposition").unwrap(),
+        "form-data; name=\"file1\"; filename=\"rust-slide.jpg\""
+    );
 
-    assert_eq!(p.handler().headers.get("content-type").unwrap(),
-               "image/jpeg");
+    assert_eq!(
+        mh.headers.get("content-type").unwrap(),
+        "image/jpeg"
+    );
 
-    assert_eq!(p.handler().data.len(),
-               62260);
+    assert_eq!(
+        mh.data.len(),
+        62260
+    );
 
     // clear saved data
-    p.handler().clear();
+    mh.clear();
 
     // fourth multipart entry
-    match p.resume(&s) {
+    match p.resume(&mut mh, &s) {
         Ok(Success::Finished(_)) => {
         },
         _ => panic!()
     }
 
-    assert_eq!(p.handler().headers.len(),
-               2);
+    assert_eq!(
+        mh.headers.len(),
+        2
+    );
 
-    assert_eq!(p.handler().headers.get("content-disposition").unwrap(),
-               "form-data; name=\"file2\"; filename=\"rustacean.png\"");
+    assert_eq!(
+        mh.headers.get("content-disposition").unwrap(),
+        "form-data; name=\"file2\"; filename=\"rustacean.png\""
+    );
 
-    assert_eq!(p.handler().headers.get("content-type").unwrap(),
-               "image/png");
+    assert_eq!(
+        mh.headers.get("content-type").unwrap(),
+        "image/png"
+    );
 
-    assert_eq!(p.handler().data.len(),
-               38310);
+    assert_eq!(
+        mh.data.len(),
+        38310
+    );
 }

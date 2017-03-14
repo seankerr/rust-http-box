@@ -21,133 +21,188 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_multipart(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_multipart();
 
         parser.set_boundary(b"XXDebugBoundaryXX");
 
-        parser
+        (parser, handler)
     });
 }
 
 #[test]
 fn first_boundary_hyphen1_error () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"@",
-                       MultipartBoundary,
-                       b'@');
+    assert_error_byte!(
+        p,
+        h,
+        b"@",
+        MultipartBoundary,
+        b'@'
+    );
 }
 
 #[test]
 fn first_boundary_hyphen2_error () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"-@",
-                       MultipartBoundary,
-                       b'@');
+    assert_error_byte!(
+        p,
+        h,
+        b"-@",
+        MultipartBoundary,
+        b'@'
+    );
 }
 
 #[test]
 fn first_boundary_match () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"",
-                MultipartHyphen1);
+    assert_eos!(
+        p,
+        h,
+        b"",
+        MultipartHyphen1
+    );
 
-    assert_eos!(p,
-                b"-",
-                MultipartHyphen2);
+    assert_eos!(
+        p,
+        h,
+        b"-",
+        MultipartHyphen2
+    );
 
-    assert_eos!(p,
-                b"-",
-                MultipartBoundary);
+    assert_eos!(
+        p,
+        h,
+        b"-",
+        MultipartBoundary
+    );
 
-    assert_eos!(p,
-                b"XXDebugBoundary",
-                MultipartBoundary);
+    assert_eos!(
+        p,
+        h,
+        b"XXDebugBoundary",
+        MultipartBoundary
+    );
 
-    assert_eos!(p,
-                b"XX",
-                MultipartBoundaryCr);
+    assert_eos!(
+        p,
+        h,
+        b"XX",
+        MultipartBoundaryCr
+    );
 
-    assert_eos!(p,
-                b"\r",
-                PreHeadersLf1);
+    assert_eos!(
+        p,
+        h,
+        b"\r",
+        PreHeadersLf1
+    );
 
-    assert_eos!(p,
-                b"\n",
-                PreHeadersCr2);
+    assert_eos!(
+        p,
+        h,
+        b"\n",
+        PreHeadersCr2
+    );
 
-    assert_eos!(p,
-                b"\r",
-                HeaderLf2);
+    assert_eos!(
+        p,
+        h,
+        b"\r",
+        HeaderLf2
+    );
 
-    assert_eos!(p,
-                b"\n",
-                MultipartDataByByte);
+    assert_eos!(
+        p,
+        h,
+        b"\n",
+        MultipartDataByByte
+    );
 }
 
 #[test]
 fn first_boundary_no_match () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"--XXDebugBoundary",
-                MultipartBoundary);
+    assert_eos!(
+        p,
+        h,
+        b"--XXDebugBoundary",
+        MultipartBoundary
+    );
 
-    assert_error_byte!(p,
-                       b"Q",
-                       MultipartBoundary,
-                       b'Q');
+    assert_error_byte!(
+        p,
+        h,
+        b"Q",
+        MultipartBoundary,
+        b'Q'
+    );
 }
 
 #[test]
 fn second_boundary_match () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"--XXDebugBoundaryXX\r\n\
-                  \r\n\
-                  DATA1\r\n\
-                  --XXDebugBoundaryXX\r\n",
-                PreHeadersCr2);
+    assert_eos!(
+        p,
+        h,
+        b"--XXDebugBoundaryXX\r\n\
+         \r\n\
+         DATA1\r\n\
+         --XXDebugBoundaryXX\r\n",
+        PreHeadersCr2
+    );
 
-    assert_eq!(p.handler().multipart_data,
-               b"DATA1");
+    assert_eq!(
+        h.multipart_data,
+        b"DATA1"
+    );
 }
 
 #[test]
 fn second_false_boundary () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"--XXDebugBoundaryXX\r\n\
-                  \r\n\
-                  DATA1\r\n\
-                  --XXDebugBoundaryQ",
-                MultipartDataByByte);
+    assert_eos!(
+        p,
+        h,
+        b"--XXDebugBoundaryXX\r\n\
+         \r\n\
+         DATA1\r\n\
+         --XXDebugBoundaryQ",
+        MultipartDataByByte
+    );
 
-    assert_eq!(p.handler().multipart_data,
-               b"DATA1\r\n--XXDebugBoundaryQ");
+    assert_eq!(
+        h.multipart_data,
+        b"DATA1\r\n--XXDebugBoundaryQ"
+    );
 }
 
 #[test]
 fn second_false_third_boundary_match () {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"--XXDebugBoundaryXX\r\n\
-                  \r\n\
-                  DATA1\r\n\
-                  --XXDebugBoundaryQ\r\n\
-                  --XXDebugBoundaryXX\r\n\
-                  \r\n\
-                  ABCD",
-                MultipartDataByByte);
+    assert_eos!(
+        p,
+        h,
+        b"--XXDebugBoundaryXX\r\n\
+         \r\n\
+         DATA1\r\n\
+         --XXDebugBoundaryQ\r\n\
+         --XXDebugBoundaryXX\r\n\
+         \r\n\
+         ABCD",
+        MultipartDataByByte
+    );
 
-    assert_eq!(p.handler().multipart_data,
-               b"DATA1\r\n--XXDebugBoundaryQABCD");
+    assert_eq!(
+        h.multipart_data,
+        b"DATA1\r\n--XXDebugBoundaryQABCD"
+    );
 }

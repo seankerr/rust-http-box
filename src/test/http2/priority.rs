@@ -51,33 +51,30 @@ fn is_exclusive() {
         99
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Priority
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Priority
-        );
+    assert!(h.priority_exclusive);
 
-        assert!(h.priority_exclusive);
+    assert_eq!(
+        h.priority_stream_id,
+        42
+    );
 
-        assert_eq!(
-            h.priority_stream_id,
-            42
-        );
+    assert_eq!(
+        h.priority_weight,
+        99
+    );
 
-        assert_eq!(
-            h.priority_weight,
-            99
-        );
-    }
-    
     assert_eq!(
         p.state(),
         ParserState::FrameLength1
@@ -112,32 +109,29 @@ fn is_not_exclusive() {
         99
     );
 
-    let mut p = Parser::new(DebugHandler::new());
+    let mut h = DebugHandler::new();
+    let mut p = Parser::new();
 
-    p.resume(&v);
+    p.resume(&mut h, &v);
 
-    {
-        let h = p.handler();
+    assert!(Flags::from_u8(h.frame_flags).is_empty());
 
-        assert!(Flags::from_u8(h.frame_flags).is_empty());
+    assert_eq!(
+        FrameType::from_u8(h.frame_type),
+        FrameType::Priority
+    );
 
-        assert_eq!(
-            FrameType::from_u8(h.frame_type),
-            FrameType::Priority
-        );
+    assert!(!h.priority_exclusive);
 
-        assert!(!h.priority_exclusive);
+    assert_eq!(
+        h.priority_stream_id,
+        42
+    );
 
-        assert_eq!(
-            h.priority_stream_id,
-            42
-        );
-
-        assert_eq!(
-            h.priority_weight,
-            99
-        );
-    }
+    assert_eq!(
+        h.priority_weight,
+        99
+    );
 
     assert_eq!(
         p.state(),

@@ -22,55 +22,76 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_chunked(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_chunked();
 
-        assert_eos!(parser,
-                    b"F;extension1=",
-                    StripChunkExtensionValue);
+        assert_eos!(
+            parser,
+            handler,
+            b"F;extension1=",
+            StripChunkExtensionValue
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
 #[test]
 fn basic() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"valid-value\"",
-                ChunkExtensionQuotedValueFinished);
+    assert_eos!(
+        p,
+        h,
+        b"\"valid-value\"",
+        ChunkExtensionQuotedValueFinished
+    );
 
-    assert_eq!(p.handler().chunk_extension_value,
-               b"valid-value");
+    assert_eq!(
+        h.chunk_extension_value,
+        b"valid-value"
+    );
 }
 
 #[test]
 fn byte_check() {
     // invalid bytes
     loop_non_quoted(b"\r;\"\\", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[b'"'],
-                    ChunkExtensionQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[b'"'],
+            ChunkExtensionQuotedValue
+        );
 
-        assert_error_byte!(p,
-                           &[byte],
-                           ChunkExtensionValue,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            ChunkExtensionValue,
+            byte
+        );
     });
 
     // valid bytes
     loop_quoted(b"\"\\", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[b'"'],
-                    ChunkExtensionQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[b'"'],
+            ChunkExtensionQuotedValue
+        );
 
-        assert_eos!(p,
-                    &[byte],
-                    ChunkExtensionQuotedValue);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            ChunkExtensionQuotedValue
+        );
     });
 }
 
@@ -84,40 +105,59 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_chunked(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_chunked();
 
-    assert_eos!(p,
-                b"F;extension1=",
-                StripChunkExtensionValue);
+    assert_eos!(
+        p,
+        h,
+        b"F;extension1=",
+        StripChunkExtensionValue
+    );
 
-    assert_callback!(p,
-                     b"\"ExtensionValue\"",
-                     ChunkExtensionQuotedValueFinished);
+    assert_callback!(
+        p,
+        h,
+        b"\"ExtensionValue\"",
+        ChunkExtensionQuotedValueFinished
+    );
 }
 
 #[test]
 fn escaped() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"\"valid \\\"value\\\" here\"\r",
-                ChunkLengthLf);
+    assert_eos!(
+        p,
+        h,
+        b"\"valid \\\"value\\\" here\"\r",
+        ChunkLengthLf
+    );
 
-    assert_eq!(p.handler().chunk_extension_value,
-               b"valid \"value\" here");
+    assert_eq!(
+        h.chunk_extension_value,
+        b"valid \"value\" here"
+    );
 }
 
 #[test]
 fn repeat() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"valid-value1;extension2=valid-value2;",
-                StripChunkExtensionName);
+    assert_eos!(
+        p,
+        h,
+        b"valid-value1;extension2=valid-value2;",
+        StripChunkExtensionName
+    );
 
-    assert_eq!(p.handler().chunk_extension_name,
-               b"extension1extension2");
+    assert_eq!(
+        h.chunk_extension_name,
+        b"extension1extension2"
+    );
 
-    assert_eq!(p.handler().chunk_extension_value,
-               b"valid-value1valid-value2");
+    assert_eq!(
+        h.chunk_extension_value,
+        b"valid-value1valid-value2"
+    );
 }

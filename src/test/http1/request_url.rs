@@ -22,44 +22,57 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        let mut parser = Parser::new_head(DebugHandler::new());
+        let mut handler = DebugHandler::new();
+        let mut parser  = Parser::new_head();
 
-        assert_eos!(parser,
-                    b"GET ",
-                    StripRequestUrl);
+        assert_eos!(
+            parser,
+            handler,
+            b"GET ",
+            StripRequestUrl
+        );
 
-        parser
+        (parser, handler)
     });
 }
 
 #[test]
 fn asterisk() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"* ",
-                StripRequestHttp);
+    assert_eos!(
+        p,
+        h,
+        b"* ",
+        StripRequestHttp
+    );
 }
 
 #[test]
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b" \t", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           Url,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            Url,
+            byte
+        );
     });
 
     // valid bytes
     loop_visible(b"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    RequestUrl);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            RequestUrl
+        );
     });
 }
 
@@ -73,37 +86,54 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_head(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_head();
 
-    assert_eos!(p,
-                b"GET ",
-                StripRequestUrl);
+    assert_eos!(
+        p,
+        h,
+        b"GET ",
+        StripRequestUrl
+    );
 
-    assert_callback!(p,
-                     b"/",
-                     RequestUrl);
+    assert_callback!(
+        p,
+        h,
+        b"/",
+        RequestUrl
+    );
 }
 
 #[test]
 fn with_schema() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"http://host.com:443/path?query_string#fragment ",
-                StripRequestHttp);
+    assert_eos!(
+        p,
+        h,
+        b"http://host.com:443/path?query_string#fragment ",
+        StripRequestHttp
+    );
 
-    vec_eq(b"http://host.com:443/path?query_string#fragment",
-           &p.handler().url);
+    vec_eq(
+        b"http://host.com:443/path?query_string#fragment",
+        &h.url
+    );
 }
 
 #[test]
 fn without_schema() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"/path?query_string#fragment ",
-                StripRequestHttp);
+    assert_eos!(
+        p,
+        h,
+        b"/path?query_string#fragment ",
+        StripRequestHttp
+    );
 
-    vec_eq(b"/path?query_string#fragment",
-           &p.handler().url);
+    vec_eq(
+        b"/path?query_string#fragment",
+        &h.url
+    );
 }

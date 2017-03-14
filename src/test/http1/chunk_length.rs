@@ -22,7 +22,10 @@ use test::http1::*;
 
 macro_rules! setup {
     () => ({
-        Parser::new_chunked(DebugHandler::new())
+        (
+            Parser::new_chunked(),
+            DebugHandler::new()
+        )
     });
 }
 
@@ -30,29 +33,38 @@ macro_rules! setup {
 fn byte_check() {
     // invalid bytes
     loop_non_hex(b"", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_error_byte!(p,
-                           &[byte],
-                           ChunkLength,
-                           byte);
+        assert_error_byte!(
+            p,
+            h,
+            &[byte],
+            ChunkLength,
+            byte
+        );
     });
 
     // valid bytes
     loop_hex(b"0", |byte| {
-        let mut p = setup!();
+        let (mut p, mut h) = setup!();
 
-        assert_eos!(p,
-                    &[byte],
-                    ChunkLength2);
+        assert_eos!(
+            p,
+            h,
+            &[byte],
+            ChunkLength2
+        );
     });
 
     // starting 0 (end chunk)
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"0",
-                ChunkLengthCr);
+    assert_eos!(
+        p,
+        h,
+        b"0",
+        ChunkLengthCr
+    );
 }
 
 #[test]
@@ -65,64 +77,89 @@ fn callback_exit() {
         }
     }
 
-    let mut p = Parser::new_chunked(CallbackHandler);
+    let mut h = CallbackHandler;
+    let mut p = Parser::new_chunked();
 
-    assert_callback!(p,
-                     b"F\r",
-                     ChunkLengthLf);
+    assert_callback!(
+        p,
+        h,
+        b"F\r",
+        ChunkLengthLf
+    );
 }
 
 #[test]
 fn missing_length() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error_byte!(p,
-                       b"\r",
-                       ChunkLength,
-                       b'\r');
+    assert_error_byte!(
+        p,
+        h,
+        b"\r",
+        ChunkLength,
+        b'\r'
+    );
 }
 
 #[test]
 fn length1() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"F\r",
-                ChunkLengthLf);
+    assert_eos!(
+        p,
+        h,
+        b"F\r",
+        ChunkLengthLf
+    );
 
-    assert_eq!(p.handler().chunk_length,
-               15);
+    assert_eq!(
+        h.chunk_length,
+        15
+    );
 }
 
 #[test]
 fn length2() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"FF\r",
-                ChunkLengthLf);
+    assert_eos!(
+        p,
+        h,
+        b"FF\r",
+        ChunkLengthLf
+    );
 
-    assert_eq!(p.handler().chunk_length,
-               255);
+    assert_eq!(
+        h.chunk_length,
+        255
+    );
 }
 
 #[test]
 fn length3() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_eos!(p,
-                b"FFF\r",
-                ChunkLengthLf);
+    assert_eos!(
+        p,
+        h,
+        b"FFF\r",
+        ChunkLengthLf
+    );
 
-    assert_eq!(p.handler().chunk_length,
-               4095);
+    assert_eq!(
+        h.chunk_length,
+        4095
+    );
 }
 
 #[test]
 fn too_long() {
-    let mut p = setup!();
+    let (mut p, mut h) = setup!();
 
-    assert_error!(p,
-                  b"FFFFFFFFFFFFFFFF0",
-                  MaxChunkLength);
+    assert_error!(
+        p,
+        h,
+        b"FFFFFFFFFFFFFFFF0",
+        MaxChunkLength
+    );
 }
