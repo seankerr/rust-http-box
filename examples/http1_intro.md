@@ -28,6 +28,14 @@ a network connection, and is received as incomplete segments of data. To stick
 to the zero-copy philosophy, and to avoid buffering, callbacks are executed as
 frequent as necessary.
 
+Some callbacks are executed during multiple states. For example,
+`HttpHandler::on_header_name()` is called during head parsing, chunked
+transfer-encoded parsing, and multipart parsing. This is precisely why it makes
+sense to split up `HttpHandler` implementation by method of parsing. Otherwise
+you will be juggling too much state, and your implementation might end up
+resembling Chet from the movie Weird Science when Lisa turns him into a steaming
+pile of crap.
+
 # Tracking State
 
 Sometimes multiple states need to work together to produce a single result. A
