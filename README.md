@@ -47,7 +47,7 @@ network dependencies.
 
 ## API Documentation
 
-https://docs.rs/http-box/0.1.2/http_box/
+https://docs.rs/http-box/0.1.3/http_box/
 
 ## HTTP/2.x Examples
 
