@@ -16,8 +16,8 @@ data being processed: head, chunked transfer-encoded, multipart, URL encoded. In
 doing so, you will also have a `Parser` instance for each of your `HttpHandler`
 implementations. This helps keep code clean at the cost of a bit more memory
 being used by multiple `Parser` instances. This is not to say that you are
-unable to write a single `HttpHandler` instance that handles all methods of
-parsing.
+unable to write a single `HttpHandler` implementation that handles all methods
+of parsing.
 
 # Callbacks
 
