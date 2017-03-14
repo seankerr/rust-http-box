@@ -100,6 +100,22 @@ pub struct Handler {
 }
 
 impl Handler {
+    pub fn new() -> Handler {
+        Handler{
+            headers:          HashMap::new(),
+            initial_finished: false,
+            method:           Vec::new(),
+            name:             Vec::new(),
+            state:            State::None,
+            status:           Vec::new(),
+            status_code:      0,
+            url:              Vec::new(),
+            value:            Vec::new(),
+            version_major:    0,
+            version_minor:    0    
+        }
+    }
+
     fn flush_header(&mut self) {
         if self.name.len() > 0 && self.value.len() > 0 {
             self.headers.insert(String::from_utf8(self.name.clone()).unwrap(),
@@ -186,29 +202,19 @@ impl HttpHandler for Handler {
 
 fn main() {
     // init callback handler
-    let mut p = Parser::new_head(
-                    Handler{ headers:          HashMap::new(),
-                             initial_finished: false,
-                             method:           Vec::new(),
-                             name:             Vec::new(),
-                             state:            State::None,
-                             status:           Vec::new(),
-                             status_code:      0,
-                             url:              Vec::new(),
-                             value:            Vec::new(),
-                             version_major:    0,
-                             version_minor:    0 }
-                );
+    let mut h = Handler::new();
+    let mut p = Parser::new_head();
 
     // parse some head data
-    p.resume(b"GET /url?query HTTP/1.0\r\n\
-               Header1: This is the first header\r\n\
-               Header2: This is the second header\r\n\
-               \r\n");
+    p.resume(
+        &mut h,
+        b"GET /url?query HTTP/1.0\r\n\
+          Header1: This is the first header\r\n\
+          Header2: This is the second header\r\n\
+          \r\n"
+    );
 
     // compare our data
-    let h = p.handler();
-
     assert!(h.is_initial_finished());
     assert!(h.is_request());
     assert_eq!(h.method, b"GET");
