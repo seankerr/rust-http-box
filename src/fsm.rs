@@ -23,19 +23,19 @@ use std::fmt;
 /// Execute callback `$function`. If it returns `true`, execute `$exec`. Otherwise exit with
 /// `Success::Callback`.
 macro_rules! callback {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
-        if $parser.handler.$function($data) {
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
+        if $handler.$function($data) {
             $exec
         } else {
             exit_callback!($parser, $context);
         }
     });
 
-    ($parser:expr, $context:expr, $function:ident, $exec:expr) => ({
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $exec:expr) => ({
         let slice = bs_slice!($context);
 
         if slice.len() > 0 {
-            if $parser.handler.$function(slice) {
+            if $handler.$function(slice) {
                 $exec
             } else {
                 exit_callback!($parser, $context);
@@ -48,8 +48,8 @@ macro_rules! callback {
 
 /// Reusable callback EOS expression that executes `$function`.
 macro_rules! callback_eos_expr {
-    ($parser:expr, $context:expr, $function:ident) => ({
-        callback!($parser, $context, $function, {
+    ($parser:expr, $handler:expr, $context:expr, $function:ident) => ({
+        callback!($parser, $handler, $context, $function, {
             exit_eos!($parser, $context);
         });
     });
@@ -58,13 +58,14 @@ macro_rules! callback_eos_expr {
 /// Execute callback `$function` ignoring the last collected byte. If it returns `true`, transition
 /// to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
-    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $state:ident,
+     $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
 
         if slice.len() > 0 {
-            if $parser.handler.$function(slice) {
+            if $handler.$function(slice) {
                 transition!($parser, $context);
             } else {
                 exit_callback!($parser, $context);
@@ -79,19 +80,20 @@ macro_rules! callback_ignore_transition {
 /// to the next `$state` quickly by directly calling `$state_function`. Otherwise exit with
 /// `Success::Callback`.
 macro_rules! callback_ignore_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $state:ident,
+     $state_function:ident) => ({
         let slice = bs_slice_ignore!($context);
 
         set_state!($parser, $state, $state_function);
 
         if slice.len() > 0 {
-            if $parser.handler.$function(slice) {
-                transition_fast!($parser, $context);
+            if $handler.$function(slice) {
+                transition_fast!($parser, $handler, $context);
             } else {
                 exit_callback!($parser, $context);
             }
         } else {
-            transition_fast!($parser, $context);
+            transition_fast!($parser, $handler, $context);
         }
     });
 }
@@ -102,17 +104,18 @@ macro_rules! callback_ignore_transition_fast {
 /// This macro exists to enforce the design decision that after each callback, state must either
 /// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:ident,
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $data:expr, $state:ident,
      $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, $data, {
+        callback!($parser, $handler, $context, $function, $data, {
             transition!($parser, $context);
         });
     });
 
-    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $state:ident,
+     $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, {
+        callback!($parser, $handler, $context, $function, {
             transition!($parser, $context);
         });
     });
@@ -124,18 +127,19 @@ macro_rules! callback_transition {
 /// This macro exists to enforce the design decision that after each callback, state must either
 /// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition_fast {
-    ($parser:expr, $context:expr, $function:ident, $data:expr, $state:ident,
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $data:expr, $state:ident,
      $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, $data, {
-            transition_fast!($parser, $context);
+        callback!($parser, $handler, $context, $function, $data, {
+            transition_fast!($parser, $handler, $context);
         });
     });
 
-    ($parser:expr, $context:expr, $function:ident, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $handler:expr, $context:expr, $function:ident, $state:ident,
+     $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
-        callback!($parser, $context, $function, {
-            transition_fast!($parser, $context);
+        callback!($parser, $handler, $context, $function, {
+            transition_fast!($parser, $handler, $context);
         });
     });
 }
@@ -221,18 +225,18 @@ macro_rules! transition {
 
 /// Transition to `$state` quickly by directly calling `$state_function`.
 macro_rules! transition_fast {
-    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $handler:expr, $context:expr, $state:ident, $state_function:ident) => ({
         set_state!($parser, $state, $state_function);
 
         bs_mark!($context, $context.stream_index);
 
-        return ($parser.state_function)($parser, $context);
+        return ($parser.state_function)($parser, $handler, $context);
     });
 
-    ($parser:expr, $context:expr) => ({
+    ($parser:expr, $handler:expr, $context:expr) => ({
         $context.mark_index = $context.stream_index;
 
-        return ($parser.state_function)($parser, $context);
+        return ($parser.state_function)($parser, $handler, $context);
     });
 }
 
