@@ -1,12 +1,12 @@
 ## Parser
 
-[http_box::http1::Parser](https://docs.rs/http-box/0.1.3/http_box/http1/struct.Parser.html)
+[http_box::http1::Parser](https://docs.rs/http-box/0.1.4/http_box/http1/struct.Parser.html)
 provides the guts of the HTTP/1.x parsing capabilities.
 
 ## HttpHandler
 
 Implementing
-[http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.3/http_box/http1/trait.HttpHandler.html)
+[http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.4/http_box/http1/trait.HttpHandler.html)
 is how you provide a custom callback implementation. You can implement none, or
 as many functions as you want.
 
@@ -45,7 +45,7 @@ name. And the same is true for the header value. It isn't until the header value
 is complete, that the header name/value pair can be collectively handled.
 
 This is where the
-[http_box::http1::State](https://docs.rs/http-box/0.1.3/http_box/http1/enum.State.html)
+[http_box::http1::State](https://docs.rs/http-box/0.1.4/http_box/http1/enum.State.html)
 enum comes into play. You can use this to track the current state when a
 callback is executed. There is nothing mysterious about this enum. It's just a
 helper type with the objective of simplifying state tracking.

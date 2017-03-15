@@ -1,6 +1,6 @@
 ## Decoding URL Encoded Data
 
-- [http_box::util::decode()](https://docs.rs/http-box/0.1.3/http_box/util/fn.decode.html)
+- [http_box::util::decode()](https://docs.rs/http-box/0.1.4/http_box/util/fn.decode.html)
 
 `decode()` accepts two arguments, the first being the bytes that will be decoded, and the second
 being a mutable closure that will receive the decoded segments of data.
@@ -31,7 +31,7 @@ fn main() {
 }
 ```
 
-[http_box::util::decode_into_vec()](https://docs.rs/http-box/0.1.3/http_box/util/fn.decode_into_vec.html)
+[http_box::util::decode_into_vec()](https://docs.rs/http-box/0.1.4/http_box/util/fn.decode_into_vec.html)
 
 `decode()` also has a shadow function `decode_into_vec()` which is a wrapper function to save time
 when you're decoding into a vector.

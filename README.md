@@ -1,7 +1,7 @@
 # rust-http-box
 
 ![Build: Passing](https://img.shields.io/badge/build-passing-brightgreen.svg)
-![dev: 0.1.2](https://img.shields.io/badge/dev-0.1.2-ff69b4.svg)
+![dev: 0.1.4](https://img.shields.io/badge/dev-0.1.4-ff69b4.svg)
 ![license: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
 ## What is http-box?
@@ -47,7 +47,7 @@ network dependencies.
 
 ## API Documentation
 
-https://docs.rs/http-box/0.1.3/http_box/
+https://docs.rs/http-box/0.1.4/http_box/
 
 ## HTTP/2.x Examples
 
