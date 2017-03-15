@@ -76,10 +76,27 @@ fn hex_name_error() {
             }
         }
     ) {
-        assert_eq!(
-            value,
-            None
-        );
+    }
+
+    assert!(has_error);
+}
+
+#[test]
+fn hex_value_error() {
+    let mut has_error = false;
+
+    for (name, value) in QueryIterator::new(
+        b"field=value%2Q"
+    ).on_error(
+        |error| {
+            has_error = true;
+
+            match error {
+                QueryError::Name(_) => panic!(),
+                QueryError::Value(x) => assert_eq!(x, b'Q')
+            }
+        }
+    ) {
     }
 
     assert!(has_error);
