@@ -1,9 +1,9 @@
-# Parser
+## Parser
 
 [http_box::http1::Parser](https://docs.rs/http-box/0.1.3/http_box/http1/struct.Parser.html)
 provides the guts of the HTTP/1.x parsing capabilities.
 
-# HttpHandler
+## HttpHandler
 
 Implementing
 [http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.3/http_box/http1/trait.HttpHandler.html)
@@ -19,7 +19,7 @@ being used by multiple `Parser` instances. This is not to say that you are
 unable to write a single `HttpHandler` implementation that handles all methods
 of parsing.
 
-# Callbacks
+## Callbacks
 
 In a typical application, callbacks receive arguments that are complete pieces
 of data. However, `Parser` parses data byte-by-byte, and because of this, it can
@@ -36,7 +36,7 @@ you will be juggling too much state, and your implementation might end up
 resembling Chet from the movie Weird Science when Lisa turns him into a steaming
 pile of crap.
 
-# Tracking State
+## Tracking State
 
 Sometimes multiple states need to work together to produce a single result. A
 good example of this is when headers are being parsed. The callback for the

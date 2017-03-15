@@ -429,7 +429,8 @@ impl<'a> fmt::Display for QuerySegment<'a> {
 ///
 /// let mut v = vec![];
 ///
-/// util::decode(b"fancy%20url%20encoded%20data",
+/// util::decode(
+///     b"fancy%20url%20encoded%20data",
 ///     |s| {
 ///         // `s` is the most current slice of decoded data
 ///         v.extend_from_slice(s);
@@ -533,7 +534,10 @@ where F : FnMut(&[u8]) {
 ///
 /// let mut v = vec![];
 ///
-/// util::decode_into_vec(b"fancy%20url%20encoded%20data", &mut v);
+/// util::decode_into_vec(
+///     b"fancy%20url%20encoded%20data",
+///     &mut v
+/// );
 ///
 /// assert_eq!(b"fancy url encoded data", &v[..]);
 /// ```

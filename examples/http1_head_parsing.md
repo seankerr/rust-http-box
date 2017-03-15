@@ -1,4 +1,4 @@
-# Head Parsing
+## Head Parsing
 
 When parsing HTTP/1.x content, everything prior to the body is considered the
 head or headers. It starts off with the request or response line followed by
@@ -25,7 +25,7 @@ HTTP/1.1 200 OK\r\n
 The headers are formatted the same for a request or response, however, the types
 of headers being used will vary.
 
-# Callbacks
+## Callbacks
 
 [http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.3/http_box/http1/trait.HttpHandler.html)
 outlines the necessary callback functions we must implement in order to handle
@@ -49,7 +49,7 @@ parsed head data:
 - `HttpHandler::on_initial_finished()`
 - `HttpHandler::on_version()`
 
-# Example
+## Example
 
 ```rust
 extern crate http_box;
@@ -134,7 +134,7 @@ impl Handler {
     pub fn is_headers_finished(&self) -> bool {
         self.headers_finished
     }
-    
+
     pub fn is_initial_finished(&self) -> bool {
         self.initial_finished
     }
