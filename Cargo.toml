@@ -22,5 +22,4 @@ skeptic = "0.7.1"
 [dev-dependencies]
 byte-slice = "0.1.11"
 #byte-slice = { path = "../rust-byte-slice" }
-clippy     = "0.0.119"
 skeptic    = "0.7.1"
