@@ -1,4 +1,4 @@
-# rust-http-box
+# http-box
 
 ![Build: Passing](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![dev: 0.1.4](https://img.shields.io/badge/dev-0.1.4-ff69b4.svg)
