@@ -45,6 +45,8 @@ parsed head data:
 
 - `HttpHandler::on_header_name()`
 - `HttpHandler::on_header_value()`
+- `HttpHandler::on_headers_finished()`
+- `HttpHandler::on_initial_finished()`
 - `HttpHandler::on_version()`
 
 # Example
@@ -57,20 +59,23 @@ use std::collections::HashMap;
 
 // container for storing the parsed data
 pub struct Handler {
-    // headers
-    pub headers: HashMap<String,String>,
-
-    // indicates that head parsing has finished
-    pub initial_finished: bool,
-
-    // request method
-    pub method: Vec<u8>,
-
     // buffer for accumulating header name
     pub header_name: Vec<u8>,
 
     // buffer for accumulating header value
     pub header_value: Vec<u8>,
+
+    // headers
+    pub headers: HashMap<String,String>,
+
+    // indicates that head parsing has finished
+    pub headers_finished: bool,
+
+    // indicates that entire request/response line has been parsed
+    pub initial_finished: bool,
+
+    // request method
+    pub method: Vec<u8>,
 
     // current state
     pub state: State,
@@ -95,11 +100,12 @@ pub struct Handler {
 impl Handler {
     pub fn new() -> Handler {
         Handler{
-            headers:          HashMap::new(),
-            initial_finished: false,
-            method:           Vec::new(),
             header_name:      Vec::new(),
             header_value:     Vec::new(),
+            headers:          HashMap::new(),
+            headers_finished: false,
+            initial_finished: false,
+            method:           Vec::new(),
             state:            State::None,
             status:           Vec::new(),
             status_code:      0,
@@ -125,6 +131,10 @@ impl Handler {
         self.method.len() > 0
     }
 
+    pub fn is_headers_finished(&self) -> bool {
+        self.headers_finished
+    }
+    
     pub fn is_initial_finished(&self) -> bool {
         self.initial_finished
     }
@@ -153,6 +163,7 @@ impl HttpHandler for Handler {
 
     // executed when headers are finished
     fn on_headers_finished(&mut self) -> bool {
+        self.headers_finished = true;
         self.flush_header();
         true
     }
@@ -211,6 +222,7 @@ fn main() {
           \r\n"
     );
 
+    assert!(h.is_headers_finished());
     assert!(h.is_initial_finished());
     assert!(h.is_request());
 
