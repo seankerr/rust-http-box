@@ -191,7 +191,7 @@ fn multipart() {
     }
 
     // get boundary
-    let mut b = String::with_capacity(0);
+    let mut b = None;
 
     for (name, value) in FieldIterator::new(
         hh.headers.get("content-type").unwrap().as_bytes(),
@@ -199,7 +199,7 @@ fn multipart() {
         true
     ) {
         if name == "boundary" {
-            b = value.unwrap();
+            b = value;
         }
     }
 
@@ -208,7 +208,7 @@ fn multipart() {
     let mut p  = Parser::new();
 
     p.init_multipart();
-    p.set_boundary(b.as_bytes());
+    p.set_boundary(b.as_ref().unwrap().as_bytes());
 
     // first multipart entry
     match p.resume(&mut mh, &s) {
