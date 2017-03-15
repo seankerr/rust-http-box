@@ -222,43 +222,35 @@ impl fmt::Display for FieldError {
 /// extern crate http_box;
 ///
 /// use http_box::util::{ FieldError, FieldIterator };
-/// use std::collections::HashMap;
 ///
 /// fn main() {
-///     let mut error = None;
-///     let mut map: HashMap<String, Option<String>> = HashMap::new();
-///
-///     // notice the missing double-quote at the end of the last parameter name
-///     // this will report a FieldError::Value error with the byte value that triggered the error
-///     //
-///     // also notice the upper-cased parameter names that are normalized to lower-case thanks
+///     // notice the upper-cased parameter names that are normalized to lower-case thanks
 ///     // to the third parameter being `true`
-///     let field = b"COMPRESSION=bzip; BOUNDARY=\"longrandomboundarystring";
+///     let field = b"COMPRESSION=bzip; BOUNDARY=\"longrandomboundarystring\"";
 ///
-///     for (n, (name, value)) in FieldIterator::new(field, b';', true)
-///     .on_error(
-///         // setting an on_error callback is optional
-///         |x| {
-///             error = Some(x);
+///     for (n, (name, value)) in FieldIterator::new(field, b';', true).enumerate() {
+///         if n == 0 {
+///             assert_eq!(
+///                 name,
+///                 "compression"
+///             );
+///
+///             assert_eq!(
+///                 value.unwrap(),
+///                 "bzip"
+///             );
+///         } else if n == 1 {
+///             assert_eq!(
+///                 name,
+///                 "boundary"
+///             );
+///
+///             assert_eq!(
+///                 value.unwrap(),
+///                 "longrandomboundarystring"
+///             );
 ///         }
-///    ).enumerate() {
-///        if n == 0 {
-///            assert_eq!(
-///                name,
-///                "compression"
-///            );
-///
-///            assert_eq!(
-///                value.unwrap(),
-///                "bzip"
-///            );
-///        }
-///    }
-///
-///    match error.unwrap() {
-///        FieldError::Name(_) => panic!(),
-///        FieldError::Value(x) => assert_eq!(x, b'g')
-///    }
+///     }
 /// }
 /// ```
 pub struct FieldIterator<'a> {
@@ -272,6 +264,20 @@ pub struct FieldIterator<'a> {
 
 impl<'a> FieldIterator<'a> {
     /// Create a new `FieldIterator`.
+    ///
+    /// # Arguments
+    ///
+    /// **`field`**
+    ///
+    /// The header field.
+    ///
+    /// **`delimiter`**
+    ///
+    /// The field delimiter.
+    ///
+    /// **`normalize`**
+    ///
+    /// Indicates that field names should be normalized to lower-case.
     pub fn new(field: &'a [u8], delimiter: u8, normalize: bool) -> FieldIterator<'a> {
         FieldIterator{
             context:   ByteStream::new(field),
@@ -513,44 +519,43 @@ impl fmt::Display for QueryError {
 /// ```rust
 /// extern crate http_box;
 ///
-/// use http_box::util::{ QueryError, QueryIterator };
-/// use std::collections::HashMap;
+/// use http_box::util::QueryIterator;
 ///
 /// fn main() {
-///     let mut error = None;
-///     let mut map   = HashMap::new();
+///     let query = b"field1=value1&field2=value2&field3";
 ///
-///     // notice the null byte at the end of the last parameter name
-///     // this will report a QueryError::Name error with the byte value that triggered the error
-///     let query = b"field1=value1&field2=value2&field3\0";
+///     for (n, (name, value)) in QueryIterator::new(query).enumerate() {
+///         if n == 0 {
+///             assert_eq!(
+///                 name,
+///                 "field1"
+///             );
 ///
-///     for (name, value) in QueryIterator::new(query)
-///                          .on_error(
-///         // setting an on_error callback is optional
-///         |x| {
-///             error = Some(x);
+///             assert_eq!(
+///                 value.unwrap(),
+///                 "value1"
+///             );
+///         } else if n == 1 {
+///             assert_eq!(
+///                 name,
+///                 "field2"
+///             );
+///
+///             assert_eq!(
+///                 value.unwrap(),
+///                 "value2"
+///             );
+///         } else if n == 2 {
+///             assert_eq!(
+///                 name,
+///                 "field3"
+///             );
+///
+///             assert_eq!(
+///                 value,
+///                 None
+///             );
 ///         }
-///     ) {
-///         if value.is_some() {
-///             map.insert(name, value.unwrap());
-///         }
-///     }
-///
-///     assert_eq!(
-///         map.get("field1").unwrap(),
-///         "value1"
-///     );
-///
-///     assert_eq!(
-///         map.get("field2").unwrap(),
-///         "value2"
-///     );
-///
-///     assert!(!map.contains_key("field3"));
-///
-///     match error.unwrap() {
-///         QueryError::Name(x) => assert_eq!(x, 0),
-///         QueryError::Value(_) => panic!()
 ///     }
 /// }
 /// ```
@@ -563,6 +568,12 @@ pub struct QueryIterator<'a> {
 
 impl<'a> QueryIterator<'a> {
     /// Create a new `QueryIterator`.
+    ///
+    /// # Arguments
+    ///
+    /// **`query`**
+    ///
+    /// The query string.
     pub fn new(query: &'a [u8]) -> QueryIterator<'a> {
         QueryIterator{
             context:  ByteStream::new(query),
