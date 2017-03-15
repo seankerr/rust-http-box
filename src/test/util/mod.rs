@@ -71,5 +71,5 @@ macro_rules! field_error {
 }
 
 mod decode;
-mod parse_field;
+mod field_iterator;
 mod query_iterator;

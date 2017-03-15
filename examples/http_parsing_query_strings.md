@@ -57,9 +57,7 @@ fn main() {
     // this will report a QueryError::Name error with the byte value that triggered the error
     let query = b"field1=value1&field2=value2&field3\0";
 
-    for (name, value) in QueryIterator::new(query)
-                         .on_error(
-        // setting an on_error callback is optional
+    for (name, value) in QueryIterator::new(query).on_error(
         |x| {
             error = Some(x);
         }

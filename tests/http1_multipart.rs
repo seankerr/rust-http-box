@@ -4,8 +4,7 @@ use http_box::fsm::Success;
 use http_box::http1::{ HttpHandler,
                        Parser,
                        State };
-use http_box::util::FieldSegment;
-use http_box::util;
+use http_box::util::FieldIterator;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -192,30 +191,24 @@ fn multipart() {
     }
 
     // get boundary
-    let mut b = Vec::new();
+    let mut b = String::with_capacity(0);
 
-    util::parse_field(hh.headers.get("content-type").unwrap().as_bytes(),
-                      b';', true,
-        |s: FieldSegment| {
-            match s {
-                FieldSegment::NameValue(n, v) => {
-                    if n == b"boundary" {
-                        b.extend_from_slice(v);
-                    }
-                },
-                _ => {}
-            }
-
-            true
+    for (name, value) in FieldIterator::new(
+        hh.headers.get("content-type").unwrap().as_bytes(),
+        b';',
+        true
+    ) {
+        if name == "boundary" {
+            b = value.unwrap();
         }
-    );
+    }
 
     // parse multipart
     let mut mh = MultipartHandler::new();
     let mut p  = Parser::new();
 
     p.init_multipart();
-    p.set_boundary(&b);
+    p.set_boundary(b.as_bytes());
 
     // first multipart entry
     match p.resume(&mut mh, &s) {

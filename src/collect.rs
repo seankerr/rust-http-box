@@ -67,6 +67,49 @@ macro_rules! collect_field {
     });
 }
 
+/// Collect an unquoted field value.
+///
+/// This macro is compatible with custom iterators.
+macro_rules! collect_field_iter {
+    ($iter:expr, $context:expr, $error:expr, $stop:expr, $byte_error:expr, $on_eos:expr) => ({
+        bs_collect!($context, {
+                if $stop {
+                    break;
+                } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
+                    // space + visible + no byte error
+                    continue;
+                } else {
+                    bs_jump!($context, bs_available!($context));
+
+                    (*$iter.on_error)($error($context.byte));
+
+                    return None;
+                }
+            },
+            $on_eos
+        );
+    });
+
+    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+        bs_collect!($context, {
+                if $stop {
+                    break;
+                } else if $context.byte > 0x1F && $context.byte < 0x7F {
+                    // space + visible
+                    continue;
+                }
+
+                bs_jump!($context, bs_available!($context));
+
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+}
+
 /// Collect and convert all hex bytes into a u64 variable.
 ///
 /// Exit the collection loop upon finding a non-hex byte. Return `$error` if an overflow would
@@ -109,6 +152,48 @@ macro_rules! collect_quoted {
     });
 }
 
+/// Collect a quoted value.
+///
+/// This macro is compatible with custom iterators.
+///
+/// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
+/// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
+macro_rules! collect_quoted_iter {
+    ($iter:expr, $context:expr, $error:expr, $byte_error:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if $context.byte == b'"' || $context.byte == b'\\' {
+                break;
+            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' || !$byte_error {
+                continue;
+            } else {
+                bs_jump!($context, bs_available!($context));
+
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+
+    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if $context.byte == b'"' || $context.byte == b'\\' {
+                break;
+            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' {
+                continue;
+            } else {
+                bs_jump!($context, bs_available!($context));
+
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+}
+
 /// Collect all token bytes.
 ///
 /// Exit the collection loop when `$stop` yields `true`.
@@ -132,6 +217,45 @@ macro_rules! collect_tokens {
                 continue;
             } else {
                 return Err($error($context.byte));
+            },
+            $on_eos
+        );
+    });
+}
+
+/// Collect all token bytes.
+///
+/// This macro is compatible with custom iterators.
+///
+/// Exit the collection loop when `$stop` yields `true`.
+macro_rules! collect_tokens_iter {
+    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if $stop {
+                break;
+            } else if is_token($context.byte) {
+                continue;
+            } else {
+                bs_jump!($context, bs_available!($context));
+
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+
+    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if is_token($context.byte) {
+                continue;
+            } else {
+                bs_jump!($context, bs_available!($context));
+
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
             },
             $on_eos
         );
@@ -165,7 +289,7 @@ macro_rules! collect_visible {
 
 /// Collect all visible 7-bit bytes. Visible bytes are 0x21 thru 0x7E.
 ///
-/// This function is compatible with custom iterators.
+/// This macro is compatible with custom iterators.
 ///
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_visible_iter {
@@ -174,9 +298,9 @@ macro_rules! collect_visible_iter {
             if $stop {
                 break;
             } else if is_not_visible_7bit!($context.byte) {
-                bs_jump!($iter.context, bs_available!($iter.context));
+                bs_jump!($context, bs_available!($context));
 
-                (*$iter.on_error)($error($iter.context.byte));
+                (*$iter.on_error)($error($context.byte));
 
                 return None;
             },
@@ -187,9 +311,9 @@ macro_rules! collect_visible_iter {
     ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if is_not_visible_7bit!($context.byte) {
-                bs_jump!($iter.context, bs_available!($iter.context));
+                bs_jump!($context, bs_available!($context));
 
-                (*$iter.on_error)($error($iter.context.byte));
+                (*$iter.on_error)($error($context.byte));
 
                 return None;
             },

@@ -42,6 +42,65 @@ macro_rules! exit_ok {
     });
 }
 
+macro_rules! submit_error {
+    ($iter:expr, $error:expr) => ({
+        bs_jump!($iter.context, bs_available!($iter.context));
+
+        (*$iter.on_error)($error($iter.context.byte));
+
+        return None;
+    });
+}
+
+macro_rules! submit_name {
+    ($iter:expr) => ({
+        return Some((
+            unsafe {
+                let mut s = String::with_capacity($iter.name.len());
+
+                s.as_mut_vec().extend_from_slice(&$iter.name);
+                s
+            },
+            None
+        ));
+    });
+}
+macro_rules! submit_name_value {
+    ($name:expr, $value:expr) => ({
+        return Some((
+            unsafe {
+                let mut s = String::with_capacity($name.len());
+
+                s.as_mut_vec().extend_from_slice(&$name);
+                s
+            },
+            unsafe {
+                let mut s = String::with_capacity($value.len());
+
+                s.as_mut_vec().extend_from_slice(&$value);
+                Some(s)
+            }
+        ));
+    });
+
+    ($iter:expr) => ({
+        return Some((
+            unsafe {
+                let mut s = String::with_capacity($iter.name.len());
+
+                s.as_mut_vec().extend_from_slice(&$iter.name);
+                s
+            },
+            unsafe {
+                let mut s = String::with_capacity($iter.value.len());
+
+                s.as_mut_vec().extend_from_slice(&$iter.value);
+                Some(s)
+            }
+        ));
+    });
+}
+
 // -------------------------------------------------------------------------------------------------
 
 /// Decoding errors.
@@ -92,37 +151,6 @@ impl fmt::Display for DecodeError {
                 )
             }
         }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Field closure support.
-pub trait FieldClosure {
-    /// Run the field segment closure.
-    fn run(&mut self, segment: FieldSegment) -> bool;
-
-    /// Run the byte validation closure.
-    fn validate(&mut self, byte: u8) -> bool;
-}
-
-impl<T: FnMut(FieldSegment) -> bool> FieldClosure for T {
-    fn run(&mut self, segment: FieldSegment) -> bool {
-        self(segment)
-    }
-
-    fn validate(&mut self, _: u8) -> bool {
-        true
-    }
-}
-
-impl<T1: FnMut(u8) -> bool, T2: FnMut(FieldSegment) -> bool> FieldClosure for (T1, T2) {
-    fn run(&mut self, segment: FieldSegment) -> bool {
-        self.1(segment)
-    }
-
-    fn validate(&mut self, byte: u8) -> bool {
-        self.0(byte)
     }
 }
 
@@ -181,80 +209,238 @@ impl fmt::Display for FieldError {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Field segments.
-pub enum FieldSegment<'a> {
-    /// Name without a value.
-    Name(&'a [u8]),
-
-    /// Name and value pair.
-    NameValue(&'a [u8], &'a [u8])
+/// Header field iterator.
+///
+/// This allows you to iterate over a header field to retrieve `(name, value)` pairs.
+///
+/// # Errors
+///
+/// - [`FieldError::Name`](enum.FieldError.html#variant.Name)
+/// - [`FieldError::Value`](enum.FieldError.html#variant.Value)
+///
+/// ```rust
+/// extern crate http_box;
+///
+/// use http_box::util::{ FieldError, FieldIterator };
+/// use std::collections::HashMap;
+///
+/// fn main() {
+///     let mut error = None;
+///     let mut map: HashMap<String, Option<String>> = HashMap::new();
+///
+///     // notice the missing double-quote at the end of the last parameter name
+///     // this will report a FieldError::Value error with the byte value that triggered the error
+///     //
+///     // also notice the upper-cased parameter names that are normalized to lower-case thanks
+///     // to the third parameter being `true`
+///     let field = b"COMPRESSION=bzip; BOUNDARY=\"longrandomboundarystring";
+///
+///     for (n, (name, value)) in FieldIterator::new(field, b';', true)
+///     .on_error(
+///         // setting an on_error callback is optional
+///         |x| {
+///             error = Some(x);
+///         }
+///    ).enumerate() {
+///        if n == 0 {
+///            assert_eq!(
+///                name,
+///                "compression"
+///            );
+///
+///            assert_eq!(
+///                value.unwrap(),
+///                "bzip"
+///            );
+///        }
+///    }
+///
+///    match error.unwrap() {
+///        FieldError::Name(_) => panic!(),
+///        FieldError::Value(x) => assert_eq!(x, b'g')
+///    }
+/// }
+/// ```
+pub struct FieldIterator<'a> {
+    context:   ByteStream<'a>,
+    delimiter: u8,
+    name:      Vec<u8>,
+    normalize: bool,
+    on_error:  Box<FnMut(FieldError) + 'a>,
+    value:     Vec<u8>
 }
 
-impl<'a> FieldSegment<'a> {
-    /// Indicates that this [`FieldSegment`] contains a value.
-    pub fn has_value(&self) -> bool {
-        match *self {
-            FieldSegment::Name(_) => false,
-            _ => true
+impl<'a> FieldIterator<'a> {
+    /// Create a new `FieldIterator`.
+    pub fn new(field: &'a [u8], delimiter: u8, normalize: bool) -> FieldIterator<'a> {
+        FieldIterator{
+            context:   ByteStream::new(field),
+            delimiter: delimiter,
+            name:      Vec::new(),
+            normalize: normalize,
+            on_error:  Box::new(|_|{}),
+            value:     Vec::new()
         }
     }
 
-    /// Retrieve the name.
-    pub fn name(&self) -> &'a [u8] {
-        match *self {
-              FieldSegment::Name(name)
-            | FieldSegment::NameValue(name, _) => name
-        }
-    }
-
-    /// Retrieve the value.
-    pub fn value(&self) -> Option<&'a [u8]> {
-        match *self {
-            FieldSegment::NameValue(_, value) => Some(value),
-            _ => None
-        }
+    /// Set the on error closure.
+    pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
+    where F : 'a + FnMut(FieldError) {
+        self.on_error = Box::new(on_error);
+        self
     }
 }
 
-impl<'a> fmt::Debug for FieldSegment<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            FieldSegment::Name(x) => {
-                write!(
-                    formatter,
-                    "FieldSegment::Name({:?})",
-                    str::from_utf8(x).unwrap()
-                )
-            },
-            FieldSegment::NameValue(x,y) => {
-                write!(
-                    formatter,
-                    "FieldSegment::NameValue({:?}, {:?})",
-                    str::from_utf8(x).unwrap(),
-                    str::from_utf8(y).unwrap()
-                )
-            }
-        }
-    }
-}
+impl<'a> Iterator for FieldIterator<'a> {
+    type Item = (String, Option<String>);
 
-impl<'a> fmt::Display for FieldSegment<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            FieldSegment::Name(x) => {
-                write!(
-                    formatter,
-                    "{:?}",
-                    str::from_utf8(x).unwrap()
-                )
-            },
-            FieldSegment::NameValue(x,y) => {
-                write!(
-                    formatter,
-                    "{:?}={:?}",
-                    str::from_utf8(x).unwrap(),
-                    str::from_utf8(y).unwrap()
-                )
+    fn next(&mut self) -> Option<(String, Option<String>)> {
+        if bs_available!(self.context) == 0 {
+            return None;
+        }
+
+        self.name.clear();
+        self.value.clear();
+
+        loop {
+            // parsing name
+            consume_spaces!(
+                self.context,
+
+                // on end-of-stream
+                return None
+            );
+
+            bs_mark!(self.context);
+
+            collect_tokens_iter!(
+                self,
+                self.context,
+                FieldError::Name,
+
+                // stop on these bytes
+                   self.context.byte == b'='
+                || self.context.byte == self.delimiter
+                || self.context.byte == b'/'
+                || (self.normalize && self.context.byte > 0x40 && self.context.byte < 0x5B),
+
+                // on end-of-stream
+                {
+                    // name without a value
+                    if bs_slice_length!(self.context) > 0 {
+                        self.name.extend_from_slice(bs_slice!(self.context));
+                    }
+
+                    submit_name!(self);
+                }
+            );
+
+            self.name.extend_from_slice(bs_slice_ignore!(self.context));
+
+            match self.context.byte {
+                b'=' => {
+                    // parsing value
+                    if bs_available!(self.context) == 0 {
+                        // name without a value
+                        submit_name!(self);
+                    }
+
+                    bs_next!(self.context);
+
+                    if self.context.byte == b'"' {
+                        // quoted value
+                        loop {
+                            bs_mark!(self.context);
+
+                            collect_quoted_iter!(
+                                self,
+                                self.context,
+                                FieldError::Value,
+
+                                // on end-of-stream
+                                // didn't find an ending quote
+                                submit_error!(self, FieldError::Value)
+                            );
+
+                            if self.context.byte == b'"' {
+                                // found end quote
+                                self.value.extend_from_slice(bs_slice_ignore!(self.context));
+
+                                consume_spaces!(
+                                    self.context,
+
+                                    // on end-of-stream
+                                    submit_name_value!(self)
+                                );
+
+                                if bs_available!(self.context) == 0 {
+                                    submit_name_value!(self);
+                                }
+
+                                bs_next!(self.context);
+
+                                if self.context.byte == self.delimiter {
+                                    submit_name_value!(self);
+                                }
+
+                                // expected a semicolon to end the value
+                                submit_error!(self, FieldError::Value);
+                            } else {
+                                // found backslash
+                                if bs_is_eos!(self.context) {
+                                    submit_error!(self, FieldError::Name);
+                                }
+
+                                self.value.extend_from_slice(bs_slice_ignore!(self.context));
+
+                                bs_next!(self.context);
+
+                                self.value.push(self.context.byte);
+                            }
+                        }
+                    } else {
+                        // unquoted value
+                        bs_replay!(self.context);
+                        bs_mark!(self.context);
+
+                        collect_field_iter!(
+                            self,
+                            self.context,
+                            FieldError::Value,
+
+                            // stop on these bytes
+                            self.context.byte == self.delimiter,
+
+                            // on end-of-stream
+                            {
+                                if bs_slice_length!(self.context) > 0 {
+                                    self.value.extend_from_slice(bs_slice!(self.context));
+                                }
+
+                                submit_name_value!(self);
+                            }
+                        );
+
+                        if bs_slice_length!(self.context) == 0 {
+                            // name without a value
+                            submit_name!(self);
+                        }
+
+                        submit_name_value!(self.name, bs_slice_ignore!(self.context));
+                    }
+                },
+                b'/' => {
+                    // this isn't allowed as a token, but since it's a name-only field, it's allowed
+                    self.name.push(b'/');
+                },
+                byte if byte == self.delimiter => {
+                    // name without a value
+                    submit_name!(self);
+                },
+                _ => {
+                    // upper-cased byte, let's lower-case it
+                    self.name.push(self.context.byte + 0x20);
+                }
             }
         }
     }
@@ -398,19 +584,12 @@ impl<'a> Iterator for QueryIterator<'a> {
     type Item = (String, Option<String>);
 
     fn next(&mut self) -> Option<(String, Option<String>)> {
-        macro_rules! submit_error {
-            ($iter:expr, $error:expr) => ({
-                bs_jump!($iter.context, bs_available!($iter.context));
-
-                (*$iter.on_error)($error($iter.context.byte));
-
-                return None;
-            });
-        }
-
         if bs_available!(self.context) == 0 {
             return None;
         }
+
+        self.name.clear();
+        self.value.clear();
 
         loop {
             // field loop
@@ -435,16 +614,7 @@ impl<'a> Iterator for QueryIterator<'a> {
                             self.name.extend_from_slice(bs_slice!(self.context));
                         }
 
-                        return Some((
-                            unsafe {
-                                let mut s = String::with_capacity(self.name.len());
-
-                                s.as_mut_vec().extend_from_slice(&self.name);
-                                self.name.clear();
-                                s
-                            },
-                            None
-                        ));
+                        submit_name!(self);
                     }
                 );
 
@@ -500,16 +670,7 @@ impl<'a> Iterator for QueryIterator<'a> {
                     submit_error!(self, QueryError::Name);
                 } else {
                     // name without a value
-                    return Some((
-                        unsafe {
-                            let mut s = String::with_capacity(self.name.len());
-
-                            s.as_mut_vec().extend_from_slice(&self.name);
-                            self.name.clear();
-                            s
-                        },
-                        None
-                    ));
+                    submit_name!(self);
                 }
             }
 
@@ -534,22 +695,7 @@ impl<'a> Iterator for QueryIterator<'a> {
                             self.value.extend_from_slice(bs_slice!(self.context));
                         }
 
-                        return Some((
-                            unsafe {
-                                let mut s = String::with_capacity(self.name.len());
-
-                                s.as_mut_vec().extend_from_slice(&self.name);
-                                self.name.clear();
-                                s
-                            },
-                            unsafe {
-                                let mut s = String::with_capacity(self.value.len());
-
-                                s.as_mut_vec().extend_from_slice(&self.value);
-                                self.value.clear();
-                                Some(s)
-                            }
-                        ));
+                        submit_name_value!(self);
                     }
                 );
 
@@ -595,22 +741,7 @@ impl<'a> Iterator for QueryIterator<'a> {
                     self.value.push(b' ');
                 } else {
                     // name with a value
-                    return Some((
-                        unsafe {
-                            let mut s = String::with_capacity(self.name.len());
-
-                            s.as_mut_vec().extend_from_slice(&self.name);
-                            self.name.clear();
-                            s
-                        },
-                        unsafe {
-                            let mut s = String::with_capacity(self.value.len());
-
-                            s.as_mut_vec().extend_from_slice(&self.value);
-                            self.value.clear();
-                            Some(s)
-                        }
-                    ));
+                    submit_name_value!(self);
                 }
             }
         }
@@ -770,268 +901,4 @@ pub fn decode_into_vec(bytes: &[u8], buffer: &mut Vec<u8>) -> Result<usize, Deco
             buffer.extend_from_slice(s);
         }
     )
-}
-
-/// Parse the content of a header field.
-///
-/// # Arguments
-///
-/// **`field`**
-///
-/// The field data to be parsed.
-///
-/// **`delimiter`**
-///
-/// The delimiting byte.
-///
-/// **`normalize`**
-///
-/// Indicates that field names should be normalized to lower-case.
-///
-/// **`field_fn`**
-///
-/// The [`FieldClosure`](trait.FieldClosure.html) implementation that receives instances of
-/// [`FieldSegment`](enum.FieldSegment.html)
-///
-/// # Returns
-///
-/// **`usize`**
-///
-/// The amount of data that was parsed.
-///
-/// # Errors
-///
-/// - [`FieldError::Name`](enum.FieldError.html#variant.Name)
-/// - [`FieldError::Value`](enum.FieldError.html#variant.Value)
-///
-/// # Examples
-///
-/// This is an example of a `FieldClosure` implementation that is a single closure that accepts
-/// instances of `FieldSegment`.
-///
-/// ```
-/// use http_box::util::FieldSegment;
-/// use http_box::util;
-///
-/// util::parse_field(b"name-no-value; name1=value1; name2=\"value2\"", b';', true,
-///     |s: FieldSegment| {
-///         if s.has_value() {
-///             s.name();
-///             s.value().unwrap();
-///         } else {
-///             s.name();
-///         }
-///
-///         true
-///     }
-/// );
-/// ```
-///
-/// This is an example of a `FieldClosure` implementation that is a tuple of two closures. The first
-/// closure accepts the current field value byte, and returns a boolean indicating that the byte is
-/// valid. The second closure accepts the instance of `FieldSegment`.
-///
-/// You will notice that in the 'name2' value, there is a null byte. The validation closure checks
-/// for this, and since it returns `false`, `parse_field()` returns an error.
-///
-/// ```
-/// use http_box::util::{ FieldError, FieldSegment };
-/// use http_box::util;
-///
-/// match util::parse_field(b"name-no-value; name1=value1; name2=\"value2\0\"", b';', true,
-///     ( // byte validation closure
-///      |b: u8| {
-///          b != b'\0'
-///      },
-///      // field segment closure
-///      |s: FieldSegment| {
-///          if s.has_value() {
-///              s.name();
-///              s.value().unwrap();
-///          } else {
-///              s.name();
-///          }
-///
-///          true
-///      })
-/// ) {
-///     Err(FieldError::Value(b'\0')) => { },
-///     _ => panic!()
-/// }
-/// ```
-pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool, mut field_fn: T)
--> Result<usize, FieldError> {
-    let mut context = ByteStream::new(field);
-    let mut name    = Vec::new();
-    let mut value   = Vec::new();
-
-    loop {
-        // parsing name
-        consume_spaces!(
-            context,
-
-            // on end-of-stream
-            exit_ok!(context)
-        );
-
-        bs_mark!(context);
-
-        collect_tokens!(
-            context,
-            FieldError::Name,
-
-            // stop on these bytes
-               context.byte == b'='
-            || context.byte == delimiter
-            || context.byte == b'/'
-            || (normalize && context.byte > 0x40 && context.byte < 0x5B),
-
-            // on end-of-stream
-            {
-                // name without a value
-                if bs_slice_length!(context) > 0 {
-                    name.extend_from_slice(bs_slice!(context));
-                }
-
-                field_fn.run(FieldSegment::Name(&name));
-
-                exit_ok!(context);
-            }
-        );
-
-        name.extend_from_slice(bs_slice_ignore!(context));
-
-        match context.byte {
-            b'=' => {
-                // parsing value
-                exit_if_eos!(context);
-                bs_next!(context);
-
-                if context.byte == b'"' {
-                    // quoted value
-                    loop {
-                        bs_mark!(context);
-
-                        collect_quoted!(
-                            context,
-                            FieldError::Value,
-
-                            // error on these bytes
-                            !field_fn.validate(context.byte),
-
-                            // on end-of-stream
-                            // didn't find an ending quote
-                            return Err(FieldError::Value(context.byte))
-                        );
-
-                        if context.byte == b'"' {
-                            // found end quote
-                            value.extend_from_slice(bs_slice_ignore!(context));
-
-                            if field_fn.run(FieldSegment::NameValue(&name, &value)) {
-                                name.clear();
-                                value.clear();
-                            } else {
-                                // callback exited
-                                name.clear();
-                                value.clear();
-
-                                exit_ok!(context);
-                            }
-
-                            consume_spaces!(
-                                context,
-
-                                // on end-of-stream
-                                exit_ok!(context)
-                            );
-
-                            exit_if_eos!(context);
-                            bs_next!(context);
-
-                            if context.byte == delimiter {
-                                break;
-                            }
-
-                            // expected a semicolon to end the value
-                            return Err(FieldError::Value(context.byte));
-                        } else {
-                            // found backslash
-                            if bs_is_eos!(context) {
-                                return Err(FieldError::Value(context.byte));
-                            }
-
-                            value.extend_from_slice(bs_slice_ignore!(context));
-
-                            bs_next!(context);
-
-                            value.push(context.byte);
-                        }
-                    }
-                } else {
-                    // unquoted value
-                    bs_replay!(context);
-                    bs_mark!(context);
-
-                    collect_field!(
-                        context,
-                        FieldError::Value,
-
-                        // stop on these bytes
-                        context.byte == delimiter,
-
-                        // error on these bytes
-                        !field_fn.validate(context.byte),
-
-                        // on end-of-stream
-                        {
-                            if bs_slice_length!(context) > 0 {
-                                value.extend_from_slice(bs_slice!(context));
-                            }
-
-                            field_fn.run(FieldSegment::NameValue(&name, &value));
-
-                            exit_ok!(context);
-                        }
-                    );
-
-                    if bs_slice_length!(context) == 0 {
-                        // name without a value
-                        if !field_fn.run(FieldSegment::Name(&name)) {
-                            // callback exited
-                            exit_ok!(context);
-                        }
-                    } else {
-                        // name/value pair
-                        if !field_fn.run(FieldSegment::NameValue(&name, bs_slice_ignore!(context))) {
-                            // callback exited
-                            exit_ok!(context);
-                        }
-                    }
-
-                    name.clear();
-                    value.clear();
-                }
-            },
-            b'/' => {
-                // this isn't allowed as a token, but since it's a name-only field, it's allowed
-                name.push(b'/');
-            },
-            byte if byte == delimiter => {
-                // name without a value
-                if field_fn.run(FieldSegment::Name(&name)) {
-                    name.clear();
-                } else {
-                    // callback exited
-                    name.clear();
-
-                    exit_ok!(context);
-                }
-            },
-            _ => {
-                // upper-cased byte, let's lower-case it
-                name.push(context.byte + 0x20);
-            }
-        }
-    }
 }
