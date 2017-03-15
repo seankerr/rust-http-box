@@ -55,3 +55,7 @@ https://docs.rs/http-box/0.1.3/http_box/
 
 - [Intro](examples/http1_intro.md)
 - [Parsing headers](examples/http1_head_parsing.md)
+
+## HTTP Utilities
+
+- [Utility functions](examples/http_utilities.md)
