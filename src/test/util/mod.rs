@@ -70,62 +70,6 @@ macro_rules! field_error {
     });
 }
 
-#[macro_export]
-macro_rules! query {
-    ($map:expr, $stream:expr, $length:expr) => ({
-        let fun = |s: QuerySegment| {
-            match s {
-                QuerySegment::Name(x) => {
-                    let mut f = String::new();
-                    let v = String::new();
-
-                    unsafe {
-                        f.as_mut_vec().extend_from_slice(x);
-                    }
-
-                    $map.insert(f, v);
-                },
-                QuerySegment::NameValue(x,y) => {
-                    let mut f = String::new();
-                    let mut v = String::new();
-
-                    unsafe {
-                        f.as_mut_vec().extend_from_slice(x);
-                        v.as_mut_vec().extend_from_slice(y);
-                    }
-
-                    $map.insert(f, v);
-                }
-            }
-
-            true
-        };
-
-        assert!(match parse_query($stream, fun) {
-            Ok($length) => {
-                true
-            },
-            _ => false
-        });
-    });
-}
-
-#[macro_export]
-macro_rules! query_error {
-    ($stream:expr, $byte:expr, $error:path) => ({
-        let fun = |_: QuerySegment| { true };
-
-        assert!(match parse_query($stream, fun) {
-            Err($error(x)) => {
-                assert_eq!(x, $byte);
-                true
-            },
-            _ => false
-        });
-    });
-}
-
 mod decode;
 mod parse_field;
-mod parse_query_field;
-mod parse_query_value;
+mod query_iterator;

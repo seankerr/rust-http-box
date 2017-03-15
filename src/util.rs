@@ -315,80 +315,303 @@ impl fmt::Display for QueryError {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Query segments.
-pub enum QuerySegment<'a> {
-    /// Name without a value.
-    Name(&'a [u8]),
-
-    /// Name and value pair.
-    NameValue(&'a [u8], &'a [u8])
+/// Query iterator.
+///
+/// This allows you to iterate over a query string to retrieve `(name, value)` pairs.
+///
+/// # Errors
+///
+/// - [`QueryError::Name`](enum.QueryError.html#variant.Name)
+/// - [`QueryError::Value`](enum.QueryError.html#variant.Value)
+///
+/// ```rust
+/// extern crate http_box;
+///
+/// use http_box::util::{ QueryError, QueryIterator };
+/// use std::collections::HashMap;
+///
+/// fn main() {
+///     let mut error = None;
+///     let mut map   = HashMap::new();
+///
+///     // notice the null byte at the end of the last parameter name
+///     // this will report a QueryError::Name error with the byte value that triggered the error
+///     let query = b"field1=value1&field2=value2&field3\0";
+///
+///     for (name, value) in QueryIterator::new(query)
+///                          .on_error(
+///         // setting an on_error callback is optional
+///         |x| {
+///             error = Some(x);
+///         }
+///     ) {
+///         if value.is_some() {
+///             map.insert(name, value.unwrap());
+///         }
+///     }
+///
+///     assert_eq!(
+///         map.get("field1").unwrap(),
+///         "value1"
+///     );
+///
+///     assert_eq!(
+///         map.get("field2").unwrap(),
+///         "value2"
+///     );
+///
+///     assert!(!map.contains_key("field3"));
+///
+///     match error.unwrap() {
+///         QueryError::Name(x) => assert_eq!(x, 0),
+///         QueryError::Value(_) => panic!()
+///     }
+/// }
+/// ```
+pub struct QueryIterator<'a> {
+    context:  ByteStream<'a>,
+    name:     Vec<u8>,
+    on_error: Box<FnMut(QueryError) + 'a>,
+    value:    Vec<u8>
 }
 
-impl<'a> QuerySegment<'a> {
-    /// Indicates that this [`QuerySegment`] contains a value.
-    pub fn has_value(&self) -> bool {
-        match *self {
-            QuerySegment::Name(_) => false,
-            _ => true
+impl<'a> QueryIterator<'a> {
+    /// Create a new `QueryIterator`.
+    pub fn new(query: &'a [u8]) -> QueryIterator<'a> {
+        QueryIterator{
+            context:  ByteStream::new(query),
+            name:     Vec::new(),
+            on_error: Box::new(|_|{}),
+            value:    Vec::new()
         }
     }
 
-    /// Retrieve the name.
-    pub fn name(&self) -> &'a [u8] {
-        match *self {
-              QuerySegment::Name(name)
-            | QuerySegment::NameValue(name, _) => name
-        }
-    }
-
-    /// Retrieve the value.
-    pub fn value(&self) -> Option<&'a [u8]> {
-        match *self {
-            QuerySegment::NameValue(_, value) => Some(value),
-            _ => None
-        }
+    /// Set the on error closure.
+    pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
+    where F : 'a + FnMut(QueryError) {
+        self.on_error = Box::new(on_error);
+        self
     }
 }
 
-impl<'a> fmt::Debug for QuerySegment<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            QuerySegment::Name(x) => {
-                write!(
-                    formatter,
-                    "QuerySegment::Name({:?})",
-                    str::from_utf8(x).unwrap()
-                )
-            },
-            QuerySegment::NameValue(x,y) => {
-                write!(
-                    formatter,
-                    "QuerySegment::NameValue({:?}, {:?})",
-                    str::from_utf8(x).unwrap(),
-                    str::from_utf8(y).unwrap()
-                )
+impl<'a> Iterator for QueryIterator<'a> {
+    type Item = (String, Option<String>);
+
+    fn next(&mut self) -> Option<(String, Option<String>)> {
+        macro_rules! submit_error {
+            ($iter:expr, $error:expr) => ({
+                bs_jump!($iter.context, bs_available!($iter.context));
+
+                (*$iter.on_error)($error($iter.context.byte));
+
+                return None;
+            });
+        }
+
+        if bs_available!(self.context) == 0 {
+            return None;
+        }
+
+        loop {
+            // field loop
+            loop {
+                bs_mark!(self.context);
+
+                collect_visible_iter!(
+                    self,
+                    self.context,
+                    QueryError::Name,
+
+                    // stop on these bytes
+                       self.context.byte == b'%'
+                    || self.context.byte == b'+'
+                    || self.context.byte == b'='
+                    || self.context.byte == b'&'
+                    || self.context.byte == b';',
+
+                    // on end-of-stream
+                    {
+                        if bs_slice_length!(self.context) > 0 {
+                            self.name.extend_from_slice(bs_slice!(self.context));
+                        }
+
+                        return Some((
+                            unsafe {
+                                let mut s = String::with_capacity(self.name.len());
+
+                                s.as_mut_vec().extend_from_slice(&self.name);
+                                self.name.clear();
+                                s
+                            },
+                            None
+                        ));
+                    }
+                );
+
+                if bs_slice_length!(self.context) > 1 {
+                    self.name.extend_from_slice(bs_slice_ignore!(self.context));
+                }
+
+                if self.context.byte == b'%' {
+                    if bs_has_bytes!(self.context, 2) {
+                        bs_next!(self.context);
+
+                        let mut byte = if is_digit!(self.context.byte) {
+                            (self.context.byte - b'0') << 4
+                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
+                            (self.context.byte - 0x37) << 4
+                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
+                            (self.context.byte - 0x57) << 4
+                        } else {
+                            submit_error!(self, QueryError::Name);
+                        } as u8;
+
+                        bs_next!(self.context);
+
+                        byte |= if is_digit!(self.context.byte) {
+                            self.context.byte - b'0'
+                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
+                            self.context.byte - 0x37
+                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
+                            self.context.byte - 0x57
+                        } else {
+                            submit_error!(self, QueryError::Name);
+                        } as u8;
+
+                        self.name.push(byte);
+                    } else {
+                        if bs_has_bytes!(self.context, 1) {
+                            bs_next!(self.context);
+                        }
+
+                        submit_error!(self, QueryError::Name);
+                    }
+                } else if self.context.byte == b'+' {
+                    self.name.push(b' ');
+                } else if self.context.byte == b'=' {
+                    if self.context.stream_index == 1 {
+                        // first byte cannot be an equal sign
+                        submit_error!(self, QueryError::Name);
+                    }
+
+                    break;
+                } else if self.context.stream_index == 1 {
+                    // first byte cannot be a delimiter
+                    submit_error!(self, QueryError::Name);
+                } else {
+                    // name without a value
+                    return Some((
+                        unsafe {
+                            let mut s = String::with_capacity(self.name.len());
+
+                            s.as_mut_vec().extend_from_slice(&self.name);
+                            self.name.clear();
+                            s
+                        },
+                        None
+                    ));
+                }
             }
-        }
-    }
-}
 
-impl<'a> fmt::Display for QuerySegment<'a> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            QuerySegment::Name(x) => {
-                write!(
-                    formatter,
-                    "{:?}",
-                    str::from_utf8(x).unwrap()
-                )
-            },
-            QuerySegment::NameValue(x,y) => {
-                write!(
-                    formatter,
-                    "{:?}={:?}",
-                    str::from_utf8(x).unwrap(),
-                    str::from_utf8(y).unwrap()
-                )
+            // value loop
+            loop {
+                bs_mark!(self.context);
+
+                collect_visible_iter!(
+                    self,
+                    self.context,
+                    QueryError::Value,
+
+                    // stop on these bytes
+                       self.context.byte == b'%'
+                    || self.context.byte == b'+'
+                    || self.context.byte == b'&'
+                    || self.context.byte == b';',
+
+                    // on end-of-stream
+                    {
+                        if bs_slice_length!(self.context) > 0 {
+                            self.value.extend_from_slice(bs_slice!(self.context));
+                        }
+
+                        return Some((
+                            unsafe {
+                                let mut s = String::with_capacity(self.name.len());
+
+                                s.as_mut_vec().extend_from_slice(&self.name);
+                                self.name.clear();
+                                s
+                            },
+                            unsafe {
+                                let mut s = String::with_capacity(self.value.len());
+
+                                s.as_mut_vec().extend_from_slice(&self.value);
+                                self.value.clear();
+                                Some(s)
+                            }
+                        ));
+                    }
+                );
+
+                if bs_slice_length!(self.context) > 1 {
+                    self.value.extend_from_slice(bs_slice_ignore!(self.context));
+                }
+
+                if self.context.byte == b'%' {
+                    if bs_has_bytes!(self.context, 2) {
+                        bs_next!(self.context);
+
+                        let mut byte = if is_digit!(self.context.byte) {
+                            (self.context.byte - b'0') << 4
+                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
+                            (self.context.byte - 0x37) << 4
+                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
+                            (self.context.byte - 0x57) << 4
+                        } else {
+                            submit_error!(self, QueryError::Value);
+                        } as u8;
+
+                        bs_next!(self.context);
+
+                        byte |= if is_digit!(self.context.byte) {
+                            self.context.byte - b'0'
+                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
+                            self.context.byte - 0x37
+                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
+                            self.context.byte - 0x57
+                        } else {
+                            submit_error!(self, QueryError::Value);
+                        } as u8;
+
+                        self.value.push(byte);
+                    } else {
+                        if bs_has_bytes!(self.context, 1) {
+                            bs_next!(self.context);
+                        }
+
+                        submit_error!(self, QueryError::Value);
+                    }
+                } else if self.context.byte == b'+' {
+                    self.value.push(b' ');
+                } else {
+                    // name with a value
+                    return Some((
+                        unsafe {
+                            let mut s = String::with_capacity(self.name.len());
+
+                            s.as_mut_vec().extend_from_slice(&self.name);
+                            self.name.clear();
+                            s
+                        },
+                        unsafe {
+                            let mut s = String::with_capacity(self.value.len());
+
+                            s.as_mut_vec().extend_from_slice(&self.value);
+                            self.value.clear();
+                            Some(s)
+                        }
+                    ));
+                }
             }
         }
     }
@@ -506,7 +729,7 @@ where F : FnMut(&[u8]) {
     }
 }
 
-/// Decode URL encoded data into a buffer.
+/// Decode URL encoded data into a vector.
 ///
 /// **`bytes`**
 ///
@@ -808,230 +1031,6 @@ pub fn parse_field<T: FieldClosure>(field: &[u8], delimiter: u8, normalize: bool
             _ => {
                 // upper-cased byte, let's lower-case it
                 name.push(context.byte + 0x20);
-            }
-        }
-    }
-}
-
-/// Parse a query.
-///
-/// # Arguments
-///
-/// **`query`**
-///
-/// The query data to be parsed.
-///
-/// **`segment_fn`**
-///
-/// A closure that receives instances of [`QuerySegment`](enum.QuerySegment.html).
-///
-/// # Returns
-///
-/// **`usize`**
-///
-/// The amount of data that was parsed.
-///
-/// # Errors
-///
-/// - [`QueryError::Name`](enum.QueryError.html#variant.Name)
-/// - [`QueryError::Value`](enum.QueryError.html#variant.Value)
-///
-/// # Examples
-///
-/// ```
-/// use http_box::util::QuerySegment;
-/// use http_box::util;
-///
-/// util::parse_query(b"field1-no-value&field2=value2&field%203=value%203",
-///     |s| {
-///         if s.has_value() {
-///             s.name();
-///             s.value().unwrap();
-///         } else {
-///             s.name();
-///         }
-///
-///         true
-///     }
-/// );
-/// ```
-pub fn parse_query<T>(query: &[u8], mut segment_fn: T) -> Result<usize, QueryError>
-where T : FnMut(QuerySegment) -> bool {
-    let mut context = ByteStream::new(query);
-    let mut name    = Vec::new();
-    let mut value   = Vec::new();
-
-    loop {
-        // field loop
-        loop {
-            bs_mark!(context);
-
-            collect_visible!(
-                context,
-                QueryError::Name,
-
-                // stop on these bytes
-                   context.byte == b'%'
-                || context.byte == b'+'
-                || context.byte == b'='
-                || context.byte == b'&'
-                || context.byte == b';',
-
-                // on end-of-stream
-                {
-                    if bs_slice_length!(context) > 0 {
-                        name.extend_from_slice(bs_slice!(context));
-                    }
-
-                    segment_fn(QuerySegment::Name(&name));
-
-                    exit_ok!(context);
-                }
-            );
-
-            if bs_slice_length!(context) > 1 {
-                name.extend_from_slice(bs_slice_ignore!(context));
-            }
-
-            if context.byte == b'%' {
-                if bs_has_bytes!(context, 2) {
-                    bs_next!(context);
-
-                    let mut byte = if is_digit!(context.byte) {
-                        (context.byte - b'0') << 4
-                    } else if b'@' < context.byte && context.byte < b'G' {
-                        (context.byte - 0x37) << 4
-                    } else if b'`' < context.byte && context.byte < b'g' {
-                        (context.byte - 0x57) << 4
-                    } else {
-                        return Err(QueryError::Name(context.byte));
-                    } as u8;
-
-                    bs_next!(context);
-
-                    byte |= if is_digit!(context.byte) {
-                        context.byte - b'0'
-                    } else if b'@' < context.byte && context.byte < b'G' {
-                        context.byte - 0x37
-                    } else if b'`' < context.byte && context.byte < b'g' {
-                        context.byte - 0x57
-                    } else {
-                        return Err(QueryError::Name(context.byte));
-                    } as u8;
-
-                    name.push(byte);
-                } else {
-                    if bs_has_bytes!(context, 1) {
-                        bs_next!(context);
-                    }
-
-                    return Err(QueryError::Name(context.byte));
-                }
-            } else if context.byte == b'+' {
-                name.push(b' ');
-            } else if context.byte == b'=' {
-                if context.stream_index == 1 {
-                    // first byte cannot be an equal sign
-                    return Err(QueryError::Name(context.byte));
-                }
-
-                break;
-            } else if context.stream_index == 1 {
-                // first byte cannot be a delimiter
-                return Err(QueryError::Name(context.byte));
-            } else {
-                // name without a value
-                if segment_fn(QuerySegment::Name(&name)) {
-                    name.clear();
-                } else {
-                    // callback exited
-                    name.clear();
-
-                    exit_ok!(context);
-                }
-            }
-        }
-
-        // value loop
-        loop {
-            bs_mark!(context);
-
-            collect_visible!(
-                context,
-                QueryError::Value,
-
-                // stop on these bytes
-                   context.byte == b'%'
-                || context.byte == b'+'
-                || context.byte == b'&'
-                || context.byte == b';',
-
-                // on end-of-stream
-                {
-                    if bs_slice_length!(context) > 0 {
-                        value.extend_from_slice(bs_slice!(context));
-                    }
-
-                    segment_fn(QuerySegment::NameValue(&name, &value));
-
-                    exit_ok!(context);
-                }
-            );
-
-            if bs_slice_length!(context) > 1 {
-                value.extend_from_slice(bs_slice_ignore!(context));
-            }
-
-            if context.byte == b'%' {
-                if bs_has_bytes!(context, 2) {
-                    bs_next!(context);
-
-                    let mut byte = if is_digit!(context.byte) {
-                        (context.byte - b'0') << 4
-                    } else if b'@' < context.byte && context.byte < b'G' {
-                        (context.byte - 0x37) << 4
-                    } else if b'`' < context.byte && context.byte < b'g' {
-                        (context.byte - 0x57) << 4
-                    } else {
-                        return Err(QueryError::Value(context.byte));
-                    } as u8;
-
-                    bs_next!(context);
-
-                    byte |= if is_digit!(context.byte) {
-                        context.byte - b'0'
-                    } else if b'@' < context.byte && context.byte < b'G' {
-                        context.byte - 0x37
-                    } else if b'`' < context.byte && context.byte < b'g' {
-                        context.byte - 0x57
-                    } else {
-                        return Err(QueryError::Value(context.byte));
-                    } as u8;
-
-                    value.push(byte);
-                } else {
-                    if bs_has_bytes!(context, 1) {
-                        bs_next!(context);
-                    }
-
-                    return Err(QueryError::Value(context.byte));
-                }
-            } else if context.byte == b'+' {
-                value.push(b' ');
-            } else {
-                // name with a value
-                if segment_fn(QuerySegment::NameValue(&name, &value)) {
-                    name.clear();
-                    value.clear();
-                } else {
-                    // callback exited
-                    name.clear();
-                    value.clear();
-
-                    exit_ok!(context);
-                }
-
-                break;
             }
         }
     }

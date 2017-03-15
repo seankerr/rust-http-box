@@ -163,6 +163,41 @@ macro_rules! collect_visible {
     });
 }
 
+/// Collect all visible 7-bit bytes. Visible bytes are 0x21 thru 0x7E.
+///
+/// This function is compatible with custom iterators.
+///
+/// Exit the collection loop when `$stop` yields `true`.
+macro_rules! collect_visible_iter {
+    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if $stop {
+                break;
+            } else if is_not_visible_7bit!($context.byte) {
+                bs_jump!($iter.context, bs_available!($iter.context));
+
+                (*$iter.on_error)($error($iter.context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+
+    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
+        bs_collect!($context,
+            if is_not_visible_7bit!($context.byte) {
+                bs_jump!($iter.context, bs_available!($iter.context));
+
+                (*$iter.on_error)($error($iter.context.byte));
+
+                return None;
+            },
+            $on_eos
+        );
+    });
+}
+
 /// Consume all empty space.
 ///
 /// Exit the collection loop when a non-space byte is found.

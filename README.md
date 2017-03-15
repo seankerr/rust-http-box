@@ -59,3 +59,4 @@ https://docs.rs/http-box/0.1.3/http_box/
 ## HTTP Utilities
 
 - [Decoding URL encoded data](examples/http_decoding_url_encoded_data.md)
+- [Parsing query strings](examples/http_parsing_query_strings.md)

@@ -1,8 +1,8 @@
 ## Head Parsing
 
-When parsing HTTP/1.x content, everything prior to the body is considered the
-head or headers. It starts off with the request or response line followed by
-optional headers, and is terminated with a `\r\n\r\n` sequence.
+When parsing HTTP/1.x content, everything prior to the body is considered the head or headers. It
+starts off with the request or response line followed by optional headers, and is terminated with a
+`\r\n\r\n` sequence.
 
 Here is a sample of request head content:
 
@@ -15,21 +15,20 @@ Accept-Language: en-US,en;q=0.8\r\n
 \r\n
 ```
 
-Response head content format is identical, with the exception of the initial
-line, which denotes the HTTP response details:
+Response head content format is identical, with the exception of the initial line, which denotes the
+HTTP response details:
 
 ```
 HTTP/1.1 200 OK\r\n
 ```
 
-The headers are formatted the same for a request or response, however, the types
-of headers being used will vary.
+The headers are formatted the same for a request or response, however, the types of headers being
+used will vary.
 
 ## Callbacks
 
 [http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.3/http_box/http1/trait.HttpHandler.html)
-outlines the necessary callback functions we must implement in order to handle
-parsed head data:
+outlines the necessary callback functions we must implement in order to handle parsed head data:
 
 **Request:**
 
