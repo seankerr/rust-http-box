@@ -54,9 +54,10 @@ https://docs.rs/http-box/0.1.3/http_box/
 ## HTTP/1.x Examples
 
 - [Intro](examples/http1_intro.md)
-- [Parsing headers](examples/http1_head_parsing.md)
+- [Parsing Headers](examples/http1_head_parsing.md)
 
 ## HTTP Utilities
 
-- [Decoding URL encoded data](examples/http_decoding_url_encoded_data.md)
-- [Parsing query strings](examples/http_parsing_query_strings.md)
+- [Decoding URL Encoded Data](examples/http_decoding_url_encoded_data.md)
+- [Parsing Query Strings](examples/http_parsing_query_strings.md)
+- [Parsing Header Fields](examples/http_parsing_header_fields.md)

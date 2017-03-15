@@ -13,31 +13,43 @@ Here's a basic example that ignores errors:
 extern crate http_box;
 
 use http_box::util::QueryIterator;
-use std::collections::HashMap;
 
 fn main() {
-    let mut map = HashMap::new();
-
     let query = b"field1=value1&field2=value2&field3";
 
-    for (name, value) in QueryIterator::new(query) {
-        // ignore parameters without a value
-        if value.is_some() {
-            map.insert(name, value.unwrap());
+    for (n, (name, value)) in QueryIterator::new(query).enumerate() {
+        if n == 0 {
+            assert_eq!(
+                name,
+                "field1"
+            );
+
+            assert_eq!(
+                value.unwrap(),
+                "value1"
+            );
+        } else if n == 1 {
+            assert_eq!(
+                name,
+                "field2"
+            );
+
+            assert_eq!(
+                value.unwrap(),
+                "value2"
+            );
+        } else if n == 2 {
+            assert_eq!(
+                name,
+                "field3"
+            );
+
+            assert_eq!(
+                value,
+                None
+            );
         }
     }
-
-    assert_eq!(
-        map.get("field1").unwrap(),
-        "value1"
-    );
-
-    assert_eq!(
-        map.get("field2").unwrap(),
-        "value2"
-    );
-
-    assert!(!map.contains_key("field3"));
 }
 ```
 
@@ -47,37 +59,43 @@ And here's an example of specifying an error callback to handle a decoding error
 extern crate http_box;
 
 use http_box::util::{ QueryError, QueryIterator };
-use std::collections::HashMap;
 
 fn main() {
     let mut error = None;
-    let mut map   = HashMap::new();
 
     // notice the null byte at the end of the last parameter name
     // this will report a QueryError::Name error with the byte value that triggered the error
     let query = b"field1=value1&field2=value2&field3\0";
 
-    for (name, value) in QueryIterator::new(query).on_error(
+    for (n, (name, value)) in QueryIterator::new(query)
+    .on_error(
         |x| {
             error = Some(x);
         }
-    ) {
-        if value.is_some() {
-            map.insert(name, value.unwrap());
+    )
+    .enumerate() {
+        if n == 0 {
+            assert_eq!(
+                name,
+                "field1"
+            );
+
+            assert_eq!(
+                value.unwrap(),
+                "value1"
+            );
+        } else if n == 1 {
+            assert_eq!(
+                name,
+                "field2"
+            );
+
+            assert_eq!(
+                value.unwrap(),
+                "value2"
+            );
         }
     }
-
-    assert_eq!(
-        map.get("field1").unwrap(),
-        "value1"
-    );
-
-    assert_eq!(
-        map.get("field2").unwrap(),
-        "value2"
-    );
-
-    assert!(!map.contains_key("field3"));
 
     match error.unwrap() {
         QueryError::Name(x) => assert_eq!(x, 0),
