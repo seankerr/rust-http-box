@@ -1,8 +1,3 @@
-## Utilities
-
-http-box comes with some handy utility functions for parsing query strings,
-decoding URL encoded strings, and parsing header fields.
-
 ## Decoding URL encoded data
 
 [http_box::util::decode()](https://docs.rs/http-box/0.1.3/http_box/util/fn.decode.html)
@@ -39,7 +34,7 @@ fn main() {
 
 [http_box::util::decode_into_vec()](https://docs.rs/http-box/0.1.3/http_box/util/fn.decode_into_vec.html)
 
-`decode()` also has a sister function `decode_into_vec()` which is a wrapper
+`decode()` also has a shadow function `decode_into_vec()` which is a wrapper
 function to save time when you're decoding into a vector.
 
 ```rust

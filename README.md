@@ -58,4 +58,4 @@ https://docs.rs/http-box/0.1.3/http_box/
 
 ## HTTP Utilities
 
-- [Utility functions](examples/http_utilities.md)
+- [Decoding URL encoded data](examples/http_decoding_url_encoded_data.md)
