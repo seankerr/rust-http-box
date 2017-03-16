@@ -16,60 +16,6 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-#[macro_export]
-macro_rules! field {
-    ($map:expr, $stream:expr, $length:expr) => ({
-        let fun = |s: FieldSegment| {
-                      match s {
-                          FieldSegment::Name(x) => {
-                              let mut n = String::new();
-                              let v = String::new();
-
-                              unsafe {
-                                  n.as_mut_vec().extend_from_slice(x);
-                              }
-
-                              $map.insert(n, v);
-                          },
-                          FieldSegment::NameValue(x,y) => {
-                              let mut n = String::new();
-                              let mut v = String::new();
-
-                              unsafe {
-                                  n.as_mut_vec().extend_from_slice(x);
-                                  v.as_mut_vec().extend_from_slice(y);
-                              }
-
-                              $map.insert(n, v);
-                          }
-                      }
-                      true
-                 };
-
-        assert!(match parse_field($stream, b';', true, fun) {
-            Ok($length) => {
-                true
-            },
-            _ => false
-        });
-    });
-}
-
-#[macro_export]
-macro_rules! field_error {
-    ($stream:expr, $byte:expr, $error:path) => ({
-        let fun = |_: FieldSegment| { true };
-
-        assert!(match parse_field($stream, b';', true, fun) {
-            Err($error(x)) => {
-                assert_eq!(x, $byte);
-                true
-            },
-            _ => false
-        });
-    });
-}
-
 mod decode;
 mod field_iterator;
 mod query_iterator;
