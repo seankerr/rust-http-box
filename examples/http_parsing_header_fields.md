@@ -1,4 +1,4 @@
-## Parsing Query Strings
+## Parsing Header Fields
 
 - [http_box::util::FieldIterator()](https://docs.rs/http-box/0.1.4/http_box/util/struct.FieldIterator.html)
 - [http_box::util::FieldError](https://docs.rs/http-box/0.1.4/http_box/util/enum.FieldError.html)
