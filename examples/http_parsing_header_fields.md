@@ -1,7 +1,7 @@
 ## Parsing Header Fields
 
-- [http_box::util::FieldIterator()](https://docs.rs/http-box/0.1.4/http_box/util/struct.FieldIterator.html)
-- [http_box::util::FieldError](https://docs.rs/http-box/0.1.4/http_box/util/enum.FieldError.html)
+- [http_box::util::FieldIterator()](https://docs.rs/http-box/0.1.5/http_box/util/struct.FieldIterator.html)
+- [http_box::util::FieldError](https://docs.rs/http-box/0.1.5/http_box/util/enum.FieldError.html)
 
 `FieldIterator` enables you to iterate over a header field. Each iteration will return
 `(String, Option<String>)`. You can optionally set a callback for receiving errors with

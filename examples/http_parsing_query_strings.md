@@ -1,7 +1,7 @@
 ## Parsing Query Strings
 
-- [http_box::util::QueryIterator()](https://docs.rs/http-box/0.1.4/http_box/util/struct.QueryIterator.html)
-- [http_box::util::QueryError](https://docs.rs/http-box/0.1.4/http_box/util/enum.QueryError.html)
+- [http_box::util::QueryIterator()](https://docs.rs/http-box/0.1.5/http_box/util/struct.QueryIterator.html)
+- [http_box::util::QueryError](https://docs.rs/http-box/0.1.5/http_box/util/enum.QueryError.html)
 
 `QueryIterator` enables you to iterate over a query string. Each iteration will return
 `(String, Option<String>)`. You can optionally set a callback for receiving errors with

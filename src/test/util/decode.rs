@@ -21,22 +21,19 @@ use util::*;
 
 #[test]
 fn basic() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"basic_string", |slice| vec.extend_from_slice(slice)) {
-        Ok(12) => {
-            assert_eq!(vec, b"basic_string");
-            true
+    match decode(b"basic_string") {
+        Ok(s) => {
+            assert_eq!(s, "basic_string");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn byte_check() {
     // invalid bytes
     loop_non_visible(b"", |byte| {
-        if let Err(DecodeError::Byte(x)) = decode(&[byte], |_|{}) {
+        if let Err(DecodeError::Byte(x)) = decode(&[byte]) {
             assert_eq!(x, byte);
         } else {
             panic!();
@@ -45,59 +42,50 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(b"%+", |byte| {
-        let mut vec = vec![];
-
-        assert!(match decode(&[byte], |slice| vec.extend_from_slice(slice)) {
-            Ok(1) => {
-                assert_eq!(vec, &[byte]);
-                true
+        match decode(&[byte]) {
+            Ok(s) => {
+                assert_eq!(s, format!("{}", byte as char));
             },
-            _ => false
-        });
+            _ => panic!()
+        };
     });
 }
 
 #[test]
 fn complex() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"complex+%21+string", |slice| vec.extend_from_slice(slice)) {
-        Ok(18) => {
-            assert_eq!(vec, b"complex ! string");
-            true
+    match decode(b"complex+%21+string") {
+        Ok(s) => {
+            assert_eq!(s, "complex ! string");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn ending_hex() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"a%21", |slice| vec.extend_from_slice(slice)) {
-        Ok(4) => {
-            assert_eq!(vec, b"a!");
-            true
+    match decode(b"a%21") {
+        Ok(s) => {
+            assert_eq!(s, "a!");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn ending_hex_error() {
-    if let Err(DecodeError::HexSequence(x)) = decode(b"a%", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"a%") {
         assert_eq!(x, b'%');
     } else {
         panic!();
     }
 
-    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2") {
         assert_eq!(x, b'2');
     } else {
         panic!();
     }
 
-    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2G", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2G") {
         assert_eq!(x, b'G');
     } else {
         panic!();
@@ -106,33 +94,27 @@ fn ending_hex_error() {
 
 #[test]
 fn ending_plus() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"a+", |slice| vec.extend_from_slice(slice)) {
-        Ok(2) => {
-            assert_eq!(vec, b"a ");
-            true
+    match decode(b"a+") {
+        Ok(s) => {
+            assert_eq!(s, "a ");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn middle_hex() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"a%21a", |slice| vec.extend_from_slice(slice)) {
-        Ok(5) => {
-            assert_eq!(vec, b"a!a");
-            true
+    match decode(b"a%21a") {
+        Ok(s) => {
+            assert_eq!(s, "a!a");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn middle_hex_error() {
-    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2Ga", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"a%2Ga") {
         assert_eq!(x, b'G');
     } else {
         panic!();
@@ -141,58 +123,49 @@ fn middle_hex_error() {
 
 #[test]
 fn middle_plus() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"a+a", |slice| vec.extend_from_slice(slice)) {
-        Ok(3) => {
-            assert_eq!(vec, b"a a");
-            true
+    match decode(b"a+a") {
+        Ok(s) => {
+            assert_eq!(s, "a a");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn plus() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"+", |slice| vec.extend_from_slice(slice)) {
-        Ok(1) => {
-            assert_eq!(vec, b" ");
-            true
+    match decode(b"+") {
+        Ok(s) => {
+            assert_eq!(s, " ");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn starting_hex() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"%21a", |slice| vec.extend_from_slice(slice)) {
-        Ok(4) => {
-            assert_eq!(vec, b"!a");
-            true
+    match decode(b"%21a") {
+        Ok(s) => {
+            assert_eq!(s, "!a");
         },
-        _ => false
-    });
+        _ => panic!()
+    };
 }
 
 #[test]
 fn starting_hex_error() {
-    if let Err(DecodeError::HexSequence(x)) = decode(b"%", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"%") {
         assert_eq!(x, b'%');
     } else {
         panic!();
     }
 
-    if let Err(DecodeError::HexSequence(x)) = decode(b"%2", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"%2") {
         assert_eq!(x, b'2');
     } else {
         panic!();
     }
 
-    if let Err(DecodeError::HexSequence(x)) = decode(b"%2G", |_|{}) {
+    if let Err(DecodeError::HexSequence(x)) = decode(b"%2G") {
         assert_eq!(x, b'G');
     } else {
         panic!();
@@ -201,13 +174,10 @@ fn starting_hex_error() {
 
 #[test]
 fn starting_plus() {
-    let mut vec = vec![];
-
-    assert!(match decode(b"+a", |slice| vec.extend_from_slice(slice)) {
-        Ok(2) => {
-            assert_eq!(vec, b" a");
-            true
+    match decode(b"+a") {
+        Ok(s) => {
+            assert_eq!(s, " a");
         },
-        _ => false
-    });
+        _ => panic!()
+    }
 }

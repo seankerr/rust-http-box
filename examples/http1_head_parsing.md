@@ -27,7 +27,7 @@ used will vary.
 
 ## Callbacks
 
-[http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.4/http_box/http1/trait.HttpHandler.html)
+[http_box::http1::HttpHandler](https://docs.rs/http-box/0.1.5/http_box/http1/trait.HttpHandler.html)
 outlines the necessary callback functions we must implement in order to handle parsed head data:
 
 **Request:**

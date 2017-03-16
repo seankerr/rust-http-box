@@ -26,22 +26,6 @@ use std::{ fmt,
 
 // -------------------------------------------------------------------------------------------------
 
-/// Exit the stream with EOS, if the stream is EOS. Otherwise do nothing.
-macro_rules! exit_if_eos {
-    ($context:expr) => ({
-        if bs_is_eos!($context) {
-            exit_ok!($context);
-        }
-    });
-}
-
-/// Exit with Ok status.
-macro_rules! exit_ok {
-    ($context:expr) => ({
-        return Ok($context.stream_index);
-    });
-}
-
 macro_rules! submit_error {
     ($iter:expr, $error:expr) => ({
         bs_jump!($iter.context, bs_available!($iter.context));
@@ -777,21 +761,15 @@ impl<'a> Iterator for QueryIterator<'a> {
 ///
 /// # Arguments
 ///
-/// **`bytes`**
+/// **`encoded`**
 ///
-/// The data to decode.
-///
-/// **`on_slice`**
-///
-/// The callback that receives slices of decoded data.
-///
-/// This may be called multiple times in order to supply the entire decoded sequence.
+/// The encoded data.
 ///
 /// # Returns
 ///
-/// **`usize`**
+/// **`String`**
 ///
-/// The amount of data that was decoded.
+/// The decoded string.
 ///
 /// # Errors
 ///
@@ -803,20 +781,22 @@ impl<'a> Iterator for QueryIterator<'a> {
 /// ```
 /// use http_box::util;
 ///
-/// let mut v = vec![];
+/// let string = match util::decode(b"fancy%20url%20encoded%20data") {
+///     Ok(string) => string,
+///     Err(_) => panic!()
+/// };
 ///
-/// util::decode(
-///     b"fancy%20url%20encoded%20data",
-///     |slice| {
-///         v.extend_from_slice(slice);
-///     }
-/// );
-///
-/// assert_eq!(b"fancy url encoded data", &v[..]);
+/// assert_eq!(string, "fancy url encoded data");
 /// ```
-pub fn decode<F>(bytes: &[u8], mut on_slice: F) -> Result<usize, DecodeError>
-where F : FnMut(&[u8]) {
-    let mut context = ByteStream::new(bytes);
+pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
+    macro_rules! submit {
+        ($string:expr, $slice:expr) => (unsafe {
+            $string.as_mut_vec().extend_from_slice($slice);
+        });
+    }
+
+    let mut context = ByteStream::new(encoded);
+    let mut string  = String::new();
 
     loop {
         bs_mark!(context);
@@ -832,19 +812,19 @@ where F : FnMut(&[u8]) {
             // on end-of-stream
             {
                 if context.mark_index < context.stream_index {
-                    on_slice(bs_slice!(context));
+                    submit!(string, bs_slice!(context));
                 }
 
-                exit_ok!(context);
+                return Ok(string);
             }
         );
 
         if bs_slice_length!(context) > 1 {
-            on_slice(bs_slice_ignore!(context));
+            submit!(string, bs_slice_ignore!(context));
         }
 
         if context.byte == b'+' {
-            on_slice(b" ");
+            submit!(string, b" ");
         } else if bs_has_bytes!(context, 2) {
             bs_next!(context);
 
@@ -870,7 +850,7 @@ where F : FnMut(&[u8]) {
                 return Err(DecodeError::HexSequence(context.byte));
             } as u8;
 
-            on_slice(&[byte]);
+            submit!(string, &[byte]);
         } else {
             if bs_has_bytes!(context, 1) {
                 bs_next!(context);
@@ -879,47 +859,4 @@ where F : FnMut(&[u8]) {
             return Err(DecodeError::HexSequence(context.byte));
         }
     }
-}
-
-/// Decode URL encoded data into a vector.
-///
-/// **`bytes`**
-///
-/// The data to decode.
-///
-/// **`vec`**
-///
-/// The buffer where decoded data will be written.
-///
-/// # Returns
-///
-/// **`usize`**
-///
-/// The amount of data that was decoded.
-///
-/// # Errors
-///
-/// - [`DecodeError::Byte`](enum.DecodeError.html#variant.Byte)
-/// - [`DecodeError::HexSequence`](enum.DecodeError.html#variant.HexSequence)
-///
-/// # Examples
-///
-/// ```
-/// use http_box::util;
-///
-/// let mut v = vec![];
-///
-/// util::decode_into_vec(
-///     b"fancy%20url%20encoded%20data",
-///     &mut v
-/// );
-///
-/// assert_eq!(b"fancy url encoded data", &v[..]);
-/// ```
-pub fn decode_into_vec(bytes: &[u8], vec: &mut Vec<u8>) -> Result<usize, DecodeError> {
-    decode(bytes,
-        |slice| {
-            vec.extend_from_slice(slice);
-        }
-    )
 }
