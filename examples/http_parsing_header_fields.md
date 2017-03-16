@@ -53,7 +53,7 @@ use http_box::util::{ FieldError, FieldIterator };
 fn main() {
     let mut error = None;
 
-    // notice the missing double-quote at the end of the last parameter name
+    // notice the missing double-quote at the end of the last value
     // this will report a FieldError::Value error with the byte value that triggered the error
     let field = b"form/multipart; boundary=\"randomlongboundary";
 
