@@ -291,7 +291,7 @@ impl<'a> FieldIterator<'a> {
 
     /// Set the on error closure.
     pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
-    where F : 'a + FnMut(FieldError) {
+    where F : FnMut(FieldError) + 'a {
         self.on_error = Box::new(on_error);
         self
     }
@@ -585,7 +585,7 @@ impl<'a> QueryIterator<'a> {
 
     /// Set the on error closure.
     pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
-    where F : 'a + FnMut(QueryError) {
+    where F : FnMut(QueryError) + 'a {
         self.on_error = Box::new(on_error);
         self
     }
