@@ -51,16 +51,18 @@ extern crate http_box;
 use http_box::util::{ FieldError, FieldIterator };
 
 fn main() {
-    let mut error = None;
-
     // notice the missing double-quote at the end of the last value
     // this will report a FieldError::Value error with the byte value that triggered the error
     let field = b"form/multipart; boundary=\"randomlongboundary";
 
     for (n, (name, value)) in FieldIterator::new(field, b';', true)
     .on_error(
-        |x| {
-            error = Some(x);
+        |error| {
+            // because the last byte was `y`, it's reported as the error byte
+            match error {
+                FieldError::Name(_) => panic!(),
+                FieldError::Value(x) => assert_eq!(x, b'y')
+            }
         }
     )
     .enumerate() {
@@ -75,12 +77,6 @@ fn main() {
                 None
             );
         }
-    }
-
-    // because the last byte was `y`, it's reported as the error byte
-    match error.unwrap() {
-        FieldError::Name(_) => panic!(),
-        FieldError::Value(x) => assert_eq!(x, b'y')
     }
 }
 ```

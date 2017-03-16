@@ -61,16 +61,17 @@ extern crate http_box;
 use http_box::util::{ QueryError, QueryIterator };
 
 fn main() {
-    let mut error = None;
-
     // notice the null byte at the end of the last parameter name
     // this will report a QueryError::Name error with the byte value that triggered the error
     let query = b"field1=value1&field2=value2&field3\0";
 
     for (n, (name, value)) in QueryIterator::new(query)
     .on_error(
-        |x| {
-            error = Some(x);
+        |error| {
+            match error {
+                QueryError::Name(x) => assert_eq!(x, 0),
+                QueryError::Value(_) => panic!()
+            }
         }
     )
     .enumerate() {
@@ -95,11 +96,6 @@ fn main() {
                 "value2"
             );
         }
-    }
-
-    match error.unwrap() {
-        QueryError::Name(x) => assert_eq!(x, 0),
-        QueryError::Value(_) => panic!()
     }
 }
 ```

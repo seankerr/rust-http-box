@@ -16,14 +16,13 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use test::*;
 use util::*;
 
 #[test]
 fn missing_end_quote_error() {
     let mut error = None;
 
-    for (name, value) in FieldIterator::new(
+    for (_, _) in FieldIterator::new(
         b"compression=\"bzip",
         b';',
         false
@@ -44,7 +43,7 @@ fn missing_end_quote_error() {
 fn name_error() {
     let mut error = None;
 
-    for (name, value) in FieldIterator::new(
+    for (_, _) in FieldIterator::new(
         b"compr\ression=bzip",
         b';',
         false
@@ -199,7 +198,7 @@ fn quoted() {
 fn value_error() {
     let mut error = None;
 
-    for (name, value) in FieldIterator::new(
+    for (_, _) in FieldIterator::new(
         b"compression=bzip\r",
         b';',
         false

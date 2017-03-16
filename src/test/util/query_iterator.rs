@@ -16,7 +16,6 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-use test::*;
 use util::*;
 
 #[test]
@@ -64,7 +63,7 @@ fn hex() {
 fn hex_name_error() {
     let mut has_error = false;
 
-    for (name, value) in QueryIterator::new(
+    for (_, _) in QueryIterator::new(
         b"field%2Q"
     ).on_error(
         |error| {
@@ -85,7 +84,7 @@ fn hex_name_error() {
 fn hex_value_error() {
     let mut has_error = false;
 
-    for (name, value) in QueryIterator::new(
+    for (_, _) in QueryIterator::new(
         b"field=value%2Q"
     ).on_error(
         |error| {

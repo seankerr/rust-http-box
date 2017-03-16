@@ -289,7 +289,13 @@ impl<'a> FieldIterator<'a> {
         }
     }
 
-    /// Set the on error closure.
+    /// Set the on error callback.
+    ///
+    /// # Arguments
+    ///
+    /// **`on_error`**
+    ///
+    /// The callback.
     pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
     where F : FnMut(FieldError) + 'a {
         self.on_error = Box::new(on_error);
@@ -583,7 +589,13 @@ impl<'a> QueryIterator<'a> {
         }
     }
 
-    /// Set the on error closure.
+    /// Set the on error callback.
+    ///
+    /// # Arguments
+    ///
+    /// **`on_error`**
+    ///
+    /// The callback.
     pub fn on_error<F>(&mut self, on_error: F) -> &mut Self
     where F : FnMut(QueryError) + 'a {
         self.on_error = Box::new(on_error);
@@ -763,18 +775,17 @@ impl<'a> Iterator for QueryIterator<'a> {
 
 /// Decode URL encoded data.
 ///
-/// *Note:* `slice_fn` may be called multiple times in order to supply the entire piece of decoded
-///         data.
-///
 /// # Arguments
 ///
 /// **`bytes`**
 ///
 /// The data to decode.
 ///
-/// **`slice_fn`**
+/// **`on_slice`**
 ///
-/// A closure that receives slices of decoded data.
+/// The callback that receives slices of decoded data.
+///
+/// This may be called multiple times in order to supply the entire decoded sequence.
 ///
 /// # Returns
 ///
@@ -796,15 +807,14 @@ impl<'a> Iterator for QueryIterator<'a> {
 ///
 /// util::decode(
 ///     b"fancy%20url%20encoded%20data",
-///     |s| {
-///         // `s` is the most current slice of decoded data
-///         v.extend_from_slice(s);
+///     |slice| {
+///         v.extend_from_slice(slice);
 ///     }
 /// );
 ///
 /// assert_eq!(b"fancy url encoded data", &v[..]);
 /// ```
-pub fn decode<F>(bytes: &[u8], mut slice_fn: F) -> Result<usize, DecodeError>
+pub fn decode<F>(bytes: &[u8], mut on_slice: F) -> Result<usize, DecodeError>
 where F : FnMut(&[u8]) {
     let mut context = ByteStream::new(bytes);
 
@@ -822,7 +832,7 @@ where F : FnMut(&[u8]) {
             // on end-of-stream
             {
                 if context.mark_index < context.stream_index {
-                    slice_fn(bs_slice!(context));
+                    on_slice(bs_slice!(context));
                 }
 
                 exit_ok!(context);
@@ -830,11 +840,11 @@ where F : FnMut(&[u8]) {
         );
 
         if bs_slice_length!(context) > 1 {
-            slice_fn(bs_slice_ignore!(context));
+            on_slice(bs_slice_ignore!(context));
         }
 
         if context.byte == b'+' {
-            slice_fn(b" ");
+            on_slice(b" ");
         } else if bs_has_bytes!(context, 2) {
             bs_next!(context);
 
@@ -860,7 +870,7 @@ where F : FnMut(&[u8]) {
                 return Err(DecodeError::HexSequence(context.byte));
             } as u8;
 
-            slice_fn(&[byte]);
+            on_slice(&[byte]);
         } else {
             if bs_has_bytes!(context, 1) {
                 bs_next!(context);
