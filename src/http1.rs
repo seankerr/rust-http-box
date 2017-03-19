@@ -2185,6 +2185,8 @@ impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
             ParserError::Version,
             digit,
             999,
+
+            // on end-of-stream
             {
                 set_lower14!(self, digit);
                 exit_eos!(self, context);
@@ -2216,6 +2218,8 @@ impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
             ParserError::Version,
             digit,
             999,
+
+            // on end-of-stream
             {
                 set_upper14!(self, digit);
                 exit_eos!(self, context);
@@ -2249,6 +2253,8 @@ impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
             ParserError::Version,
             digit,
             999,
+
+            // on end-of-stream
             {
                 set_lower14!(self, digit);
                 exit_eos!(self, context);
@@ -2280,6 +2286,8 @@ impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
             ParserError::Version,
             digit,
             999,
+
+            // on end-of-stream
             {
                 set_upper14!(self, digit);
                 exit_eos!(self, context);
@@ -2334,6 +2342,8 @@ impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
             ParserError::StatusCode,
             digit,
             999,
+
+            // on end-of-stream
             {
                 set_lower14!(self, digit);
                 exit_eos!(self, context);

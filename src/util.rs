@@ -629,55 +629,41 @@ impl<'a> Iterator for QueryIterator<'a> {
                     self.name.extend_from_slice(bs_slice_ignore!(self.context));
                 }
 
-                if self.context.byte == b'%' {
-                    if bs_has_bytes!(self.context, 2) {
-                        bs_next!(self.context);
-
-                        let mut byte = if is_digit!(self.context.byte) {
-                            (self.context.byte - b'0') << 4
-                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
-                            (self.context.byte - 0x37) << 4
-                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
-                            (self.context.byte - 0x57) << 4
+                match self.context.byte {
+                    b'%' => {
+                        if bs_has_bytes!(self.context, 2) {
+                            self.name.push(collect_hex8_iter!(
+                                self,
+                                self.context,
+                                QueryError::Name
+                            ));
                         } else {
+                            if bs_has_bytes!(self.context, 1) {
+                                bs_next!(self.context);
+                            }
+
                             submit_error!(self, QueryError::Name);
-                        } as u8;
-
-                        bs_next!(self.context);
-
-                        byte |= if is_digit!(self.context.byte) {
-                            self.context.byte - b'0'
-                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
-                            self.context.byte - 0x37
-                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
-                            self.context.byte - 0x57
-                        } else {
+                        }
+                    },
+                    b'+' => {
+                        self.name.push(b' ');
+                    },
+                    b'=' => {
+                        if self.context.stream_index == 1 {
+                            // first byte cannot be an equal sign
                             submit_error!(self, QueryError::Name);
-                        } as u8;
-
-                        self.name.push(byte);
-                    } else {
-                        if bs_has_bytes!(self.context, 1) {
-                            bs_next!(self.context);
                         }
 
+                        break;
+                    },
+                    _ if self.context.stream_index == 1 => {
+                        // first byte cannot be a delimiter
                         submit_error!(self, QueryError::Name);
+                    },
+                    _ => {
+                        // name without a value
+                        submit_name!(self);
                     }
-                } else if self.context.byte == b'+' {
-                    self.name.push(b' ');
-                } else if self.context.byte == b'=' {
-                    if self.context.stream_index == 1 {
-                        // first byte cannot be an equal sign
-                        submit_error!(self, QueryError::Name);
-                    }
-
-                    break;
-                } else if self.context.stream_index == 1 {
-                    // first byte cannot be a delimiter
-                    submit_error!(self, QueryError::Name);
-                } else {
-                    // name without a value
-                    submit_name!(self);
                 }
             }
 
@@ -710,45 +696,29 @@ impl<'a> Iterator for QueryIterator<'a> {
                     self.value.extend_from_slice(bs_slice_ignore!(self.context));
                 }
 
-                if self.context.byte == b'%' {
-                    if bs_has_bytes!(self.context, 2) {
-                        bs_next!(self.context);
-
-                        let mut byte = if is_digit!(self.context.byte) {
-                            (self.context.byte - b'0') << 4
-                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
-                            (self.context.byte - 0x37) << 4
-                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
-                            (self.context.byte - 0x57) << 4
+                match self.context.byte {
+                    b'%' => {
+                        if bs_has_bytes!(self.context, 2) {
+                            self.value.push(collect_hex8_iter!(
+                                self,
+                                self.context,
+                                QueryError::Value
+                            ));
                         } else {
+                            if bs_has_bytes!(self.context, 1) {
+                                bs_next!(self.context);
+                            }
+
                             submit_error!(self, QueryError::Value);
-                        } as u8;
-
-                        bs_next!(self.context);
-
-                        byte |= if is_digit!(self.context.byte) {
-                            self.context.byte - b'0'
-                        } else if b'@' < self.context.byte && self.context.byte < b'G' {
-                            self.context.byte - 0x37
-                        } else if b'`' < self.context.byte && self.context.byte < b'g' {
-                            self.context.byte - 0x57
-                        } else {
-                            submit_error!(self, QueryError::Value);
-                        } as u8;
-
-                        self.value.push(byte);
-                    } else {
-                        if bs_has_bytes!(self.context, 1) {
-                            bs_next!(self.context);
                         }
-
-                        submit_error!(self, QueryError::Value);
+                    },
+                    b'+' => {
+                        self.value.push(b' ');
+                    },
+                    _ => {
+                        // name with a value
+                        submit_name_value!(self);
                     }
-                } else if self.context.byte == b'+' {
-                    self.value.push(b' ');
-                } else {
-                    // name with a value
-                    submit_name_value!(self);
                 }
             }
         }
@@ -826,31 +796,9 @@ pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
         if context.byte == b'+' {
             submit!(string, b" ");
         } else if bs_has_bytes!(context, 2) {
-            bs_next!(context);
-
-            let mut byte = if is_digit!(context.byte) {
-                (context.byte - b'0') << 4
-            } else if b'@' < context.byte && context.byte < b'G' {
-                (context.byte - 0x37) << 4
-            } else if b'`' < context.byte && context.byte < b'g' {
-                (context.byte - 0x57) << 4
-            } else {
-                return Err(DecodeError::HexSequence(context.byte));
-            } as u8;
-
-            bs_next!(context);
-
-            byte |= if is_digit!(context.byte) {
-                context.byte - b'0'
-            } else if b'@' < context.byte && context.byte < b'G' {
-                context.byte - 0x37
-            } else if b'`' < context.byte && context.byte < b'g' {
-                context.byte - 0x57
-            } else {
-                return Err(DecodeError::HexSequence(context.byte));
-            } as u8;
-
-            submit!(string, &[byte]);
+            submit!(string, &[
+                collect_hex8!(context, DecodeError::HexSequence)
+            ]);
         } else {
             if bs_has_bytes!(context, 1) {
                 bs_next!(context);

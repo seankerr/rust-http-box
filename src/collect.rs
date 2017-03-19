@@ -110,6 +110,88 @@ macro_rules! collect_field_iter {
     });
 }
 
+/// Collect and convert 2 hex bytes into a u8 variable.
+///
+/// This macro assumes that 2 bytes are available for reading. Return `$error` upon locating a
+/// non-hex byte.
+macro_rules! collect_hex8 {
+    ($context:expr, $error:expr) => ({
+        bs_next!($context);
+
+        (
+            if is_digit!($context.byte) {
+                ($context.byte - b'0') << 4
+            } else if b'@' < $context.byte && $context.byte < b'G' {
+                ($context.byte - 0x37) << 4
+            } else if b'`' < $context.byte && $context.byte < b'g' {
+                ($context.byte - 0x57) << 4
+            } else {
+                return Err($error($context.byte));
+            } as u8
+        )
+        +
+        {
+            bs_next!($context);
+
+            (
+                if is_digit!($context.byte) {
+                    $context.byte - b'0'
+                } else if b'@' < $context.byte && $context.byte < b'G' {
+                    $context.byte - 0x37
+                } else if b'`' < $context.byte && $context.byte < b'g' {
+                    $context.byte - 0x57
+                } else {
+                    return Err($error($context.byte));
+                } as u8
+            )
+        }
+    });
+}
+
+/// Collect and convert 2 hex bytes into a u8 variable.
+///
+/// This macro is compatible with custom iterators.
+///
+/// This macro assumes that 2 bytes are available for reading. Return `$error` upon locating a
+/// non-hex byte.
+macro_rules! collect_hex8_iter {
+    ($iter:expr, $context:expr, $error:expr) => ({
+        bs_next!($context);
+
+        (
+            if is_digit!($context.byte) {
+                ($context.byte - b'0') << 4
+            } else if b'@' < $context.byte && $context.byte < b'G' {
+                ($context.byte - 0x37) << 4
+            } else if b'`' < $context.byte && $context.byte < b'g' {
+                ($context.byte - 0x57) << 4
+            } else {
+                (*$iter.on_error)($error($context.byte));
+
+                return None;
+            } as u8
+        )
+        +
+        {
+            bs_next!($context);
+
+            (
+                if is_digit!($context.byte) {
+                    $context.byte - b'0'
+                } else if b'@' < $context.byte && $context.byte < b'G' {
+                    $context.byte - 0x37
+                } else if b'`' < $context.byte && $context.byte < b'g' {
+                    $context.byte - 0x57
+                } else {
+                    (*$iter.on_error)($error($context.byte));
+
+                    return None;
+                } as u8
+            )
+        }
+    });
+}
+
 /// Collect and convert all hex bytes into a u64 variable.
 ///
 /// Exit the collection loop upon finding a non-hex byte. Return `$error` if an overflow would
