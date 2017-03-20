@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+//! HTTP/2.x parser, errors, traits, and types.
+
 mod error_code;
 mod flags;
 mod frame_format;

@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+//! HTTP/1.x parser, errors, traits, and types.
+
 mod http_handler;
 mod parser;
 mod parser_error;

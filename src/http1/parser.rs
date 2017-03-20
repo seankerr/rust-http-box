@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! HTTP 1.x parser, states, and errors.
+//! HTTP 1.x parser.
 
 #![allow(dead_code)]
 
