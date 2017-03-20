@@ -22,14 +22,12 @@
 extern crate byte_slice;
 
 #[macro_use]
-pub mod byte;
-
-#[macro_use]
 pub mod fsm;
 
 #[macro_use]
 mod collect;
 
+pub mod byte;
 pub mod http1;
 pub mod http2;
 pub mod util;
