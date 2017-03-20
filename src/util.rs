@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Utility functions for decoding URL encoded values, queries, and header values.
+//! Utility functions for handling encoded data, query strings, and header fields.
 
 use byte::is_token;
 use byte_slice::ByteStream;
