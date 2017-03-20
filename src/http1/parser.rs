@@ -149,7 +149,7 @@ macro_rules! unset_flag {
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 1.x parser.
-pub struct Parser<'a, T: 'a + HttpHandler> {
+pub struct Parser<'a, T: HttpHandler + 'a> {
     /// Bit data that stores parser state details, along with HTTP major/minor versions.
     bit_data: u32,
 
@@ -173,7 +173,7 @@ pub struct Parser<'a, T: 'a + HttpHandler> {
                     -> Result<ParserValue, ParserError>
 }
 
-impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
+impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     /// Create a new `Parser` and initialize it for head parsing.
     pub fn new() -> Parser<'a, T> {
          Parser{

@@ -21,8 +21,7 @@
 use byte::is_token;
 use byte_slice::ByteStream;
 
-use std::{ fmt,
-           str };
+use std::{ fmt, str };
 
 // -------------------------------------------------------------------------------------------------
 

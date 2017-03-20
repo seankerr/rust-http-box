@@ -176,7 +176,7 @@ impl fmt::Display for ParserError {
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 2.x parser.
-pub struct Parser<'a, T: 'a + HttpHandler> {
+pub struct Parser<'a, T: HttpHandler + 'a> {
     /// Bit data that stores parser state details.
     bit_data32a: u32,
 
@@ -200,7 +200,7 @@ pub struct Parser<'a, T: 'a + HttpHandler> {
     -> Result<ParserValue, ParserError>
 }
 
-impl<'a, T: 'a + HttpHandler> Parser<'a, T> {
+impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     /// Create a new `Parser`.
     pub fn new() -> Parser<'a, T> {
         Parser{ bit_data32a:    0,
