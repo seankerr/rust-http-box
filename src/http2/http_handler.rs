@@ -13,7 +13,7 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@metatomic.io>                                                         |
+// | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
 //! HTTP 2.x callback trait.

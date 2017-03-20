@@ -13,7 +13,7 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@metatomic.io>                                                         |
+// | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
 //! HTTP/2.x parser, errors, traits, and types.
@@ -22,6 +22,7 @@ mod error_code;
 mod flags;
 mod frame_format;
 mod frame_type;
+mod hpack;
 mod http_handler;
 mod parser;
 mod parser_state;

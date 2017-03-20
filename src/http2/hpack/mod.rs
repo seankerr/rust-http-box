@@ -16,6 +16,6 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-mod decode;
-mod field_iterator;
-mod query_iterator;
+mod decoder;
+mod encoder;
+mod huffman;
