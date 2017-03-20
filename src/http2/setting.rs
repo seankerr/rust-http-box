@@ -36,7 +36,7 @@ const S_MAX_FRAME_SIZE: u16 = 0x5;
 /// Maximum header list size setting.
 const S_MAX_HEADER_LIST_SIZE: u16 = 0x6;
 
-/// Setting.
+/// Available settings.
 pub enum Setting {
     /// Enable push setting.
     EnablePush(u32),
