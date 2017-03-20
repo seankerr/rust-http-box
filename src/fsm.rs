@@ -16,7 +16,7 @@
 // | Author: Sean Kerr <sean@metatomic.io>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
-//! Finite state machine macros and enums.
+//! Finite state machine macros and types.
 
 use std::fmt;
 
