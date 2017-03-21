@@ -156,79 +156,8 @@ impl ErrorCode {
         }
     }
 
-    /// Indicates that this an `ErrorCode::Cancel`.
-    pub fn is_cancel(&self) -> bool {
-        *self == ErrorCode::Cancel
-    }
-
-    /// Indicates that this an `ErrorCode::Compression`.
-    pub fn is_compression(&self) -> bool {
-        *self == ErrorCode::Compression
-    }
-
-    /// Indicates that this an `ErrorCode::Connect`.
-    pub fn is_connect(&self) -> bool {
-        *self == ErrorCode::Connect
-    }
-
-    /// Indicates that this an `ErrorCode::EnhanceYourCalm`.
-    pub fn is_enhance_your_calm(&self) -> bool {
-        *self == ErrorCode::EnhanceYourCalm
-    }
-
-    /// Indicates that this an `ErrorCode::FlowControl`.
-    pub fn is_flow_control(&self) -> bool {
-        *self == ErrorCode::FlowControl
-    }
-
-    /// Indicates that this an `ErrorCode::FrameSize`.
-    pub fn is_frame_size(&self) -> bool {
-        *self == ErrorCode::FrameSize
-    }
-
-    /// Indicates that this an `ErrorCode::Http11Required`.
-    pub fn is_http_1_1_required(&self) -> bool {
-        *self == ErrorCode::Http11Required
-    }
-
-    /// Indicates that this an `ErrorCode::InadequateSecurity`.
-    pub fn is_inadequate_security(&self) -> bool {
-        *self == ErrorCode::InadequateSecurity
-    }
-
-    /// Indicates that this an `ErrorCode::Internal`.
-    pub fn is_internal(&self) -> bool {
-        *self == ErrorCode::Internal
-    }
-
-    /// Indicates that this an `ErrorCode::NoError`.
-    pub fn is_no_error(&self) -> bool {
-        *self == ErrorCode::NoError
-    }
-
-    /// Indicates that this an `ErrorCode::Protocol`.
-    pub fn is_protocol(&self) -> bool {
-        *self == ErrorCode::Protocol
-    }
-
-    /// Indicates that this an `ErrorCode::RefusedStream`.
-    pub fn is_refused_stream(&self) -> bool {
-        *self == ErrorCode::RefusedStream
-    }
-
-    /// Indicates that this an `ErrorCode::SettingsTimeout`.
-    pub fn is_settings_timeout(&self) -> bool {
-        *self == ErrorCode::SettingsTimeout
-    }
-
-    /// Indicates that this an `ErrorCode::StreamClosed`.
-    pub fn is_stream_closed(&self) -> bool {
-        *self == ErrorCode::StreamClosed
-    }
-}
-
-impl fmt::Debug for ErrorCode {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ErrorCode::Cancel => {
                 write!(
@@ -322,101 +251,86 @@ impl fmt::Debug for ErrorCode {
             }
         }
     }
+
+    /// Indicates that this an `ErrorCode::Cancel`.
+    pub fn is_cancel(&self) -> bool {
+        *self == ErrorCode::Cancel
+    }
+
+    /// Indicates that this an `ErrorCode::Compression`.
+    pub fn is_compression(&self) -> bool {
+        *self == ErrorCode::Compression
+    }
+
+    /// Indicates that this an `ErrorCode::Connect`.
+    pub fn is_connect(&self) -> bool {
+        *self == ErrorCode::Connect
+    }
+
+    /// Indicates that this an `ErrorCode::EnhanceYourCalm`.
+    pub fn is_enhance_your_calm(&self) -> bool {
+        *self == ErrorCode::EnhanceYourCalm
+    }
+
+    /// Indicates that this an `ErrorCode::FlowControl`.
+    pub fn is_flow_control(&self) -> bool {
+        *self == ErrorCode::FlowControl
+    }
+
+    /// Indicates that this an `ErrorCode::FrameSize`.
+    pub fn is_frame_size(&self) -> bool {
+        *self == ErrorCode::FrameSize
+    }
+
+    /// Indicates that this an `ErrorCode::Http11Required`.
+    pub fn is_http_1_1_required(&self) -> bool {
+        *self == ErrorCode::Http11Required
+    }
+
+    /// Indicates that this an `ErrorCode::InadequateSecurity`.
+    pub fn is_inadequate_security(&self) -> bool {
+        *self == ErrorCode::InadequateSecurity
+    }
+
+    /// Indicates that this an `ErrorCode::Internal`.
+    pub fn is_internal(&self) -> bool {
+        *self == ErrorCode::Internal
+    }
+
+    /// Indicates that this an `ErrorCode::NoError`.
+    pub fn is_no_error(&self) -> bool {
+        *self == ErrorCode::NoError
+    }
+
+    /// Indicates that this an `ErrorCode::Protocol`.
+    pub fn is_protocol(&self) -> bool {
+        *self == ErrorCode::Protocol
+    }
+
+    /// Indicates that this an `ErrorCode::RefusedStream`.
+    pub fn is_refused_stream(&self) -> bool {
+        *self == ErrorCode::RefusedStream
+    }
+
+    /// Indicates that this an `ErrorCode::SettingsTimeout`.
+    pub fn is_settings_timeout(&self) -> bool {
+        *self == ErrorCode::SettingsTimeout
+    }
+
+    /// Indicates that this an `ErrorCode::StreamClosed`.
+    pub fn is_stream_closed(&self) -> bool {
+        *self == ErrorCode::StreamClosed
+    }
+}
+
+impl fmt::Debug for ErrorCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
 }
 
 impl fmt::Display for ErrorCode {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ErrorCode::Cancel => {
-                write!(
-                    formatter,
-                    "<Cancel>"
-                )
-            },
-            ErrorCode::Compression => {
-                write!(
-                    formatter,
-                    "<Compression>"
-                )
-            },
-            ErrorCode::Connect => {
-                write!(
-                    formatter,
-                    "<Connect>"
-                )
-            },
-            ErrorCode::EnhanceYourCalm => {
-                write!(
-                    formatter,
-                    "<EnhanceYourCalm>"
-                )
-            },
-            ErrorCode::FlowControl => {
-                write!(
-                    formatter,
-                    "<FlowControl>"
-                )
-            },
-            ErrorCode::FrameSize => {
-                write!(
-                    formatter,
-                    "<FrameSize>"
-                )
-            },
-            ErrorCode::Http11Required => {
-                write!(
-                    formatter,
-                    "<Http11Required>"
-                )
-            },
-            ErrorCode::InadequateSecurity => {
-                write!(
-                    formatter,
-                    "<InadequateSecurity>"
-                )
-            },
-            ErrorCode::Internal => {
-                write!(
-                    formatter,
-                    "<Internal>"
-                )
-            },
-            ErrorCode::NoError => {
-                write!(
-                    formatter,
-                    "<NoError>"
-                )
-            },
-            ErrorCode::Protocol => {
-                write!(
-                    formatter,
-                    "<Protocol>"
-                )
-            },
-            ErrorCode::RefusedStream => {
-                write!(
-                    formatter,
-                    "<RefusedStream>"
-                )
-            },
-            ErrorCode::SettingsTimeout => {
-                write!(
-                    formatter,
-                    "<SettingsTimeout>"
-                )
-            },
-            ErrorCode::StreamClosed => {
-                write!(
-                    formatter,
-                    "<StreamClosed>"
-                )
-            },
-            ErrorCode::Unsupported => {
-                write!(
-                    formatter,
-                    "<Unsupported>"
-                )
-            }
-        }
+        self.format(formatter)
     }
 }

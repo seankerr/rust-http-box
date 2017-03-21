@@ -28,20 +28,21 @@ pub enum QueryError {
     Value(u8)
 }
 
-impl fmt::Debug for QueryError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl QueryError {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QueryError::Name(x) => {
                 write!(
                     formatter,
-                    "<QueryError::Name: Invalid query name on byte {}>",
+                    "<QueryError::Name: {}>",
                     x
                 )
             },
             QueryError::Value(x) => {
                 write!(
                     formatter,
-                    "<QueryError::Value: Invalid query value on byte {}>",
+                    "<QueryError::Value: {}>",
                     x
                 )
             }
@@ -49,24 +50,15 @@ impl fmt::Debug for QueryError {
     }
 }
 
+impl fmt::Debug for QueryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
+}
+
 impl fmt::Display for QueryError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            QueryError::Name(x) => {
-                write!(
-                    formatter,
-                    "Invalid query name on byte {}",
-                    x
-                )
-            },
-            QueryError::Value(x) => {
-                write!(
-                    formatter,
-                    "Invalid query value on byte {}",
-                    x
-                )
-            }
-        }
+        self.format(formatter)
     }
 }
 

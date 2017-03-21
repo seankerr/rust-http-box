@@ -30,8 +30,9 @@ pub enum FieldError {
     Value(u8)
 }
 
-impl fmt::Debug for FieldError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl FieldError {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FieldError::Name(x) => {
                 write!(
@@ -51,24 +52,15 @@ impl fmt::Debug for FieldError {
     }
 }
 
+impl fmt::Debug for FieldError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
+}
+
 impl fmt::Display for FieldError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            FieldError::Name(x) => {
-                write!(
-                    formatter,
-                    "Invalid field name on byte {}",
-                    x
-                )
-            },
-            FieldError::Value(x) => {
-                write!(
-                    formatter,
-                    "Invalid field value on byte {}",
-                    x
-                )
-            }
-        }
+        self.format(formatter)
     }
 }
 

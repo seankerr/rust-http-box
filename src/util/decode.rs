@@ -29,20 +29,21 @@ pub enum DecodeError {
     HexSequence(u8)
 }
 
-impl fmt::Debug for DecodeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl DecodeError {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DecodeError::Byte(x) => {
                 write!(
                     formatter,
-                    "<DecodeError::Byte: Invalid byte on byte {}>",
+                    "<DecodeError::Byte: {}>",
                     x
                 )
             },
             DecodeError::HexSequence(x) => {
                 write!(
                     formatter,
-                    "<DecodeError::HexSequence: Invalid hex sequence on byte {}>",
+                    "<DecodeError::HexSequence: {}>",
                     x
                 )
             }
@@ -50,24 +51,15 @@ impl fmt::Debug for DecodeError {
     }
 }
 
+impl fmt::Debug for DecodeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
+}
+
 impl fmt::Display for DecodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            DecodeError::Byte(x) => {
-                write!(
-                    formatter,
-                    "Invalid byte on byte {}",
-                    x
-                )
-            },
-            DecodeError::HexSequence(x) => {
-                write!(
-                    formatter,
-                    "Invalid hex sequence on byte {}",
-                    x
-                )
-            }
-        }
+        self.format(formatter)
     }
 }
 

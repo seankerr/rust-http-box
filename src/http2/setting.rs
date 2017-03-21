@@ -74,6 +74,61 @@ impl Setting {
         }
     }
 
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Setting::EnablePush(x) => {
+                write!(
+                    formatter,
+                    "<Setting::EnablePush: {}>",
+                    x
+                )
+            },
+            Setting::HeaderTableSize(x) => {
+                write!(
+                    formatter,
+                    "<Setting::HeaderTableSize: {}>",
+                    x
+                )
+            },
+            Setting::InitialWindowSize(x) => {
+                write!(
+                    formatter,
+                    "<Setting::InitialWindowSize: {}>",
+                    x
+                )
+            },
+            Setting::MaxConcurrentStreams(x) => {
+                write!(
+                    formatter,
+                    "<Setting::MaxConcurrentStreams: {}>",
+                    x
+                )
+            },
+            Setting::MaxFrameSize(x) => {
+                write!(
+                    formatter,
+                    "<Setting::MaxFrameSize: {}>",
+                    x
+                )
+            },
+            Setting::MaxHeaderListSize(x) => {
+                write!(
+                    formatter,
+                    "<Setting::MaxHeaderListSize: {}>",
+                    x
+                )
+            },
+            Setting::Unsupported(x) => {
+                write!(
+                    formatter,
+                    "<Setting::Unsupported: {}>",
+                    x
+                )
+            }
+        }
+    }
+
     /// Indicates that this a `Setting::HeadersTableSize`.
     pub fn is_enable_push(&self) -> bool {
         match *self {
@@ -148,112 +203,12 @@ impl Setting {
 
 impl fmt::Debug for Setting {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Setting::EnablePush(x) => {
-                write!(
-                    formatter,
-                    "<Setting::EnablePush: {}>",
-                    x
-                )
-            },
-            Setting::HeaderTableSize(x) => {
-                write!(
-                    formatter,
-                    "<Setting::HeaderTableSize: {}>",
-                    x
-                )
-            },
-            Setting::InitialWindowSize(x) => {
-                write!(
-                    formatter,
-                    "<Setting::InitialWindowSize: {}>",
-                    x
-                )
-            },
-            Setting::MaxConcurrentStreams(x) => {
-                write!(
-                    formatter,
-                    "<Setting::MaxConcurrentStreams: {}>",
-                    x
-                )
-            },
-            Setting::MaxFrameSize(x) => {
-                write!(
-                    formatter,
-                    "<Setting::MaxFrameSize: {}>",
-                    x
-                )
-            },
-            Setting::MaxHeaderListSize(x) => {
-                write!(
-                    formatter,
-                    "<Setting::MaxHeaderListSize: {}>",
-                    x
-                )
-            },
-            Setting::Unsupported(x) => {
-                write!(
-                    formatter,
-                    "<Setting::Unsupported: {}>",
-                    x
-                )
-            }
-        }
+        self.format(formatter)
     }
 }
 
 impl fmt::Display for Setting {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Setting::EnablePush(x) => {
-                write!(
-                    formatter,
-                    "<EnablePush: {}>",
-                    x
-                )
-            },
-            Setting::HeaderTableSize(x) => {
-                write!(
-                    formatter,
-                    "<HeaderTableSize: {}>",
-                    x
-                )
-            },
-            Setting::InitialWindowSize(x) => {
-                write!(
-                    formatter,
-                    "<InitialWindowSize: {}>",
-                    x
-                )
-            },
-            Setting::MaxConcurrentStreams(x) => {
-                write!(
-                    formatter,
-                    "<MaxConcurrentStreams: {}>",
-                    x
-                )
-            },
-            Setting::MaxFrameSize(x) => {
-                write!(
-                    formatter,
-                    "<MaxFrameSize: {}>",
-                    x
-                )
-            },
-            Setting::MaxHeaderListSize(x) => {
-                write!(
-                    formatter,
-                    "<MaxHeaderListSize: {}>",
-                    x
-                )
-            },
-            Setting::Unsupported(x) => {
-                write!(
-                    formatter,
-                    "<Unsupported: {}>",
-                    x
-                )
-            }
-        }
+        self.format(formatter)
     }
 }

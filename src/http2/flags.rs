@@ -53,6 +53,19 @@ impl Flags {
         self.flags
     }
 
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "<Flags: ack: {}, end_headers: {}, end_stream: {}, padded: {}, priority: {}>",
+            self.flags & FL_ACK == FL_ACK,
+            self.flags & FL_END_HEADERS == FL_END_HEADERS,
+            self.flags & FL_END_STREAM == FL_END_STREAM,
+            self.flags & FL_PADDED == FL_PADDED,
+            self.flags & FL_PRIORITY == FL_PRIORITY
+        )
+    }
+
     /// Indicates that the ack flag has been set.
     pub fn is_ack(&self) -> bool {
         self.flags & FL_ACK == FL_ACK
@@ -86,28 +99,12 @@ impl Flags {
 
 impl fmt::Debug for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "<Flags: ack: {}, end_headers: {}, end_stream: {}, padded: {}, priority: {}>",
-            self.flags & FL_ACK == FL_ACK,
-            self.flags & FL_END_HEADERS == FL_END_HEADERS,
-            self.flags & FL_END_STREAM == FL_END_STREAM,
-            self.flags & FL_PADDED == FL_PADDED,
-            self.flags & FL_PRIORITY == FL_PRIORITY
-        )
+        self.format(formatter)
     }
 }
 
 impl fmt::Display for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "<Flags: ack: {}, end_headers: {}, end_stream: {}, padded: {}, priority: {}>",
-            self.flags & FL_ACK == FL_ACK,
-            self.flags & FL_END_HEADERS == FL_END_HEADERS,
-            self.flags & FL_END_STREAM == FL_END_STREAM,
-            self.flags & FL_PADDED == FL_PADDED,
-            self.flags & FL_PRIORITY == FL_PRIORITY
-        )
+        self.format(formatter)
     }
 }

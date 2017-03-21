@@ -73,123 +73,124 @@ pub enum ParserError {
     Version(u8),
 }
 
-impl fmt::Debug for ParserError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl ParserError {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParserError::ChunkExtensionName(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::ChunkExtensionName: Invalid chunk extension name on byte {}>",
+                    "<ParserError::ChunkExtensionName: {}>",
                     byte
                 )
             },
             ParserError::ChunkExtensionValue(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::ChunkExtensionValue Invalid chunk extension value on byte {}>",
+                    "<ParserError::ChunkExtensionValue: {}>",
                     byte
                 )
             },
             ParserError::ChunkLength(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::ChunkLength: Invalid chunk length on byte {}>",
+                    "<ParserError::ChunkLength: {}>",
                     byte
                 )
             },
             ParserError::ChunkLengthOverflow => {
                 write!(
                     formatter,
-                    "<ParserError::ChunkLengthOverflow: Chunk length overflow>"
+                    "<ParserError::ChunkLengthOverflow>"
                 )
             },
             ParserError::CrlfSequence(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::CrlfSequence: Invalid CRLF sequence on byte {}>",
+                    "<ParserError::CrlfSequence: {}>",
                     byte
                 )
             },
             ParserError::Dead => {
                 write!(
                     formatter,
-                    "<ParserError::Dead: Parser is dead>"
+                    "<ParserError::Dead>"
                 )
             },
             ParserError::HeaderName(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::HeaderName: Invalid header name on byte {}>",
+                    "<ParserError::HeaderName: {}>",
                     byte
                 )
             },
             ParserError::HeaderValue(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::HeaderValue: Invalid header value on byte {}>",
+                    "<ParserError::HeaderValue: {}>",
                     byte
                 )
             },
             ParserError::Method(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::Method: Invalid method on byte {}>",
+                    "<ParserError::Method: {}>",
                     byte
                 )
             },
             ParserError::Multipart(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::Multipart: Invalid multipart data on byte {}>",
+                    "<ParserError::Multipart: {}>",
                     byte
                 )
             },
             ParserError::MultipartBoundary(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::MultipartBoundary: Invalid multipart boundary on byte {}>",
+                    "<ParserError::MultipartBoundary: {}>",
                     byte
                 )
             },
             ParserError::Status(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::Status: Invalid status on byte {}>",
+                    "<ParserError::Status: {}>",
                     byte
                 )
             },
             ParserError::StatusCode(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::StatusCode: Invalid status code on byte {}>",
+                    "<ParserError::StatusCode: {}>",
                     byte
                 )
             },
             ParserError::Url(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::Url: Invalid URL on byte {}>",
+                    "<ParserError::Url: {}>",
                     byte
                 )
             },
             ParserError::UrlEncodedName(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::UrlEncodedName: Invalid URL encoded name on byte {}>",
+                    "<ParserError::UrlEncodedName: {}>",
                     byte
                 )
             },
             ParserError::UrlEncodedValue(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::UrlEncodedValue: Invalid URL encoded value on byte {}>",
+                    "<ParserError::UrlEncodedValue: {}>",
                     byte
                 )
             },
             ParserError::Version(byte) => {
                 write!(
                     formatter,
-                    "<ParserError::Version: Invalid HTTP version on byte {}>",
+                    "<ParserError::Version: {}>",
                     byte
                 )
             }
@@ -197,126 +198,14 @@ impl fmt::Debug for ParserError {
     }
 }
 
+impl fmt::Debug for ParserError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
+}
+
 impl fmt::Display for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ParserError::ChunkExtensionName(byte) => {
-                write!(
-                    formatter,
-                    "<ChunkExtensionName: Invalid chunk extension name on byte {}>",
-                    byte
-                )
-            },
-            ParserError::ChunkExtensionValue(byte) => {
-                write!(
-                    formatter,
-                    "<ChunkExtensionValue: Invalid chunk extension value on byte {}>",
-                    byte
-                )
-            },
-            ParserError::ChunkLength(byte) => {
-                write!(
-                    formatter,
-                    "<ChunkLength: Invalid chunk length on byte {}>",
-                    byte
-                )
-            },
-            ParserError::ChunkLengthOverflow => {
-                write!(
-                    formatter,
-                    "<ChunkLengthOverflow: Chunk length overflow>"
-                )
-            },
-            ParserError::CrlfSequence(byte) => {
-                write!(
-                    formatter,
-                    "<CrlfSequence: Invalid CRLF sequence on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Dead => {
-                write!(
-                    formatter,
-                    "<Dead: Parser is dead>"
-                )
-            },
-            ParserError::HeaderName(byte) => {
-                write!(
-                    formatter,
-                    "<HeaderName: Invalid header name on byte {}>",
-                    byte
-                )
-            },
-            ParserError::HeaderValue(byte) => {
-                write!(
-                    formatter,
-                    "<HeaderValue: Invalid header value on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Method(byte) => {
-                write!(
-                    formatter,
-                    "<Method: Invalid method on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Multipart(byte) => {
-                write!(
-                    formatter,
-                    "<Multipart: Invalid multipart data on byte {}>",
-                    byte
-                )
-            },
-            ParserError::MultipartBoundary(byte) => {
-                write!(
-                    formatter,
-                    "<MultipartBoundary: Invalid multipart boundary on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Status(byte) => {
-                write!(
-                    formatter,
-                    "<Status: Invalid status on byte {}>",
-                    byte
-                )
-            },
-            ParserError::StatusCode(byte) => {
-                write!(
-                    formatter,
-                    "<StatusCode: Invalid status code on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Url(byte) => {
-                write!(
-                    formatter,
-                    "<Url: Invalid URL on byte {}>",
-                    byte
-                )
-            },
-            ParserError::UrlEncodedName(byte) => {
-                write!(
-                    formatter,
-                    "<UrlEncodedName: Invalid URL encoded name on byte {}>",
-                    byte
-                )
-            },
-            ParserError::UrlEncodedValue(byte) => {
-                write!(
-                    formatter,
-                    "<UrlEncodedValue: Invalid URL encoded value on byte {}>",
-                    byte
-                )
-            },
-            ParserError::Version(byte) => {
-                write!(
-                    formatter,
-                    "<Version: Invalid HTTP version on byte {}>",
-                    byte
-                )
-            }
-        }
+        self.format(formatter)
     }
 }

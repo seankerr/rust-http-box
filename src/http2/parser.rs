@@ -153,23 +153,26 @@ pub enum ParserError {
     Dead
 }
 
-impl fmt::Debug for ParserError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl ParserError {
+    /// Format this for debug and display purposes.
+    fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParserError::Dead => {
-                write!(formatter, "<ParserError::Dead: Parser is dead>")
+                write!(formatter, "<ParserError::Dead>")
             },
         }
     }
 }
 
+impl fmt::Debug for ParserError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.format(formatter)
+    }
+}
+
 impl fmt::Display for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ParserError::Dead => {
-                write!(formatter, "<Dead: Parser is dead>")
-            },
-        }
+        self.format(formatter)
     }
 }
 

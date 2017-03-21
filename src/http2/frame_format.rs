@@ -45,6 +45,18 @@ impl FrameFormat {
        Flags::from_u8(self.flags)
    }
 
+   /// Format this for debug and display purposes.
+   fn format(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+       write!(
+           formatter,
+           "<FrameFormat: flags: {}, frame_type: {}, payload_length: {}, stream_id: {}>",
+           self.flags(),
+           self.frame_type(),
+           self.payload_length(),
+           self.stream_id
+       )
+   }
+
    /// Retrieve the frame type.
    pub fn frame_type(&self) -> FrameType {
        FrameType::from_u8((self.payload_length_frame_type & 0xFF) as u8)
@@ -63,26 +75,12 @@ impl FrameFormat {
 
 impl fmt::Debug for FrameFormat {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "<FrameFormat: flags: {}, frame_type: {}, payload_length: {}, stream_id: {}>",
-            self.flags(),
-            self.frame_type(),
-            self.payload_length(),
-            self.stream_id
-        )
+        self.format(formatter)
     }
 }
 
 impl fmt::Display for FrameFormat {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "<FrameFormat: flags: {}, frame_type: {}, payload_length: {}, stream_id: {}>",
-            self.flags(),
-            self.frame_type(),
-            self.payload_length(),
-            self.stream_id
-        )
+        self.format(formatter)
     }
 }
