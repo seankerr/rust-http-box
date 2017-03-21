@@ -42,8 +42,8 @@ pub enum ParserError {
     /// Invalid header value on byte `u8`.
     HeaderValue(u8),
 
-    /// Maximum chunk length has been met.
-    MaxChunkLength,
+    /// Chunk length overflow.
+    ChunkLengthOverflow,
 
     /// Invalid request method on byte `u8`.
     Method(u8),
@@ -97,6 +97,12 @@ impl fmt::Debug for ParserError {
                     byte
                 )
             },
+            ParserError::ChunkLengthOverflow => {
+                write!(
+                    formatter,
+                    "<ParserError::ChunkLengthOverflow: Chunk length overflow>"
+                )
+            },
             ParserError::CrlfSequence(byte) => {
                 write!(
                     formatter,
@@ -122,12 +128,6 @@ impl fmt::Debug for ParserError {
                     formatter,
                     "<ParserError::HeaderValue: Invalid header value on byte {}>",
                     byte
-                )
-            },
-            ParserError::MaxChunkLength => {
-                write!(
-                    formatter,
-                    "<ParserError::MaxChunkLength: Maximum chunk length has been met>"
                 )
             },
             ParserError::Method(byte) => {
@@ -221,6 +221,12 @@ impl fmt::Display for ParserError {
                     byte
                 )
             },
+            ParserError::ChunkLengthOverflow => {
+                write!(
+                    formatter,
+                    "<ChunkLengthOverflow: Chunk length overflow>"
+                )
+            },
             ParserError::CrlfSequence(byte) => {
                 write!(
                     formatter,
@@ -246,12 +252,6 @@ impl fmt::Display for ParserError {
                     formatter,
                     "<HeaderValue: Invalid header value on byte {}>",
                     byte
-                )
-            },
-            ParserError::MaxChunkLength => {
-                write!(
-                    formatter,
-                    "<MaxChunkLength: Maximum chunk length has been met>"
                 )
             },
             ParserError::Method(byte) => {

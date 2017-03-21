@@ -172,6 +172,6 @@ fn too_long() {
         p,
         h,
         b"FFFFFFFFFFFFFFFF0",
-        MaxChunkLength
+        ChunkLengthOverflow
     );
 }

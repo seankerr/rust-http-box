@@ -1609,7 +1609,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         collect_hex64!(
             context,
-            ParserError::MaxChunkLength,
+            ParserError::ChunkLengthOverflow,
             self.length,
             usize,
 
