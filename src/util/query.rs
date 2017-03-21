@@ -34,14 +34,14 @@ impl fmt::Debug for QueryError {
             QueryError::Name(x) => {
                 write!(
                     formatter,
-                    "QueryError::Name(Invalid query name on byte {})",
+                    "<QueryError::Name: Invalid query name on byte {}>",
                     x
                 )
             },
             QueryError::Value(x) => {
                 write!(
                     formatter,
-                    "QueryError::Value(Invalid query value on byte {})",
+                    "<QueryError::Value: Invalid query value on byte {}>",
                     x
                 )
             }

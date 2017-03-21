@@ -157,7 +157,7 @@ impl fmt::Debug for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParserError::Dead => {
-                write!(formatter, "ParserError::Dead(Parser is dead)")
+                write!(formatter, "<ParserError::Dead: Parser is dead>")
             },
         }
     }
@@ -167,7 +167,7 @@ impl fmt::Display for ParserError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ParserError::Dead => {
-                write!(formatter, "Parser is dead")
+                write!(formatter, "<Dead: Parser is dead>")
             },
         }
     }

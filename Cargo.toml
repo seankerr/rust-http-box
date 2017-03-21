@@ -1,7 +1,7 @@
 [package]
 name          = "http-box"
 version       = "0.1.5"
-authors       = ["Sean Kerr <sean@metatomic.io>"]
+authors       = ["Sean Kerr <sean@code-box.org>"]
 license       = "Apache-2.0"
 description   = "Fast push/callback oriented HTTP parser"
 documentation = "https://docs.rs/http-box"

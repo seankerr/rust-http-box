@@ -88,7 +88,7 @@ impl fmt::Debug for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
-            "Flags(Ack: {}, EndHeaders: {}, EndStream: {}, Padded: {}, Priority: {})",
+            "<Flags: ack: {}, end_headers: {}, end_stream: {}, padded: {}, priority: {}>",
             self.flags & FL_ACK == FL_ACK,
             self.flags & FL_END_HEADERS == FL_END_HEADERS,
             self.flags & FL_END_STREAM == FL_END_STREAM,
@@ -102,7 +102,7 @@ impl fmt::Display for Flags {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
-            "Flags(Ack: {}, EndHeaders: {}, EndStream: {}, Padded: {}, Priority: {})",
+            "<Flags: ack: {}, end_headers: {}, end_stream: {}, padded: {}, priority: {}>",
             self.flags & FL_ACK == FL_ACK,
             self.flags & FL_END_HEADERS == FL_END_HEADERS,
             self.flags & FL_END_STREAM == FL_END_STREAM,

@@ -36,14 +36,14 @@ impl fmt::Debug for FieldError {
             FieldError::Name(x) => {
                 write!(
                     formatter,
-                    "FieldError::Name(Invalid field name on byte {})",
+                    "<FieldError::Name: Invalid field name on byte {}>",
                     x
                 )
             },
             FieldError::Value(x) => {
                 write!(
                     formatter,
-                    "FieldError::Value(Invalid field value on byte {})",
+                    "<FieldError::Value: Invalid field value on byte {}>",
                     x
                 )
             }

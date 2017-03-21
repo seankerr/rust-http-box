@@ -61,11 +61,11 @@ impl FrameFormat {
    }
 }
 
-impl fmt::Display for FrameFormat {
+impl fmt::Debug for FrameFormat {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
-            "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
+            "<FrameFormat: flags: {}, frame_type: {}, payload_length: {}, stream_id: {}>",
             self.flags(),
             self.frame_type(),
             self.payload_length(),
@@ -74,11 +74,11 @@ impl fmt::Display for FrameFormat {
     }
 }
 
-impl fmt::Debug for FrameFormat {
+impl fmt::Display for FrameFormat {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
-            "FrameFormat(flags: {}, frame_type: {}, payload_length: {}, stream_id: {})",
+            "<FrameFormat: flags: {}, frame_type: {}, payload_length: {}, stream_id: {}>",
             self.flags(),
             self.frame_type(),
             self.payload_length(),

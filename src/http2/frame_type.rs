@@ -217,37 +217,37 @@ impl fmt::Debug for FrameType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FrameType::Continuation => {
-                write!(formatter, "FrameType::Continuation")
+                write!(formatter, "<FrameType::Continuation>")
             },
             FrameType::Data => {
-                write!(formatter, "FrameType::Data")
+                write!(formatter, "<FrameType::Data>")
             },
             FrameType::GoAway => {
-                write!(formatter, "FrameType::GoAway")
+                write!(formatter, "<FrameType::GoAway>")
             },
             FrameType::Headers => {
-                write!(formatter, "FrameType::Headers")
+                write!(formatter, "<FrameType::Headers>")
             },
             FrameType::Ping => {
-                write!(formatter, "FrameType::Ping")
+                write!(formatter, "<FrameType::Ping>")
             },
             FrameType::Priority => {
-                write!(formatter, "FrameType::Priority")
+                write!(formatter, "<FrameType::Priority>")
             },
             FrameType::PushPromise => {
-                write!(formatter, "FrameType::PushPromise")
+                write!(formatter, "<FrameType::PushPromise>")
             },
             FrameType::RstStream => {
-                write!(formatter, "FrameType::RstStream")
+                write!(formatter, "<FrameType::RstStream>")
             },
             FrameType::Settings => {
-                write!(formatter, "FrameType::Settings")
+                write!(formatter, "<FrameType::Settings>")
             },
             FrameType::WindowUpdate => {
-                write!(formatter, "FrameType::WindowUpdate")
+                write!(formatter, "<FrameType::WindowUpdate>")
             },
             FrameType::Unsupported => {
-                write!(formatter, "FrameType::Unsupported")
+                write!(formatter, "<FrameType::Unsupported>")
             }
         }
     }
@@ -257,37 +257,37 @@ impl fmt::Display for FrameType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FrameType::Continuation => {
-                write!(formatter, "Continuation")
+                write!(formatter, "<Continuation>")
             },
             FrameType::Data => {
-                write!(formatter, "Data")
+                write!(formatter, "<Data>")
             },
             FrameType::GoAway => {
-                write!(formatter, "GoAway")
+                write!(formatter, "<GoAway>")
             },
             FrameType::Headers => {
-                write!(formatter, "Headers")
+                write!(formatter, "<Headers>")
             },
             FrameType::Ping => {
-                write!(formatter, "Ping")
+                write!(formatter, "<Ping>")
             },
             FrameType::Priority => {
-                write!(formatter, "Priority")
+                write!(formatter, "<Priority>")
             },
             FrameType::PushPromise => {
-                write!(formatter, "PushPromise")
+                write!(formatter, "<PushPromise>")
             },
             FrameType::RstStream => {
-                write!(formatter, "RstStream")
+                write!(formatter, "<RstStream>")
             },
             FrameType::Settings => {
-                write!(formatter, "Settings")
+                write!(formatter, "<Settings>")
             },
             FrameType::WindowUpdate => {
-                write!(formatter, "WindowUpdate")
+                write!(formatter, "<WindowUpdate>")
             },
             FrameType::Unsupported => {
-                write!(formatter, "Unsupported")
+                write!(formatter, "<Unsupported>")
             }
         }
     }

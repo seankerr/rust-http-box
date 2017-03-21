@@ -19,49 +19,49 @@
 use std::fmt;
 
 /// Cancel error code.
-const E_CANCEL: u8 = 0x8;
+pub const E_CANCEL: u8 = 0x8;
 
 /// Compression error code.
-const E_COMPRESSION: u8 = 0x9;
+pub const E_COMPRESSION: u8 = 0x9;
 
 /// Connect error code.
-const E_CONNECT: u8 = 0xA;
+pub const E_CONNECT: u8 = 0xA;
 
 /// Enhance your calm error code.
-const E_ENHANCE_YOUR_CALM: u8 = 0xB;
+pub const E_ENHANCE_YOUR_CALM: u8 = 0xB;
 
 /// Flow control error code.
-const E_FLOW_CONTROL: u8 = 0x3;
+pub const E_FLOW_CONTROL: u8 = 0x3;
 
 /// Frame size error code.
-const E_FRAME_SIZE: u8 = 0x6;
+pub const E_FRAME_SIZE: u8 = 0x6;
 
 /// HTTP/1.1 required error code.
-const E_HTTP_1_1_REQUIRED: u8 = 0xD;
+pub const E_HTTP_1_1_REQUIRED: u8 = 0xD;
 
 /// Inadequate security error code.
-const E_INADEQUATE_SECURITY: u8 = 0xC;
+pub const E_INADEQUATE_SECURITY: u8 = 0xC;
 
 /// No error code.
-const E_NO_ERROR: u8 = 0x0;
+pub const E_NO_ERROR: u8 = 0x0;
 
 /// Internal error code.
-const E_INTERNAL: u8 = 0x2;
+pub const E_INTERNAL: u8 = 0x2;
 
 /// Protocol error code.
-const E_PROTOCOL: u8 = 0x1;
+pub const E_PROTOCOL: u8 = 0x1;
 
 /// Refused stream error code.
-const E_REFUSED_STREAM: u8 = 0x7;
+pub const E_REFUSED_STREAM: u8 = 0x7;
 
 /// Settings timeout error code.
-const E_SETTINGS_TIMEOUT: u8 = 0x4;
+pub const E_SETTINGS_TIMEOUT: u8 = 0x4;
 
 /// Stream closed error code.
-const E_STREAM_CLOSED: u8 = 0x5;
+pub const E_STREAM_CLOSED: u8 = 0x5;
 
 /// Unsupported error code.
-const E_UNSUPPORTED: u8 = 0xFF;
+pub const E_UNSUPPORTED: u8 = 0xFF;
 
 /// Error codes.
 #[derive(Clone,Copy,PartialEq)]
@@ -233,91 +233,91 @@ impl fmt::Debug for ErrorCode {
             ErrorCode::Cancel => {
                 write!(
                     formatter,
-                    "ErrorCode::Cancel"
+                    "<ErrorCode::Cancel>"
                 )
             },
             ErrorCode::Compression => {
                 write!(
                     formatter,
-                    "ErrorCode::Compression"
+                    "<ErrorCode::Compression>"
                 )
             },
             ErrorCode::Connect => {
                 write!(
                     formatter,
-                    "ErrorCode::Connect"
+                    "<ErrorCode::Connect>"
                 )
             },
             ErrorCode::EnhanceYourCalm => {
                 write!(
                     formatter,
-                    "ErrorCode::EnhanceYourCalm"
+                    "<ErrorCode::EnhanceYourCalm>"
                 )
             },
             ErrorCode::FlowControl => {
                 write!(
                     formatter,
-                    "ErrorCode::FlowControl"
+                    "<ErrorCode::FlowControl>"
                 )
             },
             ErrorCode::FrameSize => {
                 write!(
                     formatter,
-                    "ErrorCode::FrameSize"
+                    "<ErrorCode::FrameSize>"
                 )
             },
             ErrorCode::Http11Required => {
                 write!(
                     formatter,
-                    "ErrorCode::Http11Required"
+                    "<ErrorCode::Http11Required>"
                 )
             },
             ErrorCode::InadequateSecurity => {
                 write!(
                     formatter,
-                    "ErrorCode::InadequateSecurity"
+                    "<ErrorCode::InadequateSecurity>"
                 )
             },
             ErrorCode::Internal => {
                 write!(
                     formatter,
-                    "ErrorCode::Internal"
+                    "<ErrorCode::Internal>"
                 )
             },
             ErrorCode::NoError => {
                 write!(
                     formatter,
-                    "ErrorCode::NoError"
+                    "<ErrorCode::NoError>"
                 )
             },
             ErrorCode::Protocol => {
                 write!(
                     formatter,
-                    "ErrorCode::Protocol"
+                    "<ErrorCode::Protocol>"
                 )
             },
             ErrorCode::RefusedStream => {
                 write!(
                     formatter,
-                    "ErrorCode::RefusedStream"
+                    "<ErrorCode::RefusedStream>"
                 )
             },
             ErrorCode::SettingsTimeout => {
                 write!(
                     formatter,
-                    "ErrorCode::SettingsTimeout"
+                    "<ErrorCode::SettingsTimeout>"
                 )
             },
             ErrorCode::StreamClosed => {
                 write!(
                     formatter,
-                    "ErrorCode::StreamClosed"
+                    "<ErrorCode::StreamClosed>"
                 )
             },
             ErrorCode::Unsupported => {
                 write!(
                     formatter,
-                    "ErrorCode::Unsupported"
+                    "<ErrorCode::Unsupported>"
                 )
             }
         }
@@ -330,91 +330,91 @@ impl fmt::Display for ErrorCode {
             ErrorCode::Cancel => {
                 write!(
                     formatter,
-                    "Cancel"
+                    "<Cancel>"
                 )
             },
             ErrorCode::Compression => {
                 write!(
                     formatter,
-                    "Compression"
+                    "<Compression>"
                 )
             },
             ErrorCode::Connect => {
                 write!(
                     formatter,
-                    "Connect"
+                    "<Connect>"
                 )
             },
             ErrorCode::EnhanceYourCalm => {
                 write!(
                     formatter,
-                    "EnhanceYourCalm"
+                    "<EnhanceYourCalm>"
                 )
             },
             ErrorCode::FlowControl => {
                 write!(
                     formatter,
-                    "FlowControl"
+                    "<FlowControl>"
                 )
             },
             ErrorCode::FrameSize => {
                 write!(
                     formatter,
-                    "FrameSize"
+                    "<FrameSize>"
                 )
             },
             ErrorCode::Http11Required => {
                 write!(
                     formatter,
-                    "Http11Required"
+                    "<Http11Required>"
                 )
             },
             ErrorCode::InadequateSecurity => {
                 write!(
                     formatter,
-                    "InadequateSecurity"
+                    "<InadequateSecurity>"
                 )
             },
             ErrorCode::Internal => {
                 write!(
                     formatter,
-                    "Internal"
+                    "<Internal>"
                 )
             },
             ErrorCode::NoError => {
                 write!(
                     formatter,
-                    "NoError"
+                    "<NoError>"
                 )
             },
             ErrorCode::Protocol => {
                 write!(
                     formatter,
-                    "Protocol"
+                    "<Protocol>"
                 )
             },
             ErrorCode::RefusedStream => {
                 write!(
                     formatter,
-                    "RefusedStream"
+                    "<RefusedStream>"
                 )
             },
             ErrorCode::SettingsTimeout => {
                 write!(
                     formatter,
-                    "SettingsTimeout"
+                    "<SettingsTimeout>"
                 )
             },
             ErrorCode::StreamClosed => {
                 write!(
                     formatter,
-                    "StreamClosed"
+                    "<StreamClosed>"
                 )
             },
             ErrorCode::Unsupported => {
                 write!(
                     formatter,
-                    "Unsupported"
+                    "<Unsupported>"
                 )
             }
         }

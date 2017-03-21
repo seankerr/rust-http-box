@@ -35,14 +35,14 @@ impl fmt::Debug for DecodeError {
             DecodeError::Byte(x) => {
                 write!(
                     formatter,
-                    "DecodeError::Byte(Invalid byte on byte {})",
+                    "<DecodeError::Byte: Invalid byte on byte {}>",
                     x
                 )
             },
             DecodeError::HexSequence(x) => {
                 write!(
                     formatter,
-                    "DecodeError::HexSequence(Invalid hex sequence on byte {})",
+                    "<DecodeError::HexSequence: Invalid hex sequence on byte {}>",
                     x
                 )
             }
