@@ -22,7 +22,6 @@ mod error_code;
 mod flags;
 mod frame_format;
 mod frame_type;
-mod hpack;
 mod http_handler;
 mod parser;
 mod parser_state;
