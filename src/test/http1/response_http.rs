@@ -331,7 +331,7 @@ fn http_slash_lower () {
         p,
         h,
         b"/",
-        ResponseVersionMajor
+        ResponseVersionMajor1
     );
 }
 
@@ -371,6 +371,6 @@ fn http_slash_upper () {
         p,
         h,
         b"/",
-        ResponseVersionMajor
+        ResponseVersionMajor1
     );
 }

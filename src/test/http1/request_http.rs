@@ -345,7 +345,7 @@ fn http_slash_lower () {
         p,
         h,
         b"/",
-        RequestVersionMajor
+        RequestVersionMajor1
     );
 }
 
@@ -385,6 +385,6 @@ fn http_slash_upper () {
         p,
         h,
         b"/",
-        RequestVersionMajor
+        RequestVersionMajor1
     );
 }

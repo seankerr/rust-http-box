@@ -28,7 +28,7 @@ macro_rules! setup {
             parser,
             handler,
             b"HTTP/",
-            ResponseVersionMajor
+            ResponseVersionMajor1
         );
 
         (parser, handler)
@@ -52,7 +52,7 @@ fn callback_exit() {
         p,
         h,
         b"HTTP/",
-        ResponseVersionMajor
+        ResponseVersionMajor1
     );
 
     assert_callback!(

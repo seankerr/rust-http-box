@@ -36,7 +36,7 @@ fn callback_exit() {
         p,
         h,
         b"GET / HTTP/1.1",
-        RequestVersionMinor
+        RequestVersionMinor2
     );
 
     assert_callback!(

@@ -77,27 +77,72 @@ pub enum ParserState {
     /// Parsing request HTTP version byte 5.
     RequestHttp5,
 
-    /// Parsing request HTTP major version.
-    RequestVersionMajor,
+    /// Parsing request HTTP major version byte 1.
+    RequestVersionMajor1,
 
-    /// Parsing request HTTP minor version.
-    RequestVersionMinor,
+    /// Parsing request HTTP major version byte 2.
+    RequestVersionMajor2,
+
+    /// Parsing request HTTP major version byte 3.
+    RequestVersionMajor3,
+
+    /// Parsing period between HTTP major and minor versions.
+    RequestVersionPeriod,
+
+    /// Parsing request HTTP minor version byte 1.
+    RequestVersionMinor1,
+
+    /// Parsing request HTTP minor version byte 2.
+    RequestVersionMinor2,
+
+    /// Parsing request HTTP minor version byte 3.
+    RequestVersionMinor3,
+
+    /// Parsing carriage return after request HTTP minor version.
+    RequestVersionCr1,
 
     // ---------------------------------------------------------------------------------------------
     // RESPONSE
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing response HTTP major version.
-    ResponseVersionMajor,
+    /// Parsing response HTTP major version byte 1.
+    ResponseVersionMajor1,
 
-    /// Parsing response HTTP minor version.
-    ResponseVersionMinor,
+    /// Parsing response HTTP major version byte 2.
+    ResponseVersionMajor2,
+
+    /// Parsing response HTTP major version byte 3.
+    ResponseVersionMajor3,
+
+    /// Parsing period between HTTP major and minor versions.
+    ResponseVersionPeriod,
+
+    /// Parsing response HTTP minor version byte 1.
+    ResponseVersionMinor1,
+
+    /// Parsing response HTTP minor version byte 2.
+    ResponseVersionMinor2,
+
+    /// Parsing response HTTP minor version byte 3.
+    ResponseVersionMinor3,
+
+    /// Parsing space after response HTTP minor version.
+    ResponseVersionSpace,
 
     /// Stripping linear white space before response status code.
     StripResponseStatusCode,
 
-    /// Parsing response status code.
-    ResponseStatusCode,
+    /// Parsing response status code byte 1.
+    ResponseStatusCode1,
+
+    /// Parsing response status code byte 2.
+    ResponseStatusCode2,
+
+    /// Parsing response status code byte 3.
+    ResponseStatusCode3,
+
+    /// Parsing space after response status code.
+    ResponseStatusCodeSpace,
 
     /// Stripping linear white space before response status.
     StripResponseStatus,

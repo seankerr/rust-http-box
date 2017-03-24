@@ -64,7 +64,7 @@ fn byte_check() {
                 p,
                 h,
                 &[byte],
-                ResponseStatusCode
+                ResponseStatusCode2
             );
         }
     );
@@ -94,8 +94,7 @@ fn callback_exit() {
         p,
         h,
         b"100 ",
-        StripResponseStatus,
-        3
+        StripResponseStatus
     );
 }
 

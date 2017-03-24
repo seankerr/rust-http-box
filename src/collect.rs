@@ -18,35 +18,23 @@
 
 //! Stream collection macros.
 
-/// Collect and convert all digit bytes into a u16 variable.
-///
-/// Exit the collection loop upon finding a non-digit byte. Return `$error` if `$digit` exceeds
-/// `$max`, or if an overflow would occur.
-macro_rules! collect_digits16 {
-    ($context:expr, $error:expr, $digit:expr, $max:expr, $on_eos:expr) => ({
-        bs_collect_digits32!($context, $digit,
-            if $digit > $max {
-                return Err($error($context.byte));
-            },
-            return Err($error($context.byte)),
-            $on_eos
-        );
-    });
-}
-
 /// Collect an unquoted field value.
 macro_rules! collect_field {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                (($context.byte > 0x1F && $context.byte < 0x7F) && !$stop) || break;
+        bs_collect!($context,
+            // only allow space + visible
+            if $context.byte < 0x20 || $context.byte > 0x7E || $stop {
+                break;
             },
             $on_eos
         );
     });
 
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                ($context.byte > 0x1F && $context.byte < 0x7F) || break;
+        bs_collect!($context,
+            // only allow space + visible
+            if $context.byte < 0x20 || $context.byte > 0x7E {
+                break;
             },
             $on_eos
         );
@@ -151,12 +139,13 @@ macro_rules! collect_hex64 {
 /// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
 macro_rules! collect_quoted {
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                (
-                    (is_visible_7bit!($context.byte) || $context.byte == b' ')
-                    &&
-                    !($context.byte == b'"' || $context.byte == b'\\')
-                ) || break;
+        bs_collect!($context,
+            // only allow space + visible
+            if $context.byte < 0x20
+            || $context.byte > 0x7E
+            || $context.byte == b'"'
+            || $context.byte == b'\\' {
+                break;
             },
             $on_eos
         );
@@ -168,16 +157,18 @@ macro_rules! collect_quoted {
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_tokens {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                (is_token($context.byte) && !$stop) || break;
+        bs_collect!($context,
+            if !is_token($context.byte) || $stop {
+                break;
             },
             $on_eos
         );
     });
 
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                is_token($context.byte) || break;
+        bs_collect!($context,
+            if !is_token($context.byte) {
+                break;
             },
             $on_eos
         );
@@ -189,48 +180,21 @@ macro_rules! collect_tokens {
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_visible {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                (is_visible_7bit!($context.byte) && !$stop) || break;
+        bs_collect!($context,
+            if !is_visible_7bit!($context.byte) || $stop {
+                break;
             },
             $on_eos
         );
     });
 
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                is_visible_7bit!($context.byte) || break;
+        bs_collect!($context,
+            if !is_visible_7bit!($context.byte) {
+                break;
             },
             $on_eos
         );
-    });
-}
-
-/// Consume all empty space.
-///
-/// Exit the collection loop when a non-space byte is found.
-macro_rules! consume_empty_space {
-    ($context:expr, $on_eos:expr) => ({
-        bs_available!($context) > 0 || $on_eos;
-
-        if bs_starts_with1!($context, b"\r") || bs_starts_with1!($context, b"\n")
-        || bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
-            loop {
-                bs_available!($context) > 0 || $on_eos;
-
-                bs_next!($context);
-
-                (
-                   $context.byte == b'\r'
-                || $context.byte == b'\n'
-                || $context.byte == b' '
-                || $context.byte == b'\t'
-                ) || {
-                    bs_replay!($context);
-
-                    break;
-                };
-            }
-        }
     });
 }
 
@@ -247,7 +211,11 @@ macro_rules! consume_linear_space {
 
                 bs_next!($context);
 
-                $context.byte == b' ' || $context.byte == b'\t' || break;
+                if $context.byte == b' ' || $context.byte == b'\t' {
+                    continue;
+                } else {
+                    break;
+                }
             }
         } else {
             bs_next!($context);
@@ -268,7 +236,11 @@ macro_rules! consume_spaces {
 
                 bs_next!($context);
 
-                $context.byte == b' ' || break;
+                if $context.byte == b' ' {
+                    continue;
+                } else {
+                    break;
+                }
             }
         } else {
             bs_next!($context);

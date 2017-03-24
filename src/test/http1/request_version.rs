@@ -29,7 +29,7 @@ macro_rules! setup {
             parser,
             handler,
             b"GET / HTTP/",
-            RequestVersionMajor
+            RequestVersionMajor1
         );
 
         (parser, handler)
@@ -53,7 +53,7 @@ fn callback_exit() {
         p,
         h,
         b"GET / HTTP/",
-        RequestVersionMajor
+        RequestVersionMajor1
     );
 
     assert_callback!(
