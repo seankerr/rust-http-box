@@ -38,14 +38,7 @@ macro_rules! collect_digits16 {
 macro_rules! collect_field {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $context.byte > 0x1F && $context.byte < 0x7F {
-                    // space + visible
-                    if $stop {
-                        break;
-                    }
-                } else {
-                    break;
-                }
+                (($context.byte > 0x1F && $context.byte < 0x7F) && !$stop) || break;
             },
             $on_eos
         );
@@ -53,12 +46,7 @@ macro_rules! collect_field {
 
     ($context:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $context.byte > 0x1F && $context.byte < 0x7F {
-                    // space + visible
-                    continue;
-                }
-
-                break;
+                ($context.byte > 0x1F && $context.byte < 0x7F) || break;
             },
             $on_eos
         );
@@ -163,13 +151,12 @@ macro_rules! collect_hex64 {
 /// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
 macro_rules! collect_quoted {
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_visible_7bit!($context.byte) || $context.byte == b' ' {
-                if $context.byte == b'"' || $context.byte == b'\\' {
-                    break;
-                }
-            } else {
-                break;
+        bs_collect!($context, {
+                (
+                    (is_visible_7bit!($context.byte) || $context.byte == b' ')
+                    &&
+                    !($context.byte == b'"' || $context.byte == b'\\')
+                ) || break;
             },
             $on_eos
         );
@@ -181,24 +168,16 @@ macro_rules! collect_quoted {
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_tokens {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_token($context.byte) {
-                if $stop {
-                    break;
-                }
-            } else {
-                break;
+        bs_collect!($context, {
+                (is_token($context.byte) && !$stop) || break;
             },
             $on_eos
         );
     });
 
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_token($context.byte) {
-                continue;
-            } else {
-                break;
+        bs_collect!($context, {
+                is_token($context.byte) || break;
             },
             $on_eos
         );
@@ -210,24 +189,16 @@ macro_rules! collect_tokens {
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_visible {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_visible_7bit!($context.byte) {
-                if $stop {
-                    break;
-                }
-            } else {
-                break;
+        bs_collect!($context, {
+                (is_visible_7bit!($context.byte) && !$stop) || break;
             },
             $on_eos
         );
     });
 
     ($context:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_visible_7bit!($context.byte) {
-                continue;
-            } else {
-                break;
+        bs_collect!($context, {
+                is_visible_7bit!($context.byte) || break;
             },
             $on_eos
         );
@@ -239,27 +210,25 @@ macro_rules! collect_visible {
 /// Exit the collection loop when a non-space byte is found.
 macro_rules! consume_empty_space {
     ($context:expr, $on_eos:expr) => ({
-        if bs_is_eos!($context) {
-            $on_eos
-        }
+        bs_available!($context) > 0 || $on_eos;
 
         if bs_starts_with1!($context, b"\r") || bs_starts_with1!($context, b"\n")
         || bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
             loop {
-                if bs_is_eos!($context) {
-                    $on_eos
-                }
+                bs_available!($context) > 0 || $on_eos;
 
                 bs_next!($context);
 
-                if $context.byte == b'\r' || $context.byte == b'\n'
-                || $context.byte == b' ' || $context.byte == b'\t' {
-                    continue;
-                } else {
+                (
+                   $context.byte == b'\r'
+                || $context.byte == b'\n'
+                || $context.byte == b' '
+                || $context.byte == b'\t'
+                ) || {
                     bs_replay!($context);
 
                     break;
-                }
+                };
             }
         }
     });
@@ -270,23 +239,15 @@ macro_rules! consume_empty_space {
 /// Exit the collection loop when a non-linear white space byte is found.
 macro_rules! consume_linear_space {
     ($context:expr, $on_eos:expr) => ({
-        if bs_is_eos!($context) {
-            $on_eos
-        }
+        bs_available!($context) > 0 || $on_eos;
 
         if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
             loop {
-                if bs_is_eos!($context) {
-                    $on_eos
-                }
+                bs_available!($context) > 0 || $on_eos;
 
                 bs_next!($context);
 
-                if $context.byte == b' ' || $context.byte == b'\t' {
-                    continue;
-                } else {
-                    break;
-                }
+                $context.byte == b' ' || $context.byte == b'\t' || break;
             }
         } else {
             bs_next!($context);
@@ -299,23 +260,15 @@ macro_rules! consume_linear_space {
 /// Exit the collection loop when a non-space byte is found.
 macro_rules! consume_spaces {
     ($context:expr, $on_eos:expr) => ({
-        if bs_is_eos!($context) {
-            $on_eos
-        }
+        bs_available!($context) > 0 || $on_eos;
 
         if bs_starts_with1!($context, b" ") {
             loop {
-                if bs_is_eos!($context) {
-                    $on_eos
-                }
+                bs_available!($context) > 0 || $on_eos;
 
                 bs_next!($context);
 
-                if $context.byte == b' ' {
-                    continue;
-                } else {
-                    break;
-                }
+                $context.byte == b' ' || break;
             }
         } else {
             bs_next!($context);
