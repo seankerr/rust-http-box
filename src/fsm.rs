@@ -24,25 +24,19 @@ use std::fmt;
 /// `Success::Callback`.
 macro_rules! callback {
     ($parser:expr, $handler:expr, $context:expr, $function:ident, $data:expr, $exec:expr) => ({
-        if $handler.$function($data) {
-            $exec
-        } else {
-            exit_callback!($parser, $context);
-        }
+        $handler.$function($data) || exit_callback!($parser, $context);
+
+        $exec
     });
 
     ($parser:expr, $handler:expr, $context:expr, $function:ident, $exec:expr) => ({
         let slice = bs_slice!($context);
 
-        if slice.len() > 0 {
-            if $handler.$function(slice) {
-                $exec
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            $exec
-        }
+        slice.len() > 0 || $exec;
+
+        $handler.$function(slice) || exit_callback!($parser, $context);
+
+        $exec
     });
 }
 
@@ -64,15 +58,11 @@ macro_rules! callback_ignore_transition {
 
         set_state!($parser, $state, $state_function);
 
-        if slice.len() > 0 {
-            if $handler.$function(slice) {
-                transition!($parser, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            transition!($parser, $context);
-        }
+        slice.len() > 0 || transition!($parser, $context);
+
+        $handler.$function(slice) || exit_callback!($parser, $context);
+
+        transition!($parser, $context);
     });
 }
 
@@ -86,15 +76,11 @@ macro_rules! callback_ignore_transition_fast {
 
         set_state!($parser, $state, $state_function);
 
-        if slice.len() > 0 {
-            if $handler.$function(slice) {
-                transition_fast!($parser, $handler, $context);
-            } else {
-                exit_callback!($parser, $context);
-            }
-        } else {
-            transition_fast!($parser, $handler, $context);
-        }
+        slice.len() > 0 || transition_fast!($parser, $handler, $context);
+
+        $handler.$function(slice) || exit_callback!($parser, $context);
+
+        transition_fast!($parser, $handler, $context);
     });
 }
 
@@ -185,9 +171,7 @@ macro_rules! exit_finished {
 /// If the stream is EOS, exit with `Success::Eos`. Otherwise do nothing.
 macro_rules! exit_if_eos {
     ($parser:expr, $context:expr) => ({
-        if bs_is_eos!($context) {
-            exit_eos!($parser, $context);
-        }
+        bs_available!($context) > 0 || exit_eos!($parser, $context);
     });
 }
 
