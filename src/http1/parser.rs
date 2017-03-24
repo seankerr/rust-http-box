@@ -20,7 +20,7 @@
 
 #![allow(dead_code)]
 
-use byte::is_token;
+use byte::{ is_token, is_url_encoded_separator };
 use fsm::{ ParserValue, Success };
 use http1::http_handler::HttpHandler;
 use http1::parser_error::ParserError;
@@ -646,6 +646,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
+        bs_replay!(context);
+
         transition_fast!(
             self,
             handler,
@@ -787,11 +789,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_tokens!(
             context,
-            ParserError::HeaderName,
 
             // stop on these bytes
-               context.byte == b':'
-            || (context.byte > 0x40 && context.byte < 0x5B),
+            context.byte > 0x40 && context.byte < 0x5B,
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_header_name)
@@ -806,7 +806,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 StripHeaderValue,
                 strip_header_value
             );
-        } else {
+        } else if context.byte > 0x40 && context.byte < 0x5B {
             // upper-cased byte
             bs_replay!(context);
 
@@ -818,6 +818,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 UpperHeaderName,
                 upper_header_name
             );
+        } else {
+            Err(ParserError::HeaderName(context.byte))
         }
     }
 
@@ -830,8 +832,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // on end-of-stream
             exit_eos!(self, context)
         );
-
-        bs_next!(context);
 
         if context.byte == b'"' {
             transition_fast!(
@@ -859,23 +859,23 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_field!(
             context,
-            ParserError::HeaderValue,
-
-            // stop on these bytes
-            context.byte == b'\r',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_header_value)
         );
 
-        callback_ignore_transition_fast!(
-            self,
-            handler,
-            context,
-            on_header_value,
-            HeaderLf1,
-            header_lf1
-        );
+        if context.byte == b'\r' {
+            callback_ignore_transition_fast!(
+                self,
+                handler,
+                context,
+                on_header_value,
+                HeaderLf1,
+                header_lf1
+            );
+        } else {
+            Err(ParserError::HeaderValue(context.byte))
+        }
     }
 
     #[inline]
@@ -883,7 +883,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_quoted!(
             context,
-            ParserError::HeaderValue,
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_header_value)
@@ -898,7 +897,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderCr1,
                 header_cr1
             );
-        } else {
+        } else if context.byte == b'\\' {
             callback_ignore_transition_fast!(
                 self,
                 handler,
@@ -907,6 +906,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderEscapedValue,
                 header_escaped_value
             );
+        } else {
+            Err(ParserError::HeaderValue(context.byte))
         }
     }
 
@@ -1090,11 +1091,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         collect_tokens!(
             context,
-            ParserError::Method,
 
             // stop on these bytes
-               context.byte == b' '
-            || (context.byte > 0x60 && context.byte < 0x7B),
+            context.byte > 0x60 && context.byte < 0x7B,
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_method)
@@ -1111,7 +1110,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 StripRequestUrl,
                 strip_request_url
             );
-        } else {
+        } else if context.byte > 0x60 && context.byte < 0x7B {
             // lower-cased byte, let's upper-case it
             bs_replay!(context);
 
@@ -1123,6 +1122,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 LowerRequestMethod,
                 lower_request_method
             );
+        } else {
+            Err(ParserError::Method(context.byte))
         }
     }
 
@@ -1165,6 +1166,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
+        bs_replay!(context);
+
         transition_fast!(
             self,
             handler,
@@ -1179,25 +1182,25 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_visible!(
             context,
-            ParserError::Url,
-
-            // stop on these bytes
-            context.byte == b' ',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_url)
         );
 
-        bs_replay!(context);
+        if context.byte == b' ' {
+            bs_replay!(context);
 
-        callback_transition_fast!(
-            self,
-            handler,
-            context,
-            on_url,
-            StripRequestHttp,
-            strip_request_http
-        );
+            callback_transition_fast!(
+                self,
+                handler,
+                context,
+                on_url,
+                StripRequestHttp,
+                strip_request_http
+            );
+        } else {
+            Err(ParserError::Url(context.byte))
+        }
     }
 
     #[inline]
@@ -1209,6 +1212,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // on end-of-stream
             exit_eos!(self, context)
         );
+
+        bs_replay!(context);
 
         transition_fast!(
             self,
@@ -1474,8 +1479,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
-        bs_next!(context);
-
         if is_digit!(context.byte) {
             bs_replay!(context);
 
@@ -1530,6 +1533,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // on end-of-stream
             exit_eos!(self, context)
         );
+
+        bs_replay!(context);
 
         transition_fast!(
             self,
@@ -1706,6 +1711,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
+        bs_replay!(context);
+
         transition_fast!(
             self,
             handler,
@@ -1749,13 +1756,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_tokens!(
             context,
-            ParserError::ChunkExtensionName,
 
             // stop on these bytes
-               context.byte == b'='
-            || context.byte == b'\r'
-            || context.byte == b';'
-            || (context.byte > 0x40 && context.byte < 0x5B),
+            context.byte > 0x40 && context.byte < 0x5B,
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_chunk_extension_name)
@@ -1782,7 +1785,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionFinished,
                 chunk_extension_finished
             );
-        } else {
+        } else if context.byte > 0x40 && context.byte < 0x5B {
             // upper-cased byte
             bs_replay!(context);
 
@@ -1794,6 +1797,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 UpperChunkExtensionName,
                 upper_chunk_extension_name
             );
+        } else {
+            Err(ParserError::ChunkExtensionName(context.byte))
         }
     }
 
@@ -1806,6 +1811,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // on end-of-stream
             exit_eos!(self, context)
         );
+
+        bs_replay!(context);
 
         transition_fast!(
             self,
@@ -1821,12 +1828,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_tokens!(
             context,
-            ParserError::ChunkExtensionValue,
-
-            // stop on these bytes
-               context.byte == b'\r'
-            || context.byte == b';'
-            || context.byte == b'"',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_chunk_extension_value)
@@ -1840,7 +1841,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionQuotedValue,
                 chunk_extension_quoted_value
             );
-        } else {
+        } else if context.byte == b'\r' || context.byte == b';' {
             bs_replay!(context);
 
             callback_transition_fast!(
@@ -1851,6 +1852,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionFinished,
                 chunk_extension_finished
             );
+        } else {
+            Err(ParserError::ChunkExtensionValue(context.byte))
         }
     }
 
@@ -1859,7 +1862,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_quoted!(
             context,
-            ParserError::ChunkExtensionValue,
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_chunk_extension_value)
@@ -1874,7 +1876,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionQuotedValueFinished,
                 chunk_extension_quoted_value_finished
             );
-        } else {
+        } else if context.byte == b'\\' {
             callback_ignore_transition_fast!(
                 self,
                 handler,
@@ -1883,6 +1885,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionEscapedValue,
                 chunk_extension_escaped_value
             );
+        } else {
+            Err(ParserError::ChunkExtensionValue(context.byte))
         }
     }
 
@@ -2410,14 +2414,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_visible!(
             context,
-            ParserError::UrlEncodedName,
 
             // stop on these bytes
-               context.byte == b'='
-            || context.byte == b'%'
-            || context.byte == b'&'
-            || context.byte == b';'
-            || context.byte == b'+',
+            is_url_encoded_separator(context.byte),
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_url_encoded_name)
@@ -2454,7 +2453,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     url_encoded_name_ampersand
                 );
             },
-            _ => {
+            b'+' => {
                 callback_ignore_transition_fast!(
                     self,
                     handler,
@@ -2463,6 +2462,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     UrlEncodedNamePlus,
                     url_encoded_name_plus
                 );
+            },
+            _ => {
+                Err(ParserError::UrlEncodedName(context.byte))
             }
         }
     }
@@ -2559,14 +2561,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         collect_visible!(
             context,
-            ParserError::UrlEncodedValue,
 
             // stop on these bytes
-               context.byte == b'%'
-            || context.byte == b'&'
-            || context.byte == b';'
-            || context.byte == b'+'
-            || context.byte == b'=',
+            is_url_encoded_separator(context.byte),
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_url_encoded_value)
@@ -2603,8 +2600,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     url_encoded_value_plus
                 );
             },
-            _ => {
-                exit_error!(UrlEncodedValue, context.byte);
+              b'='
+            | _ => {
+                Err(ParserError::UrlEncodedValue(context.byte))
             }
         }
     }

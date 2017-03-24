@@ -60,7 +60,7 @@ fn byte_check() {
 
     // valid bytes
     loop_visible(
-        b"=%&",
+        b"=%&;+",
         |byte| {
             let (mut p, mut h) = setup!(1);
 

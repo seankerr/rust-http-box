@@ -111,12 +111,11 @@ pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
 
         collect_visible!(
             context,
-            DecodeError::Byte,
 
             // stop on these bytes
-               context.byte == b'%'
-            || context.byte == b'+',
-
+               context.byte == b'+'
+            || context.byte == b'%',
+            
             // on end-of-stream
             {
                 if context.mark_index < context.stream_index {
@@ -133,16 +132,20 @@ pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
 
         if context.byte == b'+' {
             submit!(string, b" ");
-        } else if bs_has_bytes!(context, 2) {
-            submit!(string, &[
-                collect_hex8!(context, DecodeError::HexSequence)
-            ]);
-        } else {
-            if bs_has_bytes!(context, 1) {
-                bs_next!(context);
-            }
+        } else if context.byte == b'%' {
+            if bs_has_bytes!(context, 2) {
+                submit!(string, &[
+                    collect_hex8!(context, DecodeError::HexSequence)
+                ]);
+            } else {
+                if bs_has_bytes!(context, 1) {
+                    bs_next!(context);
+                }
 
-            return Err(DecodeError::HexSequence(context.byte));
+                return Err(DecodeError::HexSequence(context.byte));
+            }
+        } else {
+            return Err(DecodeError::Byte(context.byte));
         }
     }
 }

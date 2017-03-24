@@ -16,6 +16,8 @@
 // | Author: Sean Kerr <sean@code-box.org>                                                         |
 // +-----------------------------------------------------------------------------------------------+
 
+use byte::is_url_encoded_separator;
+
 use byte_slice::ByteStream;
 use std::fmt;
 
@@ -170,17 +172,11 @@ impl<'a> Iterator for QueryIterator<'a> {
             loop {
                 bs_mark!(self.context);
 
-                collect_visible_iter!(
-                    self,
+                collect_visible!(
                     self.context,
-                    QueryError::Name,
 
                     // stop on these bytes
-                       self.context.byte == b'%'
-                    || self.context.byte == b'+'
-                    || self.context.byte == b'='
-                    || self.context.byte == b'&'
-                    || self.context.byte == b';',
+                    is_url_encoded_separator(self.context.byte),
 
                     // on end-of-stream
                     {
@@ -204,13 +200,11 @@ impl<'a> Iterator for QueryIterator<'a> {
                                 self.context,
                                 QueryError::Name
                             ));
-                        } else {
-                            if bs_has_bytes!(self.context, 1) {
-                                bs_next!(self.context);
-                            }
-
-                            submit_error!(self, QueryError::Name);
+                        } else if bs_has_bytes!(self.context, 1) {
+                            bs_next!(self.context);
                         }
+
+                        submit_error!(self, QueryError::Name);
                     },
                     b'+' => {
                         self.name.push(b' ');
@@ -227,9 +221,17 @@ impl<'a> Iterator for QueryIterator<'a> {
                         // first byte cannot be a delimiter
                         submit_error!(self, QueryError::Name);
                     },
-                    _ => {
+                      b'&'
+                    | b';' => {
                         // name without a value
                         submit_name!(self);
+                    },
+                    _ => {
+                        bs_jump!(self.context, bs_available!(self.context));
+
+                        (*self.on_error)(QueryError::Name(self.context.byte));
+
+                        return None;
                     }
                 }
             }
@@ -238,16 +240,11 @@ impl<'a> Iterator for QueryIterator<'a> {
             loop {
                 bs_mark!(self.context);
 
-                collect_visible_iter!(
-                    self,
+                collect_visible!(
                     self.context,
-                    QueryError::Value,
 
                     // stop on these bytes
-                       self.context.byte == b'%'
-                    || self.context.byte == b'+'
-                    || self.context.byte == b'&'
-                    || self.context.byte == b';',
+                    is_url_encoded_separator(self.context.byte),
 
                     // on end-of-stream
                     {
@@ -282,9 +279,20 @@ impl<'a> Iterator for QueryIterator<'a> {
                     b'+' => {
                         self.value.push(b' ');
                     },
-                    _ => {
+                    b'=' => {
+                        self.value.push(b'=');
+                    },
+                      b'&'
+                    | b';' => {
                         // name with a value
                         submit_name_value!(self);
+                    },
+                    _ => {
+                        bs_jump!(self.context, bs_available!(self.context));
+
+                        (*self.on_error)(QueryError::Value(self.context.byte));
+
+                        return None;
                     }
                 }
             }

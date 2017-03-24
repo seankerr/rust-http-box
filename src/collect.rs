@@ -36,74 +36,29 @@ macro_rules! collect_digits16 {
 
 /// Collect an unquoted field value.
 macro_rules! collect_field {
-    ($context:expr, $error:expr, $stop:expr, $byte_error:expr, $on_eos:expr) => ({
+    ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $stop {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
-                    // space + visible + no byte error
-                    continue;
+                if $context.byte > 0x1F && $context.byte < 0x7F {
+                    // space + visible
+                    if $stop {
+                        break;
+                    }
                 } else {
-                    return Err($error($context.byte));
+                    break;
                 }
             },
             $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+    ($context:expr, $on_eos:expr) => ({
         bs_collect!($context, {
-                if $stop {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F {
+                if $context.byte > 0x1F && $context.byte < 0x7F {
                     // space + visible
                     continue;
                 }
 
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-}
-
-/// Collect an unquoted field value.
-///
-/// This macro is compatible with custom iterators.
-macro_rules! collect_field_iter {
-    ($iter:expr, $context:expr, $error:expr, $stop:expr, $byte_error:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                if $stop {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F && !$byte_error {
-                    // space + visible + no byte error
-                    continue;
-                } else {
-                    bs_jump!($context, bs_available!($context));
-
-                    (*$iter.on_error)($error($context.byte));
-
-                    return None;
-                }
-            },
-            $on_eos
-        );
-    });
-
-    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context, {
-                if $stop {
-                    break;
-                } else if $context.byte > 0x1F && $context.byte < 0x7F {
-                    // space + visible
-                    continue;
-                }
-
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
+                break;
             },
             $on_eos
         );
@@ -207,69 +162,14 @@ macro_rules! collect_hex64 {
 /// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
 /// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
 macro_rules! collect_quoted {
-    ($context:expr, $error:expr, $byte_error:expr, $on_eos:expr) => ({
+    ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if $context.byte == b'"' || $context.byte == b'\\' {
-                break;
-            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' || !$byte_error {
-                continue;
+            if is_visible_7bit!($context.byte) || $context.byte == b' ' {
+                if $context.byte == b'"' || $context.byte == b'\\' {
+                    break;
+                }
             } else {
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-
-    ($context:expr, $error:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if $context.byte == b'"' || $context.byte == b'\\' {
                 break;
-            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' {
-                continue;
-            } else {
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-}
-
-/// Collect a quoted value.
-///
-/// This macro is compatible with custom iterators.
-///
-/// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
-/// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
-macro_rules! collect_quoted_iter {
-    ($iter:expr, $context:expr, $error:expr, $byte_error:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if $context.byte == b'"' || $context.byte == b'\\' {
-                break;
-            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' || !$byte_error {
-                continue;
-            } else {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
-            },
-            $on_eos
-        );
-    });
-
-    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if $context.byte == b'"' || $context.byte == b'\\' {
-                break;
-            } else if is_visible_7bit!($context.byte) || $context.byte == b' ' {
-                continue;
-            } else {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
             },
             $on_eos
         );
@@ -280,64 +180,25 @@ macro_rules! collect_quoted_iter {
 ///
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_tokens {
-    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+    ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if $stop {
-                break;
-            } else if is_token($context.byte) {
-                continue;
+            if is_token($context.byte) {
+                if $stop {
+                    break;
+                }
             } else {
-                return Err($error($context.byte));
+                break;
             },
             $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $on_eos:expr) => ({
+    ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
             if is_token($context.byte) {
                 continue;
             } else {
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-}
-
-/// Collect all token bytes.
-///
-/// This macro is compatible with custom iterators.
-///
-/// Exit the collection loop when `$stop` yields `true`.
-macro_rules! collect_tokens_iter {
-    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if $stop {
                 break;
-            } else if is_token($context.byte) {
-                continue;
-            } else {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
-            },
-            $on_eos
-        );
-    });
-
-    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_token($context.byte) {
-                continue;
-            } else {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
             },
             $on_eos
         );
@@ -348,56 +209,25 @@ macro_rules! collect_tokens_iter {
 ///
 /// Exit the collection loop when `$stop` yields `true`.
 macro_rules! collect_visible {
-    ($context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
+    ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if $stop {
+            if is_visible_7bit!($context.byte) {
+                if $stop {
+                    break;
+                }
+            } else {
                 break;
-            } else if is_not_visible_7bit!($context.byte) {
-                return Err($error($context.byte));
             },
             $on_eos
         );
     });
 
-    ($context:expr, $error:expr, $on_eos:expr) => ({
+    ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if is_not_visible_7bit!($context.byte) {
-                return Err($error($context.byte));
-            },
-            $on_eos
-        );
-    });
-}
-
-/// Collect all visible 7-bit bytes. Visible bytes are 0x21 thru 0x7E.
-///
-/// This macro is compatible with custom iterators.
-///
-/// Exit the collection loop when `$stop` yields `true`.
-macro_rules! collect_visible_iter {
-    ($iter:expr, $context:expr, $error:expr, $stop:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if $stop {
+            if is_visible_7bit!($context.byte) {
+                continue;
+            } else {
                 break;
-            } else if is_not_visible_7bit!($context.byte) {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
-            },
-            $on_eos
-        );
-    });
-
-    ($iter:expr, $context:expr, $error:expr, $on_eos:expr) => ({
-        bs_collect!($context,
-            if is_not_visible_7bit!($context.byte) {
-                bs_jump!($context, bs_available!($context));
-
-                (*$iter.on_error)($error($context.byte));
-
-                return None;
             },
             $on_eos
         );
@@ -455,11 +285,11 @@ macro_rules! consume_linear_space {
                 if $context.byte == b' ' || $context.byte == b'\t' {
                     continue;
                 } else {
-                    bs_replay!($context);
-
                     break;
                 }
             }
+        } else {
+            bs_next!($context);
         }
     });
 }
@@ -484,11 +314,11 @@ macro_rules! consume_spaces {
                 if $context.byte == b' ' {
                     continue;
                 } else {
-                    bs_replay!($context);
-
                     break;
                 }
             }
+        } else {
+            bs_next!($context);
         }
     });
 }

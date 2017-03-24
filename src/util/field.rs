@@ -180,12 +180,12 @@ impl<'a> Iterator for FieldIterator<'a> {
                 return None
             );
 
+            bs_replay!(self.context);
+
             bs_mark!(self.context);
 
-            collect_tokens_iter!(
-                self,
+            collect_tokens!(
                 self.context,
-                FieldError::Name,
 
                 // stop on these bytes
                    self.context.byte == b'='
@@ -221,10 +221,8 @@ impl<'a> Iterator for FieldIterator<'a> {
                         loop {
                             bs_mark!(self.context);
 
-                            collect_quoted_iter!(
-                                self,
+                            collect_quoted!(
                                 self.context,
-                                FieldError::Value,
 
                                 // on end-of-stream
                                 // didn't find an ending quote
@@ -254,7 +252,7 @@ impl<'a> Iterator for FieldIterator<'a> {
 
                                 // expected a semicolon to end the value
                                 submit_error!(self, FieldError::Value);
-                            } else {
+                            } else if self.context.byte == b'\\' {
                                 // found backslash
                                 if bs_is_eos!(self.context) {
                                     submit_error!(self, FieldError::Name);
@@ -265,6 +263,12 @@ impl<'a> Iterator for FieldIterator<'a> {
                                 bs_next!(self.context);
 
                                 self.value.push(self.context.byte);
+                            } else {
+                                bs_jump!(self.context, bs_available!(self.context));
+
+                                (*self.on_error)(FieldError::Value(self.context.byte));
+
+                                return None;
                             }
                         }
                     } else {
@@ -272,10 +276,8 @@ impl<'a> Iterator for FieldIterator<'a> {
                         bs_replay!(self.context);
                         bs_mark!(self.context);
 
-                        collect_field_iter!(
-                            self,
+                        collect_field!(
                             self.context,
-                            FieldError::Value,
 
                             // stop on these bytes
                             self.context.byte == self.delimiter,
@@ -295,7 +297,15 @@ impl<'a> Iterator for FieldIterator<'a> {
                             submit_name!(self);
                         }
 
-                        submit_name_value!(self.name, bs_slice_ignore!(self.context));
+                        if self.context.byte == self.delimiter {
+                            submit_name_value!(self.name, bs_slice_ignore!(self.context));
+                        } else {
+                            bs_jump!(self.context, bs_available!(self.context));
+
+                            (*self.on_error)(FieldError::Value(self.context.byte));
+
+                            return None;
+                        }
                     }
                 },
                 b'/' => {
@@ -306,9 +316,16 @@ impl<'a> Iterator for FieldIterator<'a> {
                     // name without a value
                     submit_name!(self);
                 },
-                _ => {
+                byte if byte > 0x40 && byte < 0x5B => {
                     // upper-cased byte, let's lower-case it
                     self.name.push(self.context.byte + 0x20);
+                },
+                _ => {
+                    bs_jump!(self.context, bs_available!(self.context));
+
+                    (*self.on_error)(FieldError::Name(self.context.byte));
+
+                    return None;
                 }
             }
         }
