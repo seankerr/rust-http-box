@@ -157,9 +157,9 @@ fn on_chunk_extensions_finished() {
     assert_callback(
         &mut p,
         &mut h,
-        b"F;extension\r",
+        b"F\r",
         ParserState::ChunkLengthLf,
-        b"F;extension\r".len()
+        b"F\r".len()
     );
 }
 
@@ -181,7 +181,7 @@ fn on_chunk_length() {
         &mut p,
         &mut h,
         b"F\r",
-        ParserState::ChunkLengthLf,
+        ParserState::ChunkExtensionsFinished,
         b"F\r".len()
     );
 }

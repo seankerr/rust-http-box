@@ -127,11 +127,17 @@ pub struct DebugHandler {
     /// Chunk data.
     pub chunk_data: Vec<u8>,
 
+    /// Indicates that the most recent chunk extension has been parsed.
+    pub chunk_extension_finished: bool,
+
     /// Chunk extension name.
     pub chunk_extension_name:  Vec<u8>,
 
     /// Chunk extension value.
     pub chunk_extension_value: Vec<u8>,
+
+    /// Indicates that all chunk extensions have been parsed.
+    pub chunk_extensions_finished: bool,
 
     /// Chunk length.
     pub chunk_length: usize,
@@ -180,24 +186,26 @@ impl DebugHandler {
     /// Create a new `DebugHandler`.
     pub fn new() -> DebugHandler {
         DebugHandler{
-            body_finished:         false,
-            chunk_data:            Vec::new(),
-            chunk_extension_name:  Vec::new(),
-            chunk_extension_value: Vec::new(),
-            chunk_length:          0,
-            header_name:           Vec::new(),
-            header_value:          Vec::new(),
-            headers_finished:      false,
-            initial_finished:      false,
-            method:                Vec::new(),
-            multipart_data:        Vec::new(),
-            status:                Vec::new(),
-            status_code:           0,
-            url:                   Vec::new(),
-            url_encoded_name:      Vec::new(),
-            url_encoded_value:     Vec::new(),
-            version_major:         0,
-            version_minor:         0
+            body_finished:             false,
+            chunk_data:                Vec::new(),
+            chunk_extension_finished:  false,
+            chunk_extension_name:      Vec::new(),
+            chunk_extension_value:     Vec::new(),
+            chunk_extensions_finished: false,
+            chunk_length:              0,
+            header_name:               Vec::new(),
+            header_value:              Vec::new(),
+            headers_finished:          false,
+            initial_finished:          false,
+            method:                    Vec::new(),
+            multipart_data:            Vec::new(),
+            status:                    Vec::new(),
+            status_code:               0,
+            url:                       Vec::new(),
+            url_encoded_name:          Vec::new(),
+            url_encoded_value:         Vec::new(),
+            version_major:             0,
+            version_minor:             0
         }
     }
 }
@@ -232,6 +240,7 @@ impl HttpHandler for DebugHandler {
     }
 
     fn on_chunk_extension_finished(&mut self) -> bool {
+        self.chunk_extension_finished = true;
         true
     }
 
@@ -251,6 +260,11 @@ impl HttpHandler for DebugHandler {
             }
         }
 
+        true
+    }
+
+    fn on_chunk_extensions_finished(&mut self) -> bool {
+        self.chunk_extensions_finished = true;
         true
     }
 

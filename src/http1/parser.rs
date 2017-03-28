@@ -2198,8 +2198,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 context,
                 on_chunk_length,
                 self.length,
-                ChunkLengthLf,
-                chunk_length_lf
+                ChunkExtensionsFinished,
+                chunk_extensions_finished
             );
         } else if context.byte == b';' {
             callback_transition_fast!(

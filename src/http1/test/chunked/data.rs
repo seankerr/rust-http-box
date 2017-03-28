@@ -81,3 +81,27 @@ fn entire_iter() {
         b"Hello, Rust!"
     );
 }
+
+#[test]
+fn state_chunk_length1() {
+    let (mut p, mut h) = setup!();
+
+    iter_assert_eos(
+        &mut p,
+        &mut h,
+        &[(b'H', ParserState::ChunkData),
+          (b'e', ParserState::ChunkData),
+          (b'l', ParserState::ChunkData),
+          (b'l', ParserState::ChunkData),
+          (b'o', ParserState::ChunkData),
+          (b',', ParserState::ChunkData),
+          (b' ', ParserState::ChunkData),
+          (b'R', ParserState::ChunkData),
+          (b'u', ParserState::ChunkData),
+          (b's', ParserState::ChunkData),
+          (b't', ParserState::ChunkData),
+          (b'!', ParserState::ChunkData),
+          (b'\r', ParserState::ChunkLengthLf),
+          (b'\n', ParserState::ChunkLength1)]
+    );
+}
