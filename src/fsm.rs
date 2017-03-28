@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! Finite state machine macros and types.
 
@@ -211,7 +209,7 @@ macro_rules! transition {
     });
 
     ($parser:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
+        bs_mark!($context, $context.stream_index);
 
         return Ok(ParserValue::Continue);
     });
@@ -228,9 +226,31 @@ macro_rules! transition_fast {
     });
 
     ($parser:expr, $handler:expr, $context:expr) => ({
-        $context.mark_index = $context.stream_index;
+        bs_mark!($context, $context.stream_index);
 
         return ($parser.state_function)($parser, $handler, $context);
+    });
+}
+
+/// Transition to `$state` quickly by directly calling `$state_function`.
+///
+/// This will not readjust the mark index.
+macro_rules! transition_fast_no_remark {
+    ($parser:expr, $handler:expr, $context:expr, $state:ident, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        return ($parser.state_function)($parser, $handler, $context);
+    });
+}
+
+/// Transition to `$state`.
+///
+/// This will not readjust the mark index.
+macro_rules! transition_no_remark {
+    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
+        set_state!($parser, $state, $state_function);
+
+        return Ok(ParserValue::Continue);
     });
 }
 

@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! HTTP/1.x parser, errors, traits, and types.
 
@@ -23,6 +21,9 @@ mod parser;
 mod parser_error;
 mod parser_state;
 mod parser_type;
+
+#[cfg(test)]
+mod test;
 
 pub use http1::http_handler::HttpHandler;
 pub use http1::parser::Parser;

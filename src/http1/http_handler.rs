@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 /// Type that handles HTTP/1.x parser events.
 #[allow(unused_variables)]

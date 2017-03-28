@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! Utility functions for handling encoded data, query strings, and header fields.
 
@@ -82,6 +80,9 @@ macro_rules! submit_name_value {
 mod decode;
 mod field;
 mod query;
+
+#[cfg(test)]
+mod test;
 
 pub use util::decode::{ DecodeError, decode };
 pub use util::field::{ FieldError, FieldIterator };

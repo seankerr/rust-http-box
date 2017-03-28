@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 use byte::is_url_encoded_separator;
 
@@ -172,7 +170,7 @@ impl<'a> Iterator for QueryIterator<'a> {
             loop {
                 bs_mark!(self.context);
 
-                collect_visible!(
+                collect_visible_7bit!(
                     self.context,
 
                     // stop on these bytes
@@ -240,7 +238,7 @@ impl<'a> Iterator for QueryIterator<'a> {
             loop {
                 bs_mark!(self.context);
 
-                collect_visible!(
+                collect_visible_7bit!(
                     self.context,
 
                     // stop on these bytes

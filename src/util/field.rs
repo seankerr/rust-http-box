@@ -13,10 +13,8 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
-use byte::is_token;
+use byte::{ is_header_field, is_quoted_header_field, is_token };
 
 use byte_slice::ByteStream;
 use std::fmt;
@@ -221,7 +219,7 @@ impl<'a> Iterator for FieldIterator<'a> {
                         loop {
                             bs_mark!(self.context);
 
-                            collect_quoted!(
+                            collect_quoted_field!(
                                 self.context,
 
                                 // on end-of-stream

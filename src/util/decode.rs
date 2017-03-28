@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 use byte_slice::ByteStream;
 
@@ -109,13 +107,13 @@ pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
     loop {
         bs_mark!(context);
 
-        collect_visible!(
+        collect_visible_7bit!(
             context,
 
             // stop on these bytes
                context.byte == b'+'
             || context.byte == b'%',
-            
+
             // on end-of-stream
             {
                 if context.mark_index < context.stream_index {

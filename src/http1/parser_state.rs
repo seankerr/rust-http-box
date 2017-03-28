@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! HTTP 1.x parser states.
 
@@ -47,20 +45,14 @@ pub enum ParserState {
     // REQUEST
     // ---------------------------------------------------------------------------------------------
 
-    /// Parsing upper-caed request method.
-    UpperRequestMethod,
+    /// Parsing request method.
+    RequestMethod,
 
-    /// Parsing lower-cased request method.
-    LowerRequestMethod,
+    /// Parsing request URL byte 1.
+    RequestUrl1,
 
-    /// Stripping linear white space before URL.
-    StripRequestUrl,
-
-    /// Parsing URL.
-    RequestUrl,
-
-    /// Stripping linear white space before request HTTP version.
-    StripRequestHttp,
+    /// Parsing request URL byte 2+.
+    RequestUrl2,
 
     /// Parsing request HTTP version byte 1.
     RequestHttp1,
@@ -99,7 +91,7 @@ pub enum ParserState {
     RequestVersionMinor3,
 
     /// Parsing carriage return after request HTTP minor version.
-    RequestVersionCr1,
+    RequestVersionCr,
 
     // ---------------------------------------------------------------------------------------------
     // RESPONSE
@@ -129,9 +121,6 @@ pub enum ParserState {
     /// Parsing space after response HTTP minor version.
     ResponseVersionSpace,
 
-    /// Stripping linear white space before response status code.
-    StripResponseStatusCode,
-
     /// Parsing response status code byte 1.
     ResponseStatusCode1,
 
@@ -144,11 +133,11 @@ pub enum ParserState {
     /// Parsing space after response status code.
     ResponseStatusCodeSpace,
 
-    /// Stripping linear white space before response status.
-    StripResponseStatus,
+    /// Parsing response status byte 1.
+    ResponseStatus1,
 
-    /// Parsing response status.
-    ResponseStatus,
+    /// Parsing response status byte 2+.
+    ResponseStatus2,
 
     // ---------------------------------------------------------------------------------------------
     // HEADERS
@@ -157,14 +146,11 @@ pub enum ParserState {
     /// Parsing initial request/response line has finished.
     InitialEnd,
 
-    /// Parsing pre-header first line feed.
-    PreHeadersLf1,
+    /// Parsing line feed after initial request/response line.
+    InitialLf,
 
-    /// Parsing pre-header potential second carriage return.
-    PreHeadersCr2,
-
-    /// Stripping linear white space before header name.
-    StripHeaderName,
+    /// Checking header name to see if it starts with a space or tab (multiline value).
+    CheckHeaderName,
 
     /// Parsing first byte of header name.
     FirstHeaderName,
@@ -199,6 +185,9 @@ pub enum ParserState {
     /// Parsing second line feed after status line or header value.
     HeaderLf2,
 
+    /// Processing end-of-header flag checks.
+    HeaderEnd,
+
     // ---------------------------------------------------------------------------------------------
     // CHUNKED TRANSFER
     // ---------------------------------------------------------------------------------------------
@@ -208,6 +197,24 @@ pub enum ParserState {
 
     /// Parsing chunk length byte 2.
     ChunkLength2,
+
+    /// Parsing chunk length byte 3.
+    ChunkLength3,
+
+    /// Parsing chunk length byte 4.
+    ChunkLength4,
+
+    /// Parsing chunk length byte 5.
+    ChunkLength5,
+
+    /// Parsing chunk length byte 6.
+    ChunkLength6,
+
+    /// Parsing chunk length byte 7.
+    ChunkLength7,
+
+    /// Parsing chunk length byte 8.
+    ChunkLength8,
 
     /// Parsing chunk length carriage return or semi-colon.
     ChunkLengthCr,
@@ -230,14 +237,14 @@ pub enum ParserState {
     /// Parsing quoted chunk extension value.
     ChunkExtensionQuotedValue,
 
-    /// Parsing potential semi-colon or carriage return after chunk extension quoted value.
-    ChunkExtensionQuotedValueFinished,
-
     /// Parsing escaped chunk extension value.
     ChunkExtensionEscapedValue,
 
     /// End of chunk extension.
     ChunkExtensionFinished,
+
+    /// End of all chunk extensions.
+    ChunkExtensionsFinished,
 
     /// Parsing line feed after chunk length.
     ChunkLengthLf,

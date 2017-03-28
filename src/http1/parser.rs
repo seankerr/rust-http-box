@@ -13,14 +13,12 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! HTTP 1.x parser.
 
 #![allow(dead_code)]
 
-use byte::{ is_token, is_url_encoded_separator };
+use byte::{ is_header_field, is_quoted_header_field, is_token, is_url_encoded_separator };
 use fsm::{ ParserValue, Success };
 use http1::http_handler::HttpHandler;
 use http1::parser_error::ParserError;
@@ -52,22 +50,6 @@ const UPPER14_MASK: u32 = 0x3FFF;
 const UPPER14_SHIFT: u8 = 18;
 
 // -------------------------------------------------------------------------------------------------
-// FLAGS
-// -------------------------------------------------------------------------------------------------
-
-/// Parsing chunk encoded.
-const F_CHUNKED: u32 = 1;
-
-/// Parsing chunk encoded extensions.
-const F_CHUNK_EXTENSIONS: u32 = 1 << 1;
-
-/// Parsing multipart.
-const F_MULTIPART: u32 = 1 << 2;
-
-/// Parsing URL encoded.
-const F_URL_ENCODED: u32 = 1 << 3;
-
-// -------------------------------------------------------------------------------------------------
 // MACROS
 // -------------------------------------------------------------------------------------------------
 
@@ -85,11 +67,22 @@ macro_rules! get_upper14 {
     });
 }
 
-/// Indicates that a state flag is set.
-macro_rules! has_flag {
-    ($parser:expr, $flag:expr) => ({
-        (($parser.bit_data >> FLAG_SHIFT) & FLAG_MASK) & $flag == $flag
-    });
+/// Convert hex byte to a numeric value.
+///
+/// This assumes the byte is 0-9, A-F, or a-f.
+macro_rules! hex_to_byte {
+    ($byte:expr) => (
+        if $byte > 0x2F && $byte < 0x3A {
+            // digit
+            $byte - b'0'
+        } else if $byte > 0x40 && $byte < 0x5B {
+            // upper-case
+            $byte - 0x37
+        } else {
+            // lower-case
+            $byte - 0x57
+        }
+    );
 }
 
 /// Increase the lower 14 bits.
@@ -109,13 +102,6 @@ macro_rules! inc_upper14 {
             $parser,
             get_upper14!($parser) as usize + $length as usize
         );
-    });
-}
-
-/// Set a state flag.
-macro_rules! set_flag {
-    ($parser:expr, $flag:expr) => ({
-        $parser.bit_data |= ($flag & FLAG_MASK) << FLAG_SHIFT;
     });
 }
 
@@ -139,13 +125,6 @@ macro_rules! set_upper14 {
     });
 }
 
-/// Unset a state flag.
-macro_rules! unset_flag {
-    ($parser:expr, $flag:expr) => ({
-        $parser.bit_data &= !(($flag & FLAG_MASK) << FLAG_SHIFT);
-    });
-}
-
 // -------------------------------------------------------------------------------------------------
 
 /// HTTP 1.x parser.
@@ -159,7 +138,7 @@ pub struct Parser<'a, T: HttpHandler + 'a> {
     /// Total byte count processed.
     byte_count: usize,
 
-    /// Length storage for h.
+    /// Length storage.
     length: usize,
 
     /// Parser type.
@@ -183,7 +162,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             length:         0,
             parser_type:    ParserType::Head,
             state:          ParserState::StripDetect,
-            state_function: Parser::strip_detect
+            state_function: Parser::detect1
         }
     }
 
@@ -272,8 +251,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             ParserType::Chunked => {
                 self.state          = ParserState::ChunkLength1;
                 self.state_function = Parser::chunk_length1;
-
-                set_flag!(self, F_CHUNKED);
             },
             ParserType::Head => {
                 self.state          = ParserState::StripDetect;
@@ -283,16 +260,12 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 self.state          = ParserState::MultipartHyphen1;
                 self.state_function = Parser::multipart_hyphen1;
 
-                set_flag!(self, F_MULTIPART);
-
                 // lower14 == 1 when we expect a boundary, which is only the first boundary
                 set_lower14!(self, 1);
             },
             ParserType::UrlEncoded => {
                 self.state          = ParserState::UrlEncodedName;
                 self.state_function = Parser::url_encoded_name;
-
-                set_flag!(self, F_URL_ENCODED);
             }
         }
     }
@@ -311,7 +284,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     #[inline]
     pub fn resume(&mut self, mut handler: &mut T, mut stream: &[u8])
     -> Result<Success, ParserError> {
-        if has_flag!(self, F_URL_ENCODED) {
+        if let ParserType::UrlEncoded = self.parser_type {
             if self.length < stream.len() {
                 // amount of data to process is less than the stream length
                 stream = &stream[0..self.length];
@@ -362,6 +335,82 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // RFC RULES
+    // ---------------------------------------------------------------------------------------------
+
+    /*
+    The following rules are used throughout this specification to describe basic parsing constructs.
+    The US-ASCII coded character set is defined by ANSI X3.4-1986.
+
+    OCTET   = <any 8-bit sequence of data>
+    CHAR    = <any US-ASCII character (octets 0 - 127)>
+    UPALPHA = <any US-ASCII uppercase letter "A".."Z">
+    LOALPHA = <any US-ASCII lowercase letter "a".."z">
+    ALPHA   = UPALPHA | LOALPHA
+    DIGIT   = <any US-ASCII digit "0".."9">
+    CTL     = <any US-ASCII control character
+              (octets 0 - 31) and DEL (127)>
+    CR      = <US-ASCII CR, carriage return (13)>
+    LF      = <US-ASCII LF, linefeed (10)>
+    SP      = <US-ASCII SP, space (32)>
+    HT      = <US-ASCII HT, horizontal-tab (9)>
+    <">     = <US-ASCII double-quote mark (34)>
+
+    HTTP/1.1 defines the sequence CR LF as the end-of-line marker for all protocol elements except
+    the entity-body (see appendix 19.3 for tolerant applications). The end-of-line marker within an
+    entity-body is defined by its associated media type, as described in section 3.7.
+
+    CRLF = CR LF
+
+    HTTP/1.1 header field values can be folded onto multiple lines if the continuation line begins
+    with a space or horizontal tab. All linear white space, including folding, has the same
+    semantics as SP. A recipient MAY replace any linear white space with a single SP before
+    interpreting the field value or forwarding the message downstream.
+
+    LWS  = [CRLF] 1*( SP | HT )
+
+    The TEXT rule is only used for descriptive field contents and values that are not intended to be
+    interpreted by the message parser. Words of *TEXT MAY contain characters from character sets
+    other than ISO- 8859-1 [22] only when encoded according to the rules of RFC 2047.
+
+    TEXT = <any OCTET except CTLs, but including LWS>
+
+    A CRLF is allowed in the definition of TEXT only as part of a header field continuation. It is
+    expected that the folding LWS will be replaced with a single SP before interpretation of the
+    TEXT value.
+
+    Hexadecimal numeric characters are used in several protocol elements.
+
+    HEX  = "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" | DIGIT
+
+    Many HTTP/1.1 header field values consist of words separated by LWS or special characters. These
+    special characters MUST be in a quoted string to be used within a parameter value.
+
+    token      = 1*<any CHAR except CTLs or separators>
+    separators = "(" | ")" | "<" | ">" | "@"
+               | "," | ";" | ":" | "\" | <">
+               | "/" | "[" | "]" | "?" | "="
+               | "{" | "}" | SP | HT
+
+    Comments can be included in some HTTP header fields by surrounding the comment text with
+    parentheses. Comments are only allowed in fields containing "comment" as part of their field
+    value definition. In all other fields, parentheses are considered part of the field value.
+
+    comment = "(" *( ctext | quoted-pair | comment ) ")"
+    ctext   = <any TEXT excluding "(" and ")">
+
+    A string of text is parsed as a single word if it is quoted using double-quote marks.
+
+    quoted-string = ( <"> *(qdtext | quoted-pair ) <"> )
+    qdtext        = <any TEXT except <">>
+
+    The backslash character ("\") MAY be used as a single-character quoting mechanism only within
+    quoted-string and comment constructs.
+
+    quoted-pair = "\" CHAR
+    */
+
+    // ---------------------------------------------------------------------------------------------
     // DETECTION STATES
     // ---------------------------------------------------------------------------------------------
 
@@ -383,13 +432,11 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     continue;
                 }
 
-                bs_replay!(context);
-
                 break;
             }
-        } else {
-            bs_replay!(context);
         }
+
+        bs_replay!(context);
 
         transition_fast!(
             self,
@@ -403,24 +450,40 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     #[inline]
     fn detect1(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
+        macro_rules! method {
+            ($method:expr, $length:expr) => (
+                bs_jump!(context, $length);
+
+                callback_transition_fast!(
+                    self,
+                    handler,
+                    context,
+                    on_method,
+                    $method,
+                    RequestUrl1,
+                    request_url1
+                );
+            );
+        }
+
         macro_rules! version {
             ($major:expr, $minor:expr, $length:expr) => ({
                 bs_jump!(context, $length);
                 set_state!(
                     self,
-                    StripResponseStatusCode,
-                    strip_response_status_code
+                    ResponseStatusCode1,
+                    response_status_code1
                 );
 
                 if handler.on_version($major, $minor) {
                     transition_fast!(self, handler, context);
-                } else {
-                    exit_callback!(self, context);
                 }
+
+                exit_callback!(self, context);
             });
         }
 
-        if bs_starts_with1!(context, b"H") || bs_starts_with1!(context, b"h") {
+        if bs_starts_with1!(context, b"H") {
             if bs_has_bytes!(context, 9) {
                 if bs_starts_with9!(context, b"HTTP/1.1 ") {
                     version!(1, 1, 9);
@@ -452,14 +515,48 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             }
         }
 
-        // this is a request
-        transition_fast!(
-            self,
-            handler,
-            context,
-            UpperRequestMethod,
-            upper_request_method
-        );
+        if bs_has_bytes!(context, 8) {
+            // have enough bytes to compare all known methods immediately, without collecting
+            // individual tokens
+            if bs_starts_with4!(context, b"GET ") {
+                method!(b"GET", 4);
+            } else if context.byte == b'P' {
+                if bs_starts_with5!(context, b"POST ") {
+                    method!(b"POST", 5);
+                } else if bs_starts_with4!(context, b"PUT ") {
+                    method!(b"PUT", 4);
+                }
+            } else if bs_starts_with7!(context, b"DELETE ") {
+                method!(b"DELETE", 7);
+            } else if bs_starts_with8!(context, b"CONNECT ") {
+                method!(b"CONNECT", 8);
+            } else if bs_starts_with8!(context, b"OPTIONS ") {
+                method!(b"OPTIONS", 8);
+            } else if bs_starts_with5!(context, b"HEAD ") {
+                method!(b"HEAD", 5);
+            } else if bs_starts_with6!(context, b"TRACE ") {
+                method!(b"TRACE", 6);
+            } else if bs_starts_with4!(context, b"PRI ") {
+                method!(b"PRI", 4);
+            }
+        }
+
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        // make sure we have an upper-cased alphabetical character
+        if context.byte > 0x40 && context.byte < 0x5B {
+            // this is a request
+            transition_fast_no_remark!(
+                self,
+                handler,
+                context,
+                RequestMethod,
+                request_method
+            );
+        }
+
+        Err(ParserError::Method(context.byte))
     }
 
     #[inline]
@@ -468,7 +565,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if context.byte == b'T' || context.byte == b't' {
+        if context.byte == b'T' {
             transition_fast!(
                 self,
                 handler,
@@ -476,22 +573,20 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 Detect3,
                 detect3
             );
-        } else {
-            // since we're in a detection state and didn't know until right here that we're moving
-            // from detection -> request, we need to manually submit the first n bytes of the of the
-            // request method, and the request method state will do the rest of the work for us
-            bs_replay!(context);
+        }
 
-            callback_transition_fast!(
+        // make sure we have an upper-cased alphabetical character
+        if context.byte > 0x40 && context.byte < 0x5B {
+            transition_fast_no_remark!(
                 self,
                 handler,
                 context,
-                on_method,
-                b"H",
-                UpperRequestMethod,
-                upper_request_method
+                RequestMethod,
+                request_method
             );
         }
+
+        Err(ParserError::Method(context.byte))
     }
 
     #[inline]
@@ -500,7 +595,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if context.byte == b'T' || context.byte == b't' {
+        if context.byte == b'T' {
             transition_fast!(
                 self,
                 handler,
@@ -508,22 +603,20 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 Detect4,
                 detect4
             );
-        } else {
-            // since we're in a detection state and didn't know until right here that we're moving
-            // from detection -> request, we need to manually submit the first n bytes of the of the
-            // request method, and the request method state will do the rest of the work for us
-            bs_replay!(context);
+        }
 
-            callback_transition_fast!(
+        // make sure we have an upper-cased alphabetical character
+        if context.byte > 0x40 && context.byte < 0x5B {
+            transition_fast_no_remark!(
                 self,
                 handler,
                 context,
-                on_method,
-                b"HT",
-                UpperRequestMethod,
-                upper_request_method
+                RequestMethod,
+                request_method
             );
         }
+
+        Err(ParserError::Method(context.byte))
     }
 
     #[inline]
@@ -532,7 +625,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if context.byte == b'P' || context.byte == b'p' {
+        if context.byte == b'P' {
             transition_fast!(
                 self,
                 handler,
@@ -540,22 +633,20 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 Detect5,
                 detect5
             );
-        } else {
-            // since we're in a detection state and didn't know until right here that we're moving
-            // from detection -> request, we need to manually submit the first n bytes of the of the
-            // request method, and the request method state will do the rest of the work for us
-            bs_replay!(context);
+        }
 
-            callback_transition_fast!(
+        // make sure we have an upper-cased alphabetical character
+        if context.byte > 0x40 && context.byte < 0x5B {
+            transition_fast_no_remark!(
                 self,
                 handler,
                 context,
-                on_method,
-                b"HTT",
-                UpperRequestMethod,
-                upper_request_method
+                RequestMethod,
+                request_method
             );
         }
+
+        Err(ParserError::Method(context.byte))
     }
 
     #[inline]
@@ -572,22 +663,811 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ResponseVersionMajor1,
                 response_version_major1
             );
-        } else {
-            // since we're in a detection state and didn't know until right here that we're moving
-            // from detection -> request, we need to manually submit the first n bytes of the of the
-            // request method, and the request method state will do the rest of the work for us
-            bs_replay!(context);
+        }
 
-            callback_transition_fast!(
+        // make sure we have an upper-cased alphabetical character
+        if context.byte > 0x40 && context.byte < 0x5B {
+            transition_fast_no_remark!(
+                self,
+                handler,
+                context,
+                RequestMethod,
+                request_method
+            );
+        }
+
+        Err(ParserError::Method(context.byte))
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // REQUEST STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn request_method(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        bs_collect!(
+            context,
+
+            // break when non-upper-case is found
+            if context.byte < 0x41 || context.byte > 0x5A {
+                break;
+            },
+
+            // on end-of-stream
+            callback_eos_expr!(self, handler, context, on_method)
+        );
+
+        if context.byte == b' ' {
+            callback_ignore_transition_fast!(
                 self,
                 handler,
                 context,
                 on_method,
-                b"HTTP",
-                UpperRequestMethod,
-                upper_request_method
+                RequestUrl1,
+                request_url1
             );
         }
+
+        Err(ParserError::Method(context.byte))
+    }
+
+    #[inline]
+    fn request_url1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_visible_7bit!(context.byte) {
+            transition_fast_no_remark!(
+                self,
+                handler,
+                context,
+                RequestUrl2,
+                request_url2
+            );
+        }
+
+        Err(ParserError::Url(context.byte))
+    }
+
+    #[inline]
+    fn request_url2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        collect_visible_7bit!(
+            context,
+
+            // on end-of-stream
+            callback_eos_expr!(self, handler, context, on_url)
+        );
+
+        if context.byte == b' ' {
+            callback_ignore_transition_fast!(
+                self,
+                handler,
+                context,
+                on_url,
+                RequestHttp1,
+                request_http1
+            );
+        }
+
+        Err(ParserError::Url(context.byte))
+    }
+
+    #[inline]
+    fn request_http1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        macro_rules! version {
+            ($major:expr, $minor:expr, $length:expr) => (
+                bs_jump!(context, $length);
+                set_state!(self, InitialEnd, initial_end);
+
+                if handler.on_version($major, $minor) {
+                    transition_fast!(self, handler, context);
+                }
+
+                exit_callback!(self, context);
+            );
+        }
+
+        if bs_has_bytes!(context, 9) {
+            // have enough bytes to compare all known versions immediately, without collecting
+            // individual tokens
+            if bs_starts_with9!(context, b"HTTP/1.1\r") {
+                version!(1, 1, 9);
+            } else if bs_starts_with9!(context, b"HTTP/2.0\r") {
+                version!(2, 0, 9);
+            } else if bs_starts_with9!(context, b"HTTP/1.0\r") {
+                version!(1, 0, 9);
+            }
+        }
+
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'H' {
+            transition_fast!(self, handler, context, RequestHttp2, request_http2);
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_http2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'T' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestHttp3,
+                request_http3
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_http3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'T' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestHttp4,
+                request_http4
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_http4(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'P' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestHttp5,
+                request_http5
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_http5(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'/' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMajor1,
+                request_version_major1
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_major1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        set_lower14!(self, 0);
+        set_upper14!(self, 0);
+
+        if is_digit!(context.byte) {
+            set_lower14!(self, (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMajor2,
+                request_version_major2
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_major2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMinor1,
+                request_version_minor1
+            );
+        } else if is_digit!(context.byte) {
+            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMajor3,
+                request_version_major3
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_major3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMinor1,
+                request_version_minor1
+            );
+        } else if is_digit!(context.byte) {
+            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionPeriod,
+                request_version_period
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_period(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMinor1,
+                request_version_minor1
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_minor1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_digit!(context.byte) {
+            set_upper14!(self, (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMinor2,
+                request_version_minor2
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_minor2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionCr,
+                request_version_cr
+            );
+        } else if is_digit!(context.byte) {
+            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionMinor3,
+                request_version_minor3
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_minor3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionCr,
+                request_version_cr
+            );
+        } else if is_digit!(context.byte) {
+            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                RequestVersionCr,
+                request_version_cr
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn request_version_cr(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            set_state!(self, InitialEnd, initial_end);
+
+            if handler.on_version(get_lower14!(self) as u16, get_upper14!(self) as u16) {
+                transition_fast!(
+                    self,
+                    handler,
+                    context
+                );
+            }
+
+            exit_callback!(self, context);
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // RESPONSE STATES
+    // ---------------------------------------------------------------------------------------------
+
+    #[inline]
+    fn response_version_major1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        set_lower14!(self, 0);
+        set_upper14!(self, 0);
+
+        if is_digit!(context.byte) {
+            set_lower14!(self, (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMajor2,
+                response_version_major2
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_major2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMinor1,
+                response_version_minor1
+            );
+        } else if is_digit!(context.byte) {
+            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMajor3,
+                response_version_major3
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_major3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMinor1,
+                response_version_minor1
+            );
+        } else if is_digit!(context.byte) {
+            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionPeriod,
+                response_version_period
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_period(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'.' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMinor1,
+                response_version_minor1
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_minor1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_digit!(context.byte) {
+            set_upper14!(self, (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMinor2,
+                response_version_minor2
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_minor2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b' ' {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionSpace,
+                response_version_space
+            );
+        } else if is_digit!(context.byte) {
+            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionMinor3,
+                response_version_minor3
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_minor3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b' ' {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionSpace,
+                response_version_space
+            );
+        } else if is_digit!(context.byte) {
+            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseVersionSpace,
+                response_version_space
+            );
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_version_space(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b' ' {
+            set_state!(
+                self,
+                ResponseStatusCode1,
+                response_status_code1
+            );
+
+            if handler.on_version(get_lower14!(self) as u16, get_upper14!(self) as u16) {
+                transition_fast!(
+                    self,
+                    handler,
+                    context
+                );
+            }
+
+            exit_callback!(self, context);
+        }
+
+        Err(ParserError::Version(context.byte))
+    }
+
+    #[inline]
+    fn response_status_code1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+
+        if bs_available!(context) > 2 {
+            // have enough bytes to compare the entire status code
+            bs_next!(context);
+
+            if !is_digit!(context.byte) {
+                exit_error!(StatusCode, context.byte);
+            }
+
+            set_lower14!(self, (context.byte - b'0') as u32 * 100);
+
+            bs_next!(context);
+
+            if !is_digit!(context.byte) {
+                exit_error!(StatusCode, context.byte);
+            }
+
+            set_lower14!(self, get_lower14!(self) + (context.byte - b'0') as u32 * 10);
+
+            bs_next!(context);
+
+            if !is_digit!(context.byte) {
+                exit_error!(StatusCode, context.byte);
+            }
+
+            set_lower14!(self, get_lower14!(self) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseStatusCodeSpace,
+                response_status_code_space
+            );
+        }
+
+        bs_next!(context);
+
+        if is_digit!(context.byte) {
+            set_lower14!(self, (context.byte - b'0') as u32 * 100);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseStatusCode2,
+                response_status_code2
+            );
+        }
+
+        Err(ParserError::StatusCode(context.byte))
+    }
+
+    #[inline]
+    fn response_status_code2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_digit!(context.byte) {
+            set_lower14!(self, get_lower14!(self) + (context.byte - b'0') as u32 * 10);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseStatusCode3,
+                response_status_code3
+            );
+        }
+
+        Err(ParserError::StatusCode(context.byte))
+    }
+
+    #[inline]
+    fn response_status_code3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_digit!(context.byte) {
+            set_lower14!(self, get_lower14!(self) + (context.byte - b'0') as u32);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseStatusCodeSpace,
+                response_status_code_space
+            );
+        }
+
+        Err(ParserError::StatusCode(context.byte))
+    }
+
+    #[inline]
+    fn response_status_code_space(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b' ' {
+            set_state!(
+                self,
+                ResponseStatus1,
+                response_status1
+            );
+
+            if handler.on_status_code(get_lower14!(self) as u16) {
+                transition_fast!(
+                    self,
+                    handler,
+                    context
+                );
+            }
+
+            exit_callback!(self, context);
+        }
+
+        Err(ParserError::StatusCode(context.byte))
+    }
+
+    #[inline]
+    fn response_status1(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        // status is any 8bit non-control byte
+        if context.byte > 0x1F && context.byte != 0x7F {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ResponseStatus2,
+                response_status2
+            );
+        }
+
+        Err(ParserError::Status(context.byte))
+    }
+
+    #[inline]
+    fn response_status2(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        bs_collect!(
+            context,
+
+            // collect loop
+            if context.byte > 0x1F && context.byte != 0x7F {
+                continue;
+            } else if context.byte == b'\r' {
+                break;
+            } else {
+                exit_error!(Status, context.byte);
+            },
+
+            // on end-of-stream
+            callback!(self, handler, context, on_status, {
+                exit_eos!(self, context);
+            })
+        );
+
+        callback_ignore_transition_fast!(
+            self,
+            handler,
+            context,
+            on_status,
+            InitialEnd,
+            initial_end
+        );
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -597,17 +1477,17 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     #[inline]
     fn initial_end(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        set_state!(self, PreHeadersLf1, pre_headers_lf1);
+        set_state!(self, InitialLf, initial_lf);
 
         if handler.on_initial_finished() {
             transition_fast!(self, handler, context);
-        } else {
-            exit_callback!(self, context);
         }
+
+        exit_callback!(self, context);
     }
 
     #[inline]
-    fn pre_headers_lf1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn initial_lf(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -617,50 +1497,30 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 self,
                 handler,
                 context,
-                PreHeadersCr2,
-                pre_headers_cr2
+                HeaderCr2,
+                header_cr2
             );
-        } else {
-            exit_error!(CrlfSequence, context.byte);
         }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
-    fn pre_headers_cr2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn check_header_name(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if context.byte == b'\r' {
+        if context.byte == b' ' || context.byte == b'\t' {
+            // multiline value
             transition_fast!(
                 self,
                 handler,
                 context,
-                HeaderLf2,
-                header_lf2
-            );
-        } else {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                StripHeaderName,
-                strip_header_name
+                HeaderValue,
+                header_value
             );
         }
-    }
-
-    #[inline]
-    fn strip_header_name(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(
-            context,
-
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
 
         bs_replay!(context);
 
@@ -674,7 +1534,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    #[cfg_attr(test, allow(cyclomatic_complexity))]
     fn first_header_name(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         macro_rules! name {
@@ -722,10 +1581,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 } else if bs_starts_with14!(context, b"Authorization:") {
                     name!(b"authorization", 14);
                 }
-            } else if context.byte == b'H' {
-                if bs_starts_with5!(context, b"Host:") {
-                    name!(b"host", 5);
-                }
+            } else if bs_starts_with5!(context, b"Host:") {
+                name!(b"host", 5);
             } else if context.byte == b'L' {
                 if bs_starts_with9!(context, b"Location:") {
                     name!(b"location", 9);
@@ -761,13 +1618,23 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             }
         }
 
-        transition_fast!(
-            self,
-            handler,
-            context,
-            UpperHeaderName,
-            upper_header_name
-        );
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        // make sure we have something visible to collect in next state
+        if is_visible_7bit!(context.byte) {
+            bs_replay!(context);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                UpperHeaderName,
+                upper_header_name
+            );
+        }
+
+        Err(ParserError::HeaderName(context.byte))
     }
 
     #[inline]
@@ -787,17 +1654,17 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 LowerHeaderName,
                 lower_header_name
             );
-        } else {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                LowerHeaderName,
-                lower_header_name
-            );
         }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            LowerHeaderName,
+            lower_header_name
+        );
     }
 
     #[inline]
@@ -813,16 +1680,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             callback_eos_expr!(self, handler, context, on_header_name)
         );
 
-        if context.byte == b':' {
-            callback_ignore_transition!(
-                self,
-                handler,
-                context,
-                on_header_name,
-                StripHeaderValue,
-                strip_header_value
-            );
-        } else if context.byte > 0x40 && context.byte < 0x5B {
+        if context.byte > 0x40 && context.byte < 0x5B {
             // upper-cased byte
             bs_replay!(context);
 
@@ -834,9 +1692,18 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 UpperHeaderName,
                 upper_header_name
             );
-        } else {
-            Err(ParserError::HeaderName(context.byte))
+        } else if context.byte == b':' {
+            callback_ignore_transition!(
+                self,
+                handler,
+                context,
+                on_header_name,
+                StripHeaderValue,
+                strip_header_value
+            );
         }
+
+        Err(ParserError::HeaderName(context.byte))
     }
 
     #[inline]
@@ -849,15 +1716,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
-        if context.byte == b'"' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                HeaderQuotedValue,
-                header_quoted_value
-            );
-        } else {
+        // make sure we have something visible to collect in next state
+        if is_visible_7bit!(context.byte) {
             bs_replay!(context);
 
             transition_fast!(
@@ -868,6 +1728,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 header_value
             );
         }
+
+        Err(ParserError::HeaderValue(context.byte))
     }
 
     #[inline]
@@ -889,15 +1751,23 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderLf1,
                 header_lf1
             );
-        } else {
-            Err(ParserError::HeaderValue(context.byte))
+        } else if context.byte == b'"' {
+            transition_fast_no_remark!(
+                self,
+                handler,
+                context,
+                HeaderQuotedValue,
+                header_quoted_value
+            );
         }
+
+        Err(ParserError::HeaderValue(context.byte))
     }
 
     #[inline]
     fn header_quoted_value(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_quoted!(
+        collect_quoted_field!(
             context,
 
             // on end-of-stream
@@ -905,43 +1775,48 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         );
 
         if context.byte == b'"' {
-            callback_ignore_transition_fast!(
+            transition_no_remark!(
                 self,
-                handler,
                 context,
-                on_header_value,
-                HeaderCr1,
-                header_cr1
+                HeaderValue,
+                header_value
             );
         } else if context.byte == b'\\' {
-            callback_ignore_transition_fast!(
+            transition_fast_no_remark!(
                 self,
                 handler,
                 context,
-                on_header_value,
                 HeaderEscapedValue,
                 header_escaped_value
             );
-        } else {
-            Err(ParserError::HeaderValue(context.byte))
         }
+
+        Err(ParserError::HeaderValue(context.byte))
     }
 
     #[inline]
     fn header_escaped_value(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
+        // since we're not collecting, and because it's EOS, we must execute the callback
+        // manually
+           bs_available!(context) > 0
+        || callback_eos_expr!(self, handler, context, on_header_value);
+
         bs_next!(context);
 
-        callback_transition!(
-            self,
-            handler,
-            context,
-            on_header_value,
-            &[context.byte],
-            HeaderQuotedValue,
-            header_quoted_value
-        );
+        // escaped bytes must be 7bit, and cannot be control characters
+        if context.byte > 0x1F && context.byte < 0x7B {
+            callback_transition!(
+                self,
+                handler,
+                context,
+                on_header_value,
+                HeaderQuotedValue,
+                header_quoted_value
+            );
+        }
+
+        Err(ParserError::HeaderValue(context.byte))
     }
 
     #[inline]
@@ -957,22 +1832,22 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderCr2,
                 header_cr2
             );
-        } else {
-            exit_if_eos!(self, context);
-            bs_next!(context);
-
-            if context.byte == b'\r' {
-                transition_fast!(
-                    self,
-                    handler,
-                    context,
-                    HeaderLf1,
-                    header_lf1
-                );
-            } else {
-                exit_error!(CrlfSequence, context.byte);
-            }
         }
+
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte == b'\r' {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                HeaderLf1,
+                header_lf1
+            );
+        }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -989,14 +1864,26 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderCr2,
                 header_cr2
             );
-        } else {
-            exit_error!(CrlfSequence, context.byte);
         }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
     fn header_cr2(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
+        if bs_has_bytes!(context, 2) && bs_starts_with2!(context, b"\r\n") {
+            bs_jump!(context, 2);
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                HeaderEnd,
+                header_end
+            );
+        }
+
         exit_if_eos!(self, context);
         bs_next!(context);
 
@@ -1008,27 +1895,16 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 HeaderLf2,
                 header_lf2
             );
-        } else if context.byte == b' ' || context.byte == b'\t' {
-            // multiline header value
-            callback_transition!(
-                self,
-                handler,
-                context,
-                on_header_value,
-                b" ",
-                StripHeaderValue,
-                strip_header_value
-            );
-        } else {
-            bs_replay!(context);
-
-            transition!(
-                self,
-                context,
-                StripHeaderName,
-                strip_header_name
-            );
         }
+
+        bs_replay!(context);
+
+        transition!(
+            self,
+            context,
+            CheckHeaderName,
+            check_header_name
+        );
     }
 
     #[inline]
@@ -1038,959 +1914,34 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\n' {
-            if has_flag!(self, F_CHUNKED) {
-                set_state!(self, BodyFinished, body_finished);
-            } else if has_flag!(self, F_MULTIPART) {
-                set_state!(self, MultipartDetectData, multipart_detect_data);
-            } else {
-                set_state!(self, Finished, finished);
-            }
+            transition_fast!(
+                self,
+                handler,
+                context,
+                HeaderEnd,
+                header_end
+            );
+        }
 
-            if handler.on_headers_finished() {
-                transition_fast!(self, handler, context);
-            } else {
-                exit_callback!(self, context);
-            }
+        Err(ParserError::CrlfSequence(context.byte))
+    }
+
+    #[inline]
+    fn header_end(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        if let ParserType::Chunked = self.parser_type {
+            set_state!(self, BodyFinished, body_finished);
+        } else if let ParserType::Multipart = self.parser_type {
+            set_state!(self, MultipartDetectData, multipart_detect_data);
         } else {
-            exit_error!(CrlfSequence, context.byte);
-        }
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // REQUEST STATES
-    // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn upper_request_method(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        macro_rules! method {
-            ($method:expr, $length:expr) => (
-                bs_jump!(context, $length);
-
-                callback_transition_fast!(
-                    self,
-                    handler,
-                    context,
-                    on_method,
-                    $method,
-                    StripRequestUrl,
-                    strip_request_url
-                );
-            );
+            set_state!(self, Finished, finished);
         }
 
-        if bs_has_bytes!(context, 8) {
-            // have enough bytes to compare all known methods immediately, without collecting
-            // individual tokens
-            if bs_starts_with4!(context, b"GET ") {
-                method!(b"GET", 4);
-            } else if context.byte == b'P' {
-                if bs_starts_with5!(context, b"POST ") {
-                    method!(b"POST", 5);
-                } else if bs_starts_with4!(context, b"PUT ") {
-                    method!(b"PUT", 4);
-                }
-            } else if bs_starts_with7!(context, b"DELETE ") {
-                method!(b"DELETE", 7);
-            } else if bs_starts_with8!(context, b"CONNECT ") {
-                method!(b"CONNECT", 8);
-            } else if bs_starts_with8!(context, b"OPTIONS ") {
-                method!(b"OPTIONS", 8);
-            } else if bs_starts_with5!(context, b"HEAD ") {
-                method!(b"HEAD", 5);
-            } else if bs_starts_with6!(context, b"TRACE ") {
-                method!(b"TRACE", 6);
-            } else if bs_starts_with4!(context, b"PRI ") {
-                method!(b"PRI", 4);
-            }
+        if handler.on_headers_finished() {
+            transition_fast!(self, handler, context);
         }
 
-        collect_tokens!(
-            context,
-
-            // stop on these bytes
-            context.byte > 0x60 && context.byte < 0x7B,
-
-            // on end-of-stream
-            callback_eos_expr!(self, handler, context, on_method)
-        );
-
-        if context.byte == b' ' {
-            bs_replay!(context);
-
-            callback_transition_fast!(
-                self,
-                handler,
-                context,
-                on_method,
-                StripRequestUrl,
-                strip_request_url
-            );
-        } else if context.byte > 0x60 && context.byte < 0x7B {
-            // lower-cased byte, let's upper-case it
-            bs_replay!(context);
-
-            callback_transition_fast!(
-                self,
-                handler,
-                context,
-                on_method,
-                LowerRequestMethod,
-                lower_request_method
-            );
-        } else {
-            Err(ParserError::Method(context.byte))
-        }
-    }
-
-    #[inline]
-    fn lower_request_method(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte > 0x60 && context.byte < 0x7B {
-            // lower-cased byte, let's upper-case it
-            callback_transition!(
-                self,
-                handler,
-                context,
-                on_method,
-                &[context.byte - 0x20],
-                LowerRequestMethod,
-                lower_request_method
-            );
-        } else {
-            bs_replay!(context);
-
-            transition!(
-                self,
-                context,
-                UpperRequestMethod,
-                upper_request_method
-            );
-        }
-    }
-
-    #[inline]
-    fn strip_request_url(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(
-            context,
-
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
-
-        bs_replay!(context);
-
-        transition_fast!(
-            self,
-            handler,
-            context,
-            RequestUrl,
-            request_url
-        );
-    }
-
-    #[inline]
-    fn request_url(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        collect_visible!(
-            context,
-
-            // on end-of-stream
-            callback_eos_expr!(self, handler, context, on_url)
-        );
-
-        if context.byte == b' ' {
-            bs_replay!(context);
-
-            callback_transition_fast!(
-                self,
-                handler,
-                context,
-                on_url,
-                StripRequestHttp,
-                strip_request_http
-            );
-        } else {
-            Err(ParserError::Url(context.byte))
-        }
-    }
-
-    #[inline]
-    fn strip_request_http(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(
-            context,
-
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
-
-        bs_replay!(context);
-
-        transition_fast!(
-            self,
-            handler,
-            context,
-            RequestHttp1,
-            request_http1
-        );
-    }
-
-    #[inline]
-    fn request_http1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        macro_rules! version {
-            ($major:expr, $minor:expr, $length:expr) => (
-                bs_jump!(context, $length);
-                set_state!(self, InitialEnd, initial_end);
-
-                if handler.on_version($major, $minor) {
-                    transition_fast!(self, handler, context);
-                } else {
-                    exit_callback!(self, context);
-                }
-            );
-        }
-
-        if bs_has_bytes!(context, 9) {
-            // have enough bytes to compare all known versions immediately, without collecting
-            // individual tokens
-            if bs_starts_with9!(context, b"HTTP/1.1\r") {
-                version!(1, 1, 9);
-            } else if bs_starts_with9!(context, b"HTTP/2.0\r") {
-                version!(2, 0, 9);
-            } else if bs_starts_with9!(context, b"HTTP/1.0\r") {
-                version!(1, 0, 9);
-            }
-        }
-
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'H' || context.byte == b'h' {
-            transition_fast!(self, handler, context, RequestHttp2, request_http2);
-        } else {
-            exit_error!(Version, context.byte);
-        }
-    }
-
-    #[inline]
-    fn request_http2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'T' || context.byte == b't' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestHttp3,
-                request_http3
-            );
-        } else {
-            exit_error!(Version, context.byte);
-        }
-    }
-
-    #[inline]
-    fn request_http3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'T' || context.byte == b't' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestHttp4,
-                request_http4
-            );
-        } else {
-            exit_error!(Version, context.byte);
-        }
-    }
-
-    #[inline]
-    fn request_http4(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'P' || context.byte == b'p' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestHttp5,
-                request_http5
-            );
-        } else {
-            exit_error!(Version, context.byte);
-        }
-    }
-
-    #[inline]
-    fn request_http5(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'/' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMajor1,
-                request_version_major1
-            );
-        } else {
-            exit_error!(Version, context.byte);
-        }
-    }
-
-    #[inline]
-    fn request_version_major1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        set_lower14!(self, 0);
-        set_upper14!(self, 0);
-
-        if is_digit!(context.byte) {
-            set_lower14!(self, (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMajor2,
-                request_version_major2
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_major2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMinor1,
-                request_version_minor1
-            );
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMajor3,
-                request_version_major3
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_major3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMinor1,
-                request_version_minor1
-            );
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionPeriod,
-                request_version_period
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_period(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMinor1,
-                request_version_minor1
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_minor1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if is_digit!(context.byte) {
-            set_upper14!(self, (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMinor2,
-                request_version_minor2
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_minor2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionCr1,
-                request_version_cr1
-            );
-        } else if is_digit!(context.byte) {
-            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionMinor3,
-                request_version_minor3
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_minor3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionCr1,
-                request_version_cr1
-            );
-        } else if is_digit!(context.byte) {
-            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                RequestVersionCr1,
-                request_version_cr1
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn request_version_cr1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'\r' {
-            set_state!(self, InitialEnd, initial_end);
-
-            if handler.on_version(get_lower14!(self) as u16, get_upper14!(self) as u16) {
-                transition_fast!(
-                    self,
-                    handler,
-                    context
-                )
-            }
-
-            exit_callback!(self, context);
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // RESPONSE STATES
-    // ---------------------------------------------------------------------------------------------
-
-    #[inline]
-    fn response_version_major1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        set_lower14!(self, 0);
-        set_upper14!(self, 0);
-
-        if is_digit!(context.byte) {
-            set_lower14!(self, (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMajor2,
-                response_version_major2
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_major2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMinor1,
-                response_version_minor1
-            );
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMajor3,
-                response_version_major3
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_major3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMinor1,
-                response_version_minor1
-            );
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionPeriod,
-                response_version_period
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_period(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b'.' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMinor1,
-                response_version_minor1
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_minor1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if is_digit!(context.byte) {
-            set_upper14!(self, (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMinor2,
-                response_version_minor2
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_minor2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionSpace,
-                response_version_space
-            );
-        } else if is_digit!(context.byte) {
-            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionMinor3,
-                response_version_minor3
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_minor3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionSpace,
-                response_version_space
-            );
-        } else if is_digit!(context.byte) {
-            set_upper14!(self, (get_upper14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseVersionSpace,
-                response_version_space
-            );
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn response_version_space(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' {
-            set_state!(
-                self,
-                StripResponseStatusCode,
-                strip_response_status_code
-            );
-
-            if handler.on_version(get_lower14!(self) as u16, get_upper14!(self) as u16) {
-                transition_fast!(
-                    self,
-                    handler,
-                    context
-                )
-            }
-
-            exit_callback!(self, context);
-        }
-
-        exit_error!(Version, context.byte);
-    }
-
-    #[inline]
-    fn strip_response_status_code(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(
-            context,
-
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
-
-        bs_replay!(context);
-
-        transition_fast!(
-            self,
-            handler,
-            context,
-            ResponseStatusCode1,
-            response_status_code1
-        );
-    }
-
-    #[inline]
-    fn response_status_code1(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-
-        if bs_available!(context) > 2 {
-            // have enough bytes to compare the entire status code
-            bs_next!(context);
-
-            if !is_digit!(context.byte) {
-                exit_error!(StatusCode, context.byte);
-            }
-
-            set_lower14!(self, (context.byte - b'0') as u32);
-
-            bs_next!(context);
-
-            if !is_digit!(context.byte) {
-                exit_error!(StatusCode, context.byte);
-            }
-
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            bs_next!(context);
-
-            if !is_digit!(context.byte) {
-                exit_error!(StatusCode, context.byte);
-            }
-
-            set_lower14!(self, (get_lower14!(self) * 10 ) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCodeSpace,
-                response_status_code_space
-            )
-        }
-
-        bs_next!(context);
-
-        if is_digit!(context.byte) {
-            set_lower14!(self, (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCode2,
-                response_status_code2
-            );
-        }
-
-        exit_error!(StatusCode, context.byte);
-    }
-
-    #[inline]
-    fn response_status_code2(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' || context.byte == b'\t' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCodeSpace,
-                response_status_code_space
-            )
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCode3,
-                response_status_code3
-            );
-        }
-
-        exit_error!(StatusCode, context.byte);
-    }
-
-    #[inline]
-    fn response_status_code3(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' || context.byte == b'\t' {
-            bs_replay!(context);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCodeSpace,
-                response_status_code_space
-            )
-        } else if is_digit!(context.byte) {
-            set_lower14!(self, (get_lower14!(self) * 10) + (context.byte - b'0') as u32);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ResponseStatusCodeSpace,
-                response_status_code_space
-            );
-        }
-
-        exit_error!(StatusCode, context.byte);
-    }
-
-    #[inline]
-    fn response_status_code_space(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b' ' || context.byte == b'\t' {
-            set_state!(
-                self,
-                StripResponseStatus,
-                strip_response_status
-            );
-
-            if handler.on_status_code(get_lower14!(self) as u16) {
-                transition_fast!(
-                    self,
-                    handler,
-                    context
-                )
-            }
-
-            exit_callback!(self, context);
-        }
-
-        exit_error!(StatusCode, context.byte);
-    }
-
-    #[inline]
-    fn strip_response_status(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        consume_linear_space!(
-            context,
-
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
-
-        bs_replay!(context);
-
-        transition_fast!(
-            self,
-            handler,
-            context,
-            ResponseStatus,
-            response_status
-        );
-    }
-
-    #[inline]
-    fn response_status(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        bs_collect!(context,
-            // collect loop
-            if context.byte == b'\r' {
-                break;
-            } else if is_token(context.byte) || context.byte == b' ' || context.byte == b'\t' {
-                continue;
-            } else {
-                exit_error!(Status, context.byte);
-            },
-
-            // on end-of-stream
-            callback!(self, handler, context, on_status, {
-                exit_eos!(self, context);
-            })
-        );
-
-        callback_ignore_transition_fast!(
-            self,
-            handler,
-            context,
-            on_status,
-            InitialEnd,
-            initial_end
-        );
+        exit_callback!(self, context);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2005,43 +1956,213 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         if context.byte == b'0' {
             set_state!(self, ChunkLengthCr, chunk_length_cr);
-
-            if handler.on_chunk_begin() {
-                transition_fast!(self, handler, context);
-            } else {
-                exit_callback!(self, context);
-            }
         } else if is_hex!(context.byte) {
-            bs_replay!(context);
+            self.length = hex_to_byte!(context.byte) as usize;
 
             set_state!(self, ChunkLength2, chunk_length2);
-
-            if handler.on_chunk_begin() {
-                transition_fast!(self, handler, context);
-            } else {
-                exit_callback!(self, context);
-            }
         } else {
             exit_error!(ChunkLength, context.byte);
         }
+
+        if handler.on_chunk_begin() {
+            transition_fast!(self, handler, context);
+        }
+
+        exit_callback!(self, context);
     }
 
     #[inline]
     fn chunk_length2(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
+        bs_next!(context);
 
-        collect_hex64!(
-            context,
-            ParserError::ChunkLengthOverflow,
-            self.length,
-            usize,
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
 
-            // on end-of-stream
-            exit_eos!(self, context)
-        );
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength3,
+                chunk_length3
+            );
+        }
 
         bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length3(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength4,
+                chunk_length4
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length4(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength5,
+                chunk_length5
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length5(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength6,
+                chunk_length6
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length6(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength7,
+                chunk_length7
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length7(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkLength8,
+                chunk_length8
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            ChunkLengthCr,
+            chunk_length_cr
+        );
+    }
+
+    #[inline]
+    fn chunk_length8(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if is_hex!(context.byte) {
+            self.length <<= 4;
+            self.length  |= hex_to_byte!(context.byte) as usize;
+        } else {
+            bs_replay!(context);
+        }
 
         transition_fast!(
             self,
@@ -2069,20 +2190,18 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     HeaderLf1,
                     header_lf1
                 );
-            } else {
-                callback_transition_fast!(
-                    self,
-                    handler,
-                    context,
-                    on_chunk_length,
-                    self.length,
-                    ChunkLengthLf,
-                    chunk_length_lf
-                );
             }
-        } else if context.byte == b';' {
-            set_flag!(self, F_CHUNK_EXTENSIONS);
 
+            callback_transition_fast!(
+                self,
+                handler,
+                context,
+                on_chunk_length,
+                self.length,
+                ChunkLengthLf,
+                chunk_length_lf
+            );
+        } else if context.byte == b';' {
             callback_transition_fast!(
                 self,
                 handler,
@@ -2092,32 +2211,27 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 StripChunkExtensionName,
                 strip_chunk_extension_name
             );
-        } else {
-            exit_error!(ChunkLength, context.byte);
         }
+
+        Err(ParserError::ChunkLength(context.byte))
     }
 
     #[inline]
-    fn chunk_length_lf(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn chunk_length_lf(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
         if context.byte == b'\n' {
-            set_state!(self, ChunkData, chunk_data);
-
-            if has_flag!(self, F_CHUNK_EXTENSIONS) {
-                if handler.on_chunk_extensions_finished() {
-                    transition!(self, context);
-                } else {
-                    exit_callback!(self, context);
-                }
-            } else {
-                transition!(self, context);
-            }
-        } else {
-            exit_error!(CrlfSequence, context.byte);
+            transition!(
+                self,
+                context,
+                ChunkData,
+                chunk_data
+            );
         }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2130,34 +2244,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
-        bs_replay!(context);
-
-        transition_fast!(
-            self,
-            handler,
-            context,
-            UpperChunkExtensionName,
-            upper_chunk_extension_name
-        );
-    }
-
-    #[inline]
-    fn upper_chunk_extension_name(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte > 0x40 && context.byte < 0x5B {
-            callback_transition_fast!(
-                self,
-                handler,
-                context,
-                on_chunk_extension_name,
-                &[context.byte + 0x20],
-                LowerChunkExtensionName,
-                lower_chunk_extension_name
-            );
-        } else {
+        // make sure we have something visible to collect in next state
+        if is_visible_7bit!(context.byte) {
             bs_replay!(context);
 
             transition_fast!(
@@ -2168,6 +2256,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 lower_chunk_extension_name
             );
         }
+
+        Err(ParserError::ChunkExtensionName(context.byte))
     }
 
     #[inline]
@@ -2216,9 +2306,38 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 UpperChunkExtensionName,
                 upper_chunk_extension_name
             );
-        } else {
-            Err(ParserError::ChunkExtensionName(context.byte))
         }
+
+        Err(ParserError::ChunkExtensionName(context.byte))
+    }
+
+    #[inline]
+    fn upper_chunk_extension_name(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        exit_if_eos!(self, context);
+        bs_next!(context);
+
+        if context.byte > 0x40 && context.byte < 0x5B {
+            callback_transition_fast!(
+                self,
+                handler,
+                context,
+                on_chunk_extension_name,
+                &[context.byte + 0x20],
+                LowerChunkExtensionName,
+                lower_chunk_extension_name
+            );
+        }
+
+        bs_replay!(context);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            LowerChunkExtensionName,
+            lower_chunk_extension_name
+        );
     }
 
     #[inline]
@@ -2231,36 +2350,36 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             exit_eos!(self, context)
         );
 
-        bs_replay!(context);
+        // make sure we have something visible to collect in next state
+        if is_visible_7bit!(context.byte) {
+            bs_replay!(context);
 
-        transition_fast!(
-            self,
-            handler,
-            context,
-            ChunkExtensionValue,
-            chunk_extension_value
-        );
+            transition_fast!(
+                self,
+                handler,
+                context,
+                ChunkExtensionValue,
+                chunk_extension_value
+            );
+        }
+
+        Err(ParserError::ChunkExtensionValue(context.byte))
     }
 
     #[inline]
     fn chunk_extension_value(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_tokens!(
+        collect_field!(
             context,
+
+            // stop on these bytes
+            context.byte == b';',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_chunk_extension_value)
         );
 
-        if context.byte == b'"' {
-            transition_fast!(
-                self,
-                handler,
-                context,
-                ChunkExtensionQuotedValue,
-                chunk_extension_quoted_value
-            );
-        } else if context.byte == b'\r' || context.byte == b';' {
+        if context.byte == b'\r' || context.byte == b';' {
             bs_replay!(context);
 
             callback_transition_fast!(
@@ -2271,15 +2390,24 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionFinished,
                 chunk_extension_finished
             );
-        } else {
-            Err(ParserError::ChunkExtensionValue(context.byte))
+        } else if context.byte == b'"' {
+            callback_ignore_transition_fast!(
+                self,
+                handler,
+                context,
+                on_chunk_extension_value,
+                ChunkExtensionQuotedValue,
+                chunk_extension_quoted_value
+            );
         }
+
+        Err(ParserError::ChunkExtensionValue(context.byte))
     }
 
     #[inline]
     fn chunk_extension_quoted_value(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_quoted!(
+        collect_quoted_field!(
             context,
 
             // on end-of-stream
@@ -2287,16 +2415,16 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         );
 
         if context.byte == b'"' {
-            callback_ignore_transition_fast!(
+            callback_ignore_transition!(
                 self,
                 handler,
                 context,
                 on_chunk_extension_value,
-                ChunkExtensionQuotedValueFinished,
-                chunk_extension_quoted_value_finished
+                ChunkExtensionValue,
+                chunk_extension_value
             );
         } else if context.byte == b'\\' {
-            callback_ignore_transition_fast!(
+            callback_ignore_transition!(
                 self,
                 handler,
                 context,
@@ -2304,9 +2432,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionEscapedValue,
                 chunk_extension_escaped_value
             );
-        } else {
-            Err(ParserError::ChunkExtensionValue(context.byte))
         }
+
+        Err(ParserError::ChunkExtensionValue(context.byte))
     }
 
     #[inline]
@@ -2315,7 +2443,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         exit_if_eos!(self, context);
         bs_next!(context);
 
-        if is_visible_7bit!(context.byte) || context.byte == b' ' {
+        // escaped bytes must be 7bit, and cannot be control characters
+        if context.byte > 0x1F && context.byte < 0x7B {
             callback_transition_fast!(
                 self,
                 handler,
@@ -2325,29 +2454,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkExtensionQuotedValue,
                 chunk_extension_quoted_value
             );
-        } else {
-            exit_error!(ChunkExtensionValue, context.byte);
         }
-    }
 
-    #[inline]
-    fn chunk_extension_quoted_value_finished(&mut self, _handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        exit_if_eos!(self, context);
-        bs_next!(context);
-
-        if context.byte == b';' || context.byte == b'\r' {
-            bs_replay!(context);
-
-            transition!(
-                self,
-                context,
-                ChunkExtensionFinished,
-                chunk_extension_finished
-            );
-        } else {
-            exit_error!(ChunkExtensionValue, context.byte);
-        }
+        Err(ParserError::ChunkExtensionValue(context.byte))
     }
 
     #[inline]
@@ -2357,16 +2466,31 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, ChunkLengthLf, chunk_length_lf);
+            set_state!(self, ChunkExtensionsFinished, chunk_extensions_finished);
         } else {
             set_state!(self, StripChunkExtensionName, strip_chunk_extension_name);
         }
 
         if handler.on_chunk_extension_finished() {
             transition!(self, context);
-        } else {
-            exit_callback!(self, context);
         }
+
+        exit_callback!(self, context);
+    }
+
+    #[inline]
+    fn chunk_extensions_finished(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        set_state!(self, ChunkLengthLf, chunk_length_lf);
+
+        if handler.on_chunk_extensions_finished() {
+            transition!(
+                self,
+                context
+            );
+        }
+
+        exit_callback!(self, context);
     }
 
     #[inline]
@@ -2388,21 +2512,21 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkDataCr1,
                 chunk_data_cr1
             );
-        } else {
-            // collect remaining stream data
-            self.length -= bs_available!(context);
-
-            bs_collect_length!(context, bs_available!(context));
-
-            callback_transition!(
-                self,
-                handler,
-                context,
-                on_chunk_data,
-                ChunkData,
-                chunk_data
-            );
         }
+
+        // collect remaining stream data
+        self.length -= bs_available!(context);
+
+        bs_collect_length!(context, bs_available!(context));
+
+        callback_transition!(
+            self,
+            handler,
+            context,
+            on_chunk_data,
+            ChunkData,
+            chunk_data
+        );
     }
 
     #[inline]
@@ -2419,9 +2543,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkDataLf1,
                 chunk_data_lf1
             );
-        } else {
-            exit_error!(CrlfSequence, context.byte);
         }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     #[inline]
@@ -2438,9 +2562,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 ChunkLength1,
                 chunk_length1
             );
-        } else {
-            exit_error!(CrlfSequence, context.byte);
         }
+
+        Err(ParserError::CrlfSequence(context.byte))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2473,9 +2597,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartDataByByte,
                 multipart_data_by_byte
             );
-        } else {
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2504,10 +2628,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartDataByByte,
                 multipart_data_by_byte
             );
-        } else {
-            // we're parsing the initial boundary, and it's invalid
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2569,38 +2692,35 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     MultipartDataByByte,
                     multipart_data_by_byte
                 );
-            } else {
-                // we're parsing the initial boundary, and it's invalid
-                //
-                // there is one caveat to this error:
-                //     it will always report the first byte being invalid, even if
-                //     it's another byte that did not match, because we're using
-                //     bs_starts_with!() vs an individual byte check
-                bs_next!(context);
-
-                exit_error!(MultipartBoundary, context.byte);
             }
-        } else {
-            // boundary matched
-            if finished {
-                // boundary comparison finished
 
-                // reset boundary comparison index
-                set_upper14!(self, 0);
+            // we're parsing the initial boundary, and it's invalid
+            //
+            // there is one caveat to this error:
+            //     it will always report the first byte being invalid, even if
+            //     it's another byte that did not match, because we're using
+            //     bs_starts_with!() vs an individual byte check
+            bs_next!(context);
 
-                transition!(
-                    self,
-                    context,
-                    MultipartBoundaryCr,
-                    multipart_boundary_cr
-                );
-            } else {
-                // boundary comparison not finished
-                inc_upper14!(self, length);
+            exit_error!(MultipartBoundary, context.byte);
+        } else if finished {
+            // boundary comparison finished
 
-                exit_eos!(self, context);
-            }
+            // reset boundary comparison index
+            set_upper14!(self, 0);
+
+            transition!(
+                self,
+                context,
+                MultipartBoundaryCr,
+                multipart_boundary_cr
+            );
         }
+
+        // boundary comparison not finished
+        inc_upper14!(self, length);
+
+        exit_eos!(self, context);
     }
 
     #[inline]
@@ -2610,13 +2730,13 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         bs_next!(context);
 
         if context.byte == b'\r' {
-            set_state!(self, PreHeadersLf1, pre_headers_lf1);
+            set_state!(self, InitialLf, initial_lf);
 
             if handler.on_multipart_begin() {
                 transition!(self, context);
-            } else {
-                exit_callback!(self, context);
             }
+
+            exit_callback!(self, context);
         } else if context.byte == b'-' {
             transition_fast!(
                 self,
@@ -2625,9 +2745,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartEnd,
                 multipart_end
             );
-        } else {
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2640,12 +2760,12 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             transition!(
                 self,
                 context,
-                StripHeaderName,
-                strip_header_name
+                CheckHeaderName,
+                check_header_name
             );
-        } else {
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2664,18 +2784,18 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartDataByLength,
                 multipart_data_by_length
             );
-        } else {
-            // do not expect boundary since it can be part of the data itself
-            set_lower14!(self, 0);
-
-            transition_fast!(
-                self,
-                handler,
-                context,
-                MultipartDataByByte,
-                multipart_data_by_byte
-            );
         }
+
+        // do not expect boundary since it can be part of the data itself
+        set_lower14!(self, 0);
+
+        transition_fast!(
+            self,
+            handler,
+            context,
+            MultipartDataByByte,
+            multipart_data_by_byte
+        );
     }
 
     #[inline]
@@ -2697,21 +2817,21 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartDataByLengthCr,
                 multipart_data_by_length_cr
             );
-        } else {
-            // collect remaining stream data
-            self.length -= bs_available!(context);
-
-            bs_collect_length!(context, bs_available!(context));
-
-            callback_transition!(
-                self,
-                handler,
-                context,
-                on_multipart_data,
-                MultipartDataByLength,
-                multipart_data_by_length
-            );
         }
+
+        // collect remaining stream data
+        self.length -= bs_available!(context);
+
+        bs_collect_length!(context, bs_available!(context));
+
+        callback_transition!(
+            self,
+            handler,
+            context,
+            on_multipart_data,
+            MultipartDataByLength,
+            multipart_data_by_length
+        );
     }
 
     #[inline]
@@ -2728,11 +2848,11 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartDataByLengthLf,
                 multipart_data_by_length_lf
             );
-        } else {
-            // this state is only used after multipart_data_by_length, so we can error if we don't
-            // find the carriage return
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2749,11 +2869,11 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartHyphen1,
                 multipart_hyphen1
             );
-        } else {
-            // this state is only used after multipart_data_by_length, so we can error if we don't
-            // find the carriage return
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        // this state is only used after multipart_data_by_length, so we can error if we don't
+        // find the carriage return
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     #[inline]
@@ -2776,7 +2896,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             on_multipart_data,
             MultipartDataByByteLf,
             multipart_data_by_byte_lf
-        )
+        );
     }
 
     #[inline]
@@ -2793,17 +2913,17 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 MultipartHyphen1,
                 multipart_hyphen1
             );
-        } else {
-            callback_transition!(
-                self,
-                handler,
-                context,
-                on_multipart_data,
-                &[b'\r', context.byte],
-                MultipartDataByByte,
-                multipart_data_by_byte
-            );
         }
+
+        callback_transition!(
+            self,
+            handler,
+            context,
+            on_multipart_data,
+            &[b'\r', context.byte],
+            MultipartDataByByte,
+            multipart_data_by_byte
+        );
     }
 
     #[inline]
@@ -2819,9 +2939,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 BodyFinished,
                 body_finished
             );
-        } else {
-            exit_error!(MultipartBoundary, context.byte);
         }
+
+        Err(ParserError::MultipartBoundary(context.byte))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2831,7 +2951,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     #[inline]
     fn url_encoded_name(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(
+        collect_visible_7bit!(
             context,
 
             // stop on these bytes
@@ -2978,7 +3098,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     #[inline]
     fn url_encoded_value(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
-        collect_visible!(
+        collect_visible_7bit!(
             context,
 
             // stop on these bytes
@@ -3115,9 +3235,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         if handler.on_body_finished() {
             transition_fast!(self, handler, context);
-        } else {
-            exit_callback!(self, context);
         }
+
+        exit_callback!(self, context);
     }
 
     #[inline]

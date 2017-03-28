@@ -143,6 +143,14 @@ fn chunk_encoded_body() {
         Ok(Success::Finished(length)) => {
             s = &s[length..];
         },
+        Ok(Success::Eos(length)) => {
+            println!("EOS: {}", length);
+            panic!()
+        },
+        Err(error) => {
+            println!("ERROR: {:?}", error);
+            panic!()
+        },
         _ => panic!()
     }
 
@@ -197,6 +205,11 @@ fn chunk_encoded_body() {
         },
         _ => panic!()
     }
+
+    assert_eq!(
+        &h.extensions,
+        b"gzipbziptarextensioncomplex"
+    );
 
     assert_eq!(
         h.trailers.len(),

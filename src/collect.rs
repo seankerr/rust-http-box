@@ -13,17 +13,16 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! Stream collection macros.
 
-/// Collect an unquoted field value.
+/// Collect an unquoted header field value.
+///
+/// Exit the collection loop upon finding an invalid byte, or when `$stop` is `true`.
 macro_rules! collect_field {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            // only allow space + visible
-            if $context.byte < 0x20 || $context.byte > 0x7E || $stop {
+            if !is_header_field($context.byte) || $stop {
                 break;
             },
             $on_eos
@@ -32,8 +31,7 @@ macro_rules! collect_field {
 
     ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            // only allow space + visible
-            if $context.byte < 0x20 || $context.byte > 0x7E {
+            if !is_header_field($context.byte) {
                 break;
             },
             $on_eos
@@ -41,7 +39,7 @@ macro_rules! collect_field {
     });
 }
 
-/// Collect and convert 2 hex bytes into a u8 variable.
+/// Collect and convert 2 hex bytes into a u8.
 ///
 /// This macro assumes that 2 bytes are available for reading. Return `$error` upon locating a
 /// non-hex byte.
@@ -123,28 +121,13 @@ macro_rules! collect_hex8_iter {
     });
 }
 
-/// Collect and convert all hex bytes into a u64 variable.
+/// Collect a quoted header field value.
 ///
-/// Exit the collection loop upon finding a non-hex byte. Return `$error` if an overflow would
-/// occur.
-macro_rules! collect_hex64 {
-    ($context:expr, $error:expr, $digit:expr, $ty:ty, $on_eos:expr) => ({
-        bs_collect_hex64!($context, $digit, {}, return Err($error), $on_eos, $ty);
-    });
-}
-
-/// Collect a quoted value.
-///
-/// Exit the collection loop upon finding an unescaped double quote. Return `$error` upon finding a
-/// non-visible 7-bit byte that also isn't a space, or when `$byte_error` is `true`.
-macro_rules! collect_quoted {
+/// Exit the collection loop upon finding an invalid byte.
+macro_rules! collect_quoted_field {
     ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            // only allow space + visible
-            if $context.byte < 0x20
-            || $context.byte > 0x7E
-            || $context.byte == b'"'
-            || $context.byte == b'\\' {
+            if !is_quoted_header_field($context.byte) {
                 break;
             },
             $on_eos
@@ -178,10 +161,10 @@ macro_rules! collect_tokens {
 /// Collect all visible 7-bit bytes. Visible bytes are 0x21 thru 0x7E.
 ///
 /// Exit the collection loop when `$stop` yields `true`.
-macro_rules! collect_visible {
+macro_rules! collect_visible_7bit {
     ($context:expr, $stop:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if !is_visible_7bit!($context.byte) || $stop {
+            if is_not_visible_7bit!($context.byte) || $stop {
                 break;
             },
             $on_eos
@@ -190,7 +173,7 @@ macro_rules! collect_visible {
 
     ($context:expr, $on_eos:expr) => ({
         bs_collect!($context,
-            if !is_visible_7bit!($context.byte) {
+            if is_not_visible_7bit!($context.byte) {
                 break;
             },
             $on_eos
@@ -211,9 +194,7 @@ macro_rules! consume_linear_space {
 
                 bs_next!($context);
 
-                if $context.byte == b' ' || $context.byte == b'\t' {
-                    continue;
-                } else {
+                if !($context.byte == b' ' || $context.byte == b'\t') {
                     break;
                 }
             }
@@ -236,9 +217,7 @@ macro_rules! consume_spaces {
 
                 bs_next!($context);
 
-                if $context.byte == b' ' {
-                    continue;
-                } else {
+                if $context.byte != b' ' {
                     break;
                 }
             }

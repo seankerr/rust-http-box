@@ -13,8 +13,6 @@
 // | See the License for the specific language governing permissions and                           |
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
-// | Author: Sean Kerr <sean@code-box.org>                                                         |
-// +-----------------------------------------------------------------------------------------------+
 
 //! HTTP/2.x parser, errors, traits, and types.
 
@@ -26,6 +24,9 @@ mod http_handler;
 mod parser;
 mod parser_state;
 mod setting;
+
+#[cfg(test)]
+mod test;
 
 pub use http2::error_code::ErrorCode;
 pub use http2::flags::Flags;
