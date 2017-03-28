@@ -38,8 +38,32 @@ macro_rules! setup {
 }
 
 #[test]
+fn allowed_escaped() {
+    // escaped data can only be 7bit non-control
+    for b in (0..255).filter(|&x| x > 0x1F && x < 0x7B) {
+        let (mut p, mut h) = setup!();
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"escaped \"\\",
+            ParserState::HeaderEscapedValue,
+            b"escaped \"\\".len()
+        );
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            &[b],
+            ParserState::HeaderQuotedValue,
+            [b].len()
+        );
+    }
+}
+
+#[test]
 fn allowed_header_fields() {
-    // skip space and tab, otherwise state will change
+    // skip `\t` and `space`, otherwise state will change
     for b in header_field_vec().iter()
                                .filter(|&x| *x != b' ')
                                .filter(|&x| *x != b'\t') {
@@ -58,7 +82,7 @@ fn allowed_header_fields() {
             &mut h,
             b"\r",
             ParserState::HeaderLf1,
-            b":".len()
+            b"\r".len()
         );
 
         assert_eq!(
@@ -123,46 +147,33 @@ fn allowed_quoted_header_fields() {
 }
 
 #[test]
-fn callback_exit() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_header_value(&mut self, _: &[u8]) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"X / HTTP/1.1\r\n\
-          H: v",
-        ParserState::HeaderValue,
-        b"X / HTTP/1.1\r\n\
-          H: v".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 
     iter_assert_eos(
         &mut p,
         &mut h,
-        &[(b'V', ParserState::HeaderValue),
+        &[(b'"', ParserState::HeaderQuotedValue),
+          (b'v', ParserState::HeaderQuotedValue),
+          (b'a', ParserState::HeaderQuotedValue),
+          (b'\\', ParserState::HeaderEscapedValue),
+          (b'l', ParserState::HeaderQuotedValue),
+          (b'u', ParserState::HeaderQuotedValue),
+          (b'e', ParserState::HeaderQuotedValue),
+          (b'1', ParserState::HeaderQuotedValue),
+          (b'"', ParserState::HeaderValue),
+          (b'v', ParserState::HeaderValue),
           (b'a', ParserState::HeaderValue),
           (b'l', ParserState::HeaderValue),
           (b'u', ParserState::HeaderValue),
           (b'e', ParserState::HeaderValue),
+          (b'2', ParserState::HeaderValue),
           (b'\r', ParserState::HeaderLf1)]
     );
 
     assert_eq!(
-        h.header_value,
-        b"Value"
+        &h.header_value,
+        b"\"va\\lue1\"value2"
     );
 }
 
@@ -198,6 +209,29 @@ fn multiline() {
         &h.header_value,
         b"Part1Part2Part3"
     )
+}
+
+#[test]
+fn not_allowed_escaped_error() {
+    // escaped data can only be 7bit non-control
+    for b in (0..255).filter(|&x| x < 0x20 || x > 0x7A) {
+        let (mut p, mut h) = setup!();
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"escaped \"\\",
+            ParserState::HeaderEscapedValue,
+            b"escaped \"\\".len()
+        );
+
+        assert_error(
+            &mut p,
+            &mut h,
+            &[b],
+            ParserError::HeaderValue(b)
+        );
+    }
 }
 
 #[test]

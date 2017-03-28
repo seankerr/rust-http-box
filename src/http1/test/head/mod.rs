@@ -14,5 +14,6 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
+mod callback;
 mod header_name;
 mod header_value;

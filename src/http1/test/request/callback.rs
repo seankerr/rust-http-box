@@ -16,86 +16,66 @@
 
 use http1::*;
 use http1::test::*;
-use test::*;
-
-macro_rules! setup {
-    () => ({
-        let (mut p, mut h) = http1_setup!();
-
-        // bypass method
-        assert_eos(
-            &mut p,
-            &mut h,
-            b"GET ",
-            ParserState::RequestUrl1,
-            b"GET ".len()
-        );
-
-        (p, h)
-    });
-}
 
 #[test]
-fn allowed() {
-    for b in visible_7bit_vec().iter() {
-        let (mut p, mut h) = setup!();
-
-        assert_eos(
-            &mut p,
-            &mut h,
-            &[*b],
-            ParserState::RequestUrl2,
-            [*b].len()
-        );
+fn on_method() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_method(&mut self, _: &[u8]) -> bool {
+            false
+        }
     }
-}
 
-#[test]
-fn entire_iter() {
-    let (mut p, mut h) = setup!();
+    let mut h = H;
+    let mut p = Parser::new();
 
-    iter_assert_eos(
+    assert_callback(
         &mut p,
         &mut h,
-        &[(b'/', ParserState::RequestUrl2),
-          (b'p', ParserState::RequestUrl2),
-          (b'a', ParserState::RequestUrl2),
-          (b't', ParserState::RequestUrl2),
-          (b'h', ParserState::RequestUrl2),
-          (b' ', ParserState::RequestHttp1)]
-    );
-
-    assert_eq!(
-        h.url,
-        b"/path"
+        b"X",
+        ParserState::RequestMethod,
+        b"X".len()
     );
 }
 
 #[test]
-fn not_allowed_error() {
-    // skip `\t` and `space`, otherwise state will change
-    for b in non_visible_7bit_vec().iter()
-                                   .filter(|&x| *x != b'\t')
-                                   .filter(|&x| *x != b' ') {
-        let (mut p, mut h) = setup!();
-
-        assert_error(
-            &mut p,
-            &mut h,
-            &[*b],
-            ParserError::Url(*b)
-        );
+fn on_url() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_url(&mut self, _: &[u8]) -> bool {
+            false
+        }
     }
+
+    let mut h = H;
+    let mut p = Parser::new();
+
+    assert_callback(
+        &mut p,
+        &mut h,
+        b"X /",
+        ParserState::RequestUrl2,
+        b"X /".len()
+    );
 }
 
 #[test]
-fn state_request_http1() {
-    let (mut p, mut h) = setup!();
+fn on_version() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_version(&mut self, _: u16, _: u16) -> bool {
+            false
+        }
+    }
 
-    iter_assert_eos(
+    let mut h = H;
+    let mut p = Parser::new();
+
+    assert_callback(
         &mut p,
         &mut h,
-        &[(b'/', ParserState::RequestUrl2),
-          (b' ', ParserState::RequestHttp1)]
+        b"X / HTTP/1.1\r",
+        ParserState::InitialEnd,
+        b"X / HTTP/1.1\r".len()
     );
 }

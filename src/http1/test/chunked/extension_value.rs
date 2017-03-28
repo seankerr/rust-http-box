@@ -53,26 +53,98 @@ fn allowed() {
 }
 
 #[test]
-fn callback() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_chunk_extension_value(&mut self, _: &[u8]) -> bool {
-            false
-        }
+fn allowed_escaped() {
+    // escaped data can only be 7bit non-control
+    for b in (0..255).filter(|&x| x > 0x1F && x < 0x7B) {
+        let (mut p, mut h) = setup!();
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"escaped \"\\",
+            ParserState::ChunkExtensionEscapedValue,
+            b"escaped \"\\".len()
+        );
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            &[b],
+            ParserState::ChunkExtensionQuotedValue,
+            [b].len()
+        );
     }
+}
 
-    let mut h = H;
-    let mut p = Parser::new();
+#[test]
+fn allowed_header_fields() {
+    // skip `\t`, `;`, and `space`, otherwise state will change
+    for b in header_field_vec().iter()
+                               .filter(|&x| *x != b'\t')
+                               .filter(|&x| *x != b';')
+                               .filter(|&x| *x != b' ') {
+        let (mut p, mut h) = setup!();
 
-    p.init_chunked();
+        assert_eos(
+            &mut p,
+            &mut h,
+            &[*b],
+            ParserState::ChunkExtensionValue,
+            [*b].len()
+        );
 
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"F;extension=v",
-        ParserState::ChunkExtensionValue,
-        b"F;extension=v".len()
-    );
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"\r",
+            ParserState::ChunkLengthLf,
+            b"\r".len()
+        );
+
+        assert_eq!(
+            &h.chunk_extension_value,
+            &[*b]
+        );
+    }
+}
+
+#[test]
+fn allowed_quoted_header_fields() {
+    // skip `"` and `\`, otherwise state will change
+    for b in quoted_header_field_vec().iter()
+                                      .filter(|&x| *x != b'"')
+                                      .filter(|&x| *x != b'\\') {
+        let (mut p, mut h) = setup!();
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"\"",
+            ParserState::ChunkExtensionQuotedValue,
+            b"\"".len()
+        );
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            &[*b],
+            ParserState::ChunkExtensionQuotedValue,
+            [*b].len()
+        );
+
+        assert_eos(
+            &mut p,
+            &mut h,
+            b"\"",
+            ParserState::ChunkExtensionValue,
+            b"\"".len()
+        );
+
+        assert_eq!(
+            &h.chunk_extension_value,
+            &[*b]
+        );
+    }
 }
 
 #[test]
@@ -98,11 +170,6 @@ fn entire_iter() {
           (b'e', ParserState::ChunkExtensionValue),
           (b'2', ParserState::ChunkExtensionValue),
           (b'\r', ParserState::ChunkLengthLf)]
-    );
-
-    assert_eq!(
-        &h.chunk_extension_name,
-        b"extension"
     );
 
     assert_eq!(

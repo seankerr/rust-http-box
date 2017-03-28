@@ -2509,8 +2509,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 handler,
                 context,
                 on_chunk_data,
-                ChunkDataCr1,
-                chunk_data_cr1
+                ChunkDataCr,
+                chunk_data_cr
             );
         }
 
@@ -2530,7 +2530,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_cr1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn chunk_data_cr(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);
@@ -2540,8 +2540,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 self,
                 handler,
                 context,
-                ChunkDataLf1,
-                chunk_data_lf1
+                ChunkDataLf,
+                chunk_data_lf
             );
         }
 
@@ -2549,7 +2549,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn chunk_data_lf1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn chunk_data_lf(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
         bs_next!(context);

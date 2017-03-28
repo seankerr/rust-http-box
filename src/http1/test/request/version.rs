@@ -231,27 +231,6 @@ fn allowed3() {
 }
 
 #[test]
-fn callback_exit() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_version(&mut self, _: u16, _: u16) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"X / HTTP/1.1\r",
-        ParserState::InitialEnd,
-        b"X / HTTP/1.1\r".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 

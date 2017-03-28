@@ -172,29 +172,6 @@ fn allowed8() {
 }
 
 #[test]
-fn callback() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_chunk_length(&mut self, _: usize) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    p.init_chunked();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"F\r",
-        ParserState::ChunkLengthLf,
-        b"F\r".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 

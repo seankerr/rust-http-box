@@ -52,29 +52,6 @@ fn allowed() {
 }
 
 #[test]
-fn callback() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_chunk_extension_name(&mut self, _: &[u8]) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    p.init_chunked();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"F;extension",
-        ParserState::LowerChunkExtensionName,
-        b"F;extension".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 
@@ -84,18 +61,18 @@ fn entire_iter() {
         &[(b'E', ParserState::LowerChunkExtensionName),
           (b'x', ParserState::LowerChunkExtensionName),
           (b't', ParserState::LowerChunkExtensionName),
-          (b'e', ParserState::LowerChunkExtensionName),
-          (b'N', ParserState::LowerChunkExtensionName),
-          (b's', ParserState::LowerChunkExtensionName),
-          (b'I', ParserState::LowerChunkExtensionName),
-          (b'o', ParserState::LowerChunkExtensionName),
-          (b'N', ParserState::LowerChunkExtensionName),
+          (b'1', ParserState::LowerChunkExtensionName),
+          (b';', ParserState::LowerChunkExtensionName),
+          (b'E', ParserState::LowerChunkExtensionName),
+          (b'x', ParserState::LowerChunkExtensionName),
+          (b't', ParserState::LowerChunkExtensionName),
+          (b'2', ParserState::LowerChunkExtensionName),
           (b'\r', ParserState::ChunkLengthLf)]
     );
 
     assert_eq!(
         &h.chunk_extension_name,
-        b"extension"
+        b"ext1ext2"
     );
 }
 

@@ -58,27 +58,6 @@ fn allowed() {
 }
 
 #[test]
-fn callback_exit() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_status(&mut self, _: &[u8]) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"HTTP/1.1 200 X",
-        ParserState::ResponseStatus2,
-        b"HTTP/1.1 200 X".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 

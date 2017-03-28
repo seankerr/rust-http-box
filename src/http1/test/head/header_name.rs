@@ -120,29 +120,6 @@ fn allowed_tokens_without_alpha() {
 }
 
 #[test]
-fn callback_exit() {
-    struct H;
-    impl HttpHandler for H {
-        fn on_header_name(&mut self, _: &[u8]) -> bool {
-            false
-        }
-    }
-
-    let mut h = H;
-    let mut p = Parser::new();
-
-    assert_callback(
-        &mut p,
-        &mut h,
-        b"X / HTTP/1.1\r\n\
-          H",
-        ParserState::LowerHeaderName,
-        b"X / HTTP/1.1\r\n\
-          H".len()
-    );
-}
-
-#[test]
 fn entire_iter() {
     let (mut p, mut h) = setup!();
 

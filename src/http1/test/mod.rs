@@ -243,7 +243,14 @@ impl HttpHandler for DebugHandler {
 
     fn on_chunk_extension_value(&mut self, value: &[u8]) -> bool {
         self.chunk_extension_value.extend_from_slice(value);
-        println!("on_chunk_extension_value [{}]: {:?}", value.len(), str::from_utf8(value).unwrap());
+
+        for byte in value {
+            if !is_visible_7bit!(*byte) {
+                println!("on_chunk_extension_value [{}]: *hidden*", value.len());
+                return true;
+            }
+        }
+
         true
     }
 

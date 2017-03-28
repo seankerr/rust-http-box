@@ -14,6 +14,7 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
+mod callback;
 mod method;
 mod url;
 mod version;

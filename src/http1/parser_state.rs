@@ -253,10 +253,10 @@ pub enum ParserState {
     ChunkData,
 
     /// Parsing carriage return after chunk data.
-    ChunkDataCr1,
+    ChunkDataCr,
 
     /// Parsing line feed after chunk data.
-    ChunkDataLf1,
+    ChunkDataLf,
 
     // ---------------------------------------------------------------------------------------------
     // MULTIPART
