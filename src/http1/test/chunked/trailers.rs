@@ -18,7 +18,7 @@ use http1::*;
 use http1::test::*;
 
 #[test]
-fn finished() {
+fn trailers() {
     let (mut p, mut h) = http1_setup!();
 
     p.init_chunked();
@@ -27,11 +27,13 @@ fn finished() {
         &mut p,
         &mut h,
         b"0\r\n\
-          Trailer1: Value1\r\n\
-          Trailer2: Value2\r\n\r\n",
+          Trailer1: value1; value2\r\n\
+          Trailer2: complex=\"value\"\r\n\
+          \r\n",
         b"0\r\n\
-          Trailer1: Value1\r\n\
-          Trailer2: Value2\r\n\r\n".len()
+          Trailer1: value1; value2\r\n\
+          Trailer2: complex=\"value\"\r\n\
+          \r\n".len()
     );
 
     assert_eq!(
@@ -41,6 +43,6 @@ fn finished() {
 
     assert_eq!(
         &h.header_value,
-        b"Value1Value2"
+        b"value1; value2complex=\"value\""
     );
 }
