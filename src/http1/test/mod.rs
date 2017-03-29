@@ -97,13 +97,12 @@ fn assert_finished<T: HttpHandler>(
     parser:  &mut Parser<T>,
     handler: &mut T,
     stream:  &[u8],
-    state:   ParserState,
     length:  usize
 ) {
     match parser.resume(handler, stream) {
         Ok(Success::Finished(length_)) => {
             assert_eq!(length, length_);
-            assert_eq!(state, parser.state());
+            assert_eq!(ParserState::Finished, parser.state());
         },
         _ => panic!("assert_finished() Ok() match failed")
     }
@@ -353,6 +352,11 @@ impl HttpHandler for DebugHandler {
     fn on_url(&mut self, url: &[u8]) -> bool {
         self.url.extend_from_slice(url);
         println!("on_url [{}]: {:?}", url.len(), str::from_utf8(url).unwrap());
+        true
+    }
+
+    fn on_url_encoded_begin(&mut self) -> bool {
+        println!("on_url_encoded_begin");
         true
     }
 

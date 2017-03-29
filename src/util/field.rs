@@ -171,7 +171,7 @@ impl<'a> Iterator for FieldIterator<'a> {
 
         loop {
             // parsing name
-            consume_spaces!(
+            consume_linear_space!(
                 self.context,
 
                 // on end-of-stream
@@ -206,13 +206,12 @@ impl<'a> Iterator for FieldIterator<'a> {
 
             match self.context.byte {
                 b'=' => {
-                    // parsing value
-                    if bs_available!(self.context) == 0 {
-                        // name without a value
-                        submit_name!(self);
-                    }
+                    consume_linear_space!(
+                        self.context,
 
-                    bs_next!(self.context);
+                        // on end-of-stream
+                        submit_name!(self)
+                    );
 
                     if self.context.byte == b'"' {
                         // quoted value
@@ -231,7 +230,7 @@ impl<'a> Iterator for FieldIterator<'a> {
                                 // found end quote
                                 self.value.extend_from_slice(bs_slice_ignore!(self.context));
 
-                                consume_spaces!(
+                                consume_linear_space!(
                                     self.context,
 
                                     // on end-of-stream

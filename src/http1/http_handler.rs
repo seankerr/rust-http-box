@@ -243,6 +243,16 @@ pub trait HttpHandler {
         true
     }
 
+    /// Callback that is executed when a new URL encoded name/value pair has been located.
+    ///
+    /// **Returns:**
+    ///
+    /// `true` when parsing should continue, `false` to exit the parser function prematurely with
+    /// [`Success::Callback`](../fsm/enum.Success.html#variant.Callback).
+    fn on_url_encoded_begin(&mut self) -> bool {
+        true
+    }
+
     /// Callback that is executed when a URL encoded name has been located.
     ///
     /// *Note:* This may be executed multiple times in order to supply the entire segment.

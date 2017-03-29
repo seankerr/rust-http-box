@@ -44,7 +44,7 @@ true,  true,  true,  true,  true,
 true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
 
 // :   ;      <      =      >      ?      @
-false, true,  false, true,  false, false, false,
+true,  true,  true,  true,  true,  true,  true,
 
 // A   B      C      D      E      F      G      H      I      J
 true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
@@ -56,7 +56,7 @@ true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
 true,  true,  true,  true,  true,  true,
 
 // [   \      ]      ^      _      `
-false, false, false, true,  true,  true,
+true,  true,  true,  true,  true,  true,
 
 // a   b      c      d      e      f      g      h      i      j
 true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
@@ -68,7 +68,7 @@ true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
 true,  true,  true,  true,  true,  true,
 
 // {   |      }      ~
-false, true,  false, true,
+true,  true,  true,  true,
 
 // DEL
 false,
@@ -238,80 +238,6 @@ false, false, false, false, false, false, false
 
 ];
 
-/// Bytes considered as separators when used in a URL encoded value.
-static URL_ENCODED_SEPARATORS: [bool; 255] = [
-
-// NUL SOH    STX    ETX    EOT    ENQ    ACK    BEL    BS     TAB
-false, false, false, false, false, false, false, false, false, false,
-
-// LF  VT     FF     CR     SO     SI     DLE    DC1    DC2    DC3
-false, false, false, false, false, false, false, false, false, false,
-
-// DC4 NAK    SYN    ETB    CAN    EM     SUB    ESC    FS     GS
-false, false, false, false, false, false, false, false, false, false,
-
-// RS  US
-false, false,
-
-// space
-false,
-
-// !   "      #      $      %      &      '      (      )      *
-false, false, false, false, true,  true,  false, false, false, false,
-
-// +   ,      -      .      /
-true, false,  false, false, false,
-
-// 0   1      2      3      4      5      6      7      8      9
-false, false, false, false, false, false, false, false, false, false,
-
-// :   ;      <      =      >      ?      @
-false, true,  false, true,  false, false, false,
-
-// A   B      C      D      E      F      G      H      I      J
-false, false, false, false, false, false, false, false, false, false,
-
-// K   L      M      N      O      P      Q      R      S      T
-false, false, false, false, false, false, false, false, false, false,
-
-// U   V      W      X      Y      Z
-false, false, false, false, false, false,
-
-// [   \      ]      ^      _      `
-false, false, false, false, false, false,
-
-// a   b      c      d      e      f      g      h      i      j
-false, false, false, false, false, false, false, false, false, false,
-
-// k   l      m      n      o      p      q      r      s      t
-false, false, false, false, false, false, false, false, false, false,
-
-// u   v      w      x      y      z
-false, false, false, false, false, false,
-
-// {   |      }      ~
-false, false, false, false,
-
-// DEL
-false,
-
-// 128 - 255
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false, false, false, false,
-false, false, false, false, false, false, false
-
-];
-
 /// Indicates that a byte is allowed in non-quoted header field.
 #[inline]
 pub fn is_header_field(byte: u8) -> bool {
@@ -330,10 +256,4 @@ pub fn is_quoted_header_field(byte: u8) -> bool {
 #[inline]
 pub fn is_token(byte: u8) -> bool {
     TOKENS[byte as usize]
-}
-
-/// Indicates that a byte is a URL encoded separator.
-#[inline]
-pub fn is_url_encoded_separator(byte: u8) -> bool {
-    URL_ENCODED_SEPARATORS[byte as usize]
 }

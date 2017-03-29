@@ -302,11 +302,11 @@ pub enum ParserState {
     // URL ENCODED
     // ---------------------------------------------------------------------------------------------
 
+    /// Parsing first byte of URL encoded name.
+    FirstUrlEncodedName,
+
     /// Parsing URL encoded name.
     UrlEncodedName,
-
-    /// Parsing URL encoded name ampersand or semicolon.
-    UrlEncodedNameAmpersand,
 
     /// Parsing URL encoded name hex sequence byte 1.
     UrlEncodedNameHex1,

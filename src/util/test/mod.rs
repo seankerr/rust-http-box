@@ -16,4 +16,4 @@
 
 mod decode;
 mod field_iterator;
-//mod query_iterator;
+mod query_iterator;

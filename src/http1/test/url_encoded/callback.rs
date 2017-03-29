@@ -14,6 +14,77 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
-mod callback;
-mod name;
-mod value;
+use http1::*;
+use http1::test::*;
+
+#[test]
+fn on_url_encoded_begin() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_url_encoded_begin(&mut self) -> bool {
+            false
+        }
+    }
+
+    let mut h = H;
+    let mut p = Parser::new();
+
+    p.init_url_encoded();
+    p.set_length(1000);
+
+    assert_callback(
+        &mut p,
+        &mut h,
+        b"N",
+        ParserState::UrlEncodedName,
+        b"".len()
+    );
+}
+
+#[test]
+fn on_url_encoded_name() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_url_encoded_name(&mut self, _: &[u8]) -> bool {
+            false
+        }
+    }
+
+    let mut h = H;
+    let mut p = Parser::new();
+
+    p.init_url_encoded();
+    p.set_length(1000);
+
+    assert_callback(
+        &mut p,
+        &mut h,
+        b"N",
+        ParserState::UrlEncodedName,
+        b"N".len()
+    );
+}
+
+#[test]
+fn on_url_encoded_value() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_url_encoded_value(&mut self, _: &[u8]) -> bool {
+            false
+        }
+    }
+
+    let mut h = H;
+    let mut p = Parser::new();
+
+    p.init_url_encoded();
+    p.set_length(1000);
+
+    assert_callback(
+        &mut p,
+        &mut h,
+        b"N=V",
+        ParserState::UrlEncodedValue,
+        b"N=V".len()
+    );
+}

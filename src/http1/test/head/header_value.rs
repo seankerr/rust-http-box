@@ -293,7 +293,6 @@ fn state_finished() {
         &mut p,
         &mut h,
         b"\n",
-        ParserState::Finished,
         b"\n".len()
     );
 }

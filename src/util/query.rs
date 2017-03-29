@@ -14,8 +14,6 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
-use byte::is_url_encoded_separator;
-
 use byte_slice::ByteStream;
 use std::fmt;
 
@@ -174,7 +172,11 @@ impl<'a> Iterator for QueryIterator<'a> {
                     self.context,
 
                     // stop on these bytes
-                    is_url_encoded_separator(self.context.byte),
+                       self.context.byte == b'%'
+                    || self.context.byte == b'+'
+                    || self.context.byte == b'='
+                    || self.context.byte == b'&'
+                    || self.context.byte == b';',
 
                     // on end-of-stream
                     {
@@ -242,7 +244,10 @@ impl<'a> Iterator for QueryIterator<'a> {
                     self.context,
 
                     // stop on these bytes
-                    is_url_encoded_separator(self.context.byte),
+                       self.context.byte == b'%'
+                    || self.context.byte == b'+'
+                    || self.context.byte == b'&'
+                    || self.context.byte == b';',
 
                     // on end-of-stream
                     {
@@ -276,9 +281,6 @@ impl<'a> Iterator for QueryIterator<'a> {
                     },
                     b'+' => {
                         self.value.push(b' ');
-                    },
-                    b'=' => {
-                        self.value.push(b'=');
                     },
                       b'&'
                     | b';' => {

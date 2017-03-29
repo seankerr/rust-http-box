@@ -18,7 +18,7 @@
 
 #![allow(dead_code)]
 
-use byte::{ is_header_field, is_quoted_header_field, is_token, is_url_encoded_separator };
+use byte::{ is_header_field, is_quoted_header_field, is_token };
 use fsm::{ ParserValue, Success };
 use http1::http_handler::HttpHandler;
 use http1::parser_error::ParserError;
@@ -264,8 +264,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                 set_lower14!(self, 1);
             },
             ParserType::UrlEncoded => {
-                self.state          = ParserState::UrlEncodedName;
-                self.state_function = Parser::url_encoded_name;
+                self.state          = ParserState::FirstUrlEncodedName;
+                self.state_function = Parser::first_url_encoded_name;
             }
         }
     }
@@ -1553,8 +1553,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         }
 
         if bs_has_bytes!(context, 24) {
-            // have enough bytes to compare common header names immediately, without collecting
-            // individual tokens
+            // have enough bytes to compare common header names immediately
             if context.byte == b'C' {
                 if bs_starts_with11!(context, b"Connection:") {
                     name!(b"connection", 11);
@@ -1799,8 +1798,9 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     -> Result<ParserValue, ParserError> {
         // since we're not collecting, and because it's EOS, we must execute the callback
         // manually
-           bs_available!(context) > 0
-        || callback_eos_expr!(self, handler, context, on_header_value);
+        if bs_available!(context) == 0 {
+            callback_eos_expr!(self, handler, context, on_header_value);
+        }
 
         bs_next!(context);
 
@@ -2949,29 +2949,43 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
+    fn first_url_encoded_name(&mut self, handler: &mut T, context: &mut ByteStream)
+    -> Result<ParserValue, ParserError> {
+        bs_available!(context) > 0 || exit_eos!(self, context);
+
+        set_state!(self, UrlEncodedName, url_encoded_name);
+
+        if handler.on_url_encoded_begin() {
+            transition_fast!(
+                self,
+                handler,
+                context,
+                UrlEncodedName,
+                url_encoded_name
+            )
+        }
+
+        exit_callback!(self, context);
+    }
+
+    #[inline]
     fn url_encoded_name(&mut self, handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         collect_visible_7bit!(
             context,
 
             // stop on these bytes
-            is_url_encoded_separator(context.byte),
+               context.byte == b'%'
+            || context.byte == b'+'
+            || context.byte == b'='
+            || context.byte == b'&'
+            || context.byte == b';',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_url_encoded_name)
         );
 
         match context.byte {
-            b'=' => {
-                callback_ignore_transition_fast!(
-                    self,
-                    handler,
-                    context,
-                    on_url_encoded_name,
-                    UrlEncodedValue,
-                    url_encoded_value
-                );
-            },
             b'%' => {
                 callback_ignore_transition_fast!(
                     self,
@@ -2980,16 +2994,6 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     on_url_encoded_name,
                     UrlEncodedNameHex1,
                     url_encoded_name_hex1
-                );
-            },
-            b'&' | b';' => {
-                callback_ignore_transition_fast!(
-                    self,
-                    handler,
-                    context,
-                    on_url_encoded_name,
-                    UrlEncodedNameAmpersand,
-                    url_encoded_name_ampersand
                 );
             },
             b'+' => {
@@ -3002,25 +3006,30 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     url_encoded_name_plus
                 );
             },
+            b'=' => {
+                callback_ignore_transition_fast!(
+                    self,
+                    handler,
+                    context,
+                    on_url_encoded_name,
+                    UrlEncodedValue,
+                    url_encoded_value
+                );
+            },
+            b'&' | b';' => {
+                callback_ignore_transition_fast!(
+                    self,
+                    handler,
+                    context,
+                    on_url_encoded_name,
+                    FirstUrlEncodedName,
+                    first_url_encoded_name
+                );
+            },
             _ => {
                 Err(ParserError::UrlEncodedName(context.byte))
             }
         }
-    }
-
-    #[inline]
-    fn url_encoded_name_ampersand(&mut self, handler: &mut T, context: &mut ByteStream)
-    -> Result<ParserValue, ParserError> {
-        // no value, send an empty one
-        callback_transition!(
-            self,
-            handler,
-            context,
-            on_url_encoded_value,
-            b"",
-            UrlEncodedName,
-            url_encoded_name
-        );
     }
 
     #[inline]
@@ -3102,7 +3111,10 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             context,
 
             // stop on these bytes
-            is_url_encoded_separator(context.byte),
+               context.byte == b'%'
+            || context.byte == b'+'
+            || context.byte == b'&'
+            || context.byte == b';',
 
             // on end-of-stream
             callback_eos_expr!(self, handler, context, on_url_encoded_value)
@@ -3125,8 +3137,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     handler,
                     context,
                     on_url_encoded_value,
-                    UrlEncodedName,
-                    url_encoded_name
+                    FirstUrlEncodedName,
+                    first_url_encoded_name
                 );
             },
             b'+' => {
@@ -3139,8 +3151,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
                     url_encoded_value_plus
                 );
             },
-              b'='
-            | _ => {
+            _ => {
                 Err(ParserError::UrlEncodedValue(context.byte))
             }
         }

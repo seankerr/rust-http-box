@@ -64,7 +64,6 @@ fn value_invalid_byte_error() {
     ).next();
 }
 
-/*
 #[test]
 #[should_panic]
 fn value_invalid_quote_error() {
@@ -80,8 +79,7 @@ fn value_invalid_quote_error() {
         }
     ).next();
 }
-*/
-/*
+
 #[test]
 fn normalize() {
     for (n, (name, value)) in FieldIterator::new(
@@ -236,4 +234,3 @@ fn value_error() {
         FieldError::Value(x) => assert_eq!(x, b'\r')
     }
 }
-*/

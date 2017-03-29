@@ -18,8 +18,7 @@
 
 use http2::{ Flags,
              FrameType,
-             Parser,
-             ParserState };
+             Parser };
 
 use http2::test::*;
 

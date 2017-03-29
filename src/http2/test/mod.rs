@@ -32,17 +32,17 @@ macro_rules! pack_u8 {
 
 macro_rules! pack_u16 {
     ($buffer:expr, $bytes:expr) => ({
-        $buffer.push(($bytes >> 8) as u8);
-        $buffer.push(($bytes & 0xFF) as u8);
+        $buffer.push(($bytes as u16 >> 8) as u8);
+        $buffer.push(($bytes as u16 & 0xFF) as u8);
     });
 }
 
 macro_rules! pack_u32 {
     ($buffer:expr, $bytes:expr) => ({
-        $buffer.push(($bytes >> 24) as u8);
-        $buffer.push((($bytes >> 16) & 0xFF) as u8);
-        $buffer.push((($bytes >> 8) & 0xFF) as u8);
-        $buffer.push(($bytes & 0xFF) as u8);
+        $buffer.push(($bytes as u32 >> 24) as u8);
+        $buffer.push((($bytes as u32 >> 16) & 0xFF) as u8);
+        $buffer.push((($bytes as u32 >> 8) & 0xFF) as u8);
+        $buffer.push(($bytes as u32 & 0xFF) as u8);
     });
 }
 
