@@ -289,7 +289,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn frame_length1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_length1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -299,9 +299,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire length and type
             read_u32!(context, self.bit_data32a);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 FrameFlags,
                 frame_flags
@@ -311,9 +310,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first length byte
         self.bit_data32a |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameLength2,
             frame_length2
@@ -321,15 +319,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_length2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_length2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32a |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameLength3,
             frame_length3
@@ -337,15 +334,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_length3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_length3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32a |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameType,
             frame_type
@@ -353,15 +349,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_type(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_type(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32a |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameFlags,
             frame_flags
@@ -369,15 +364,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_flags(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_flags(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data16a = get_u8!(context) as u16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameStreamId1,
             frame_stream_id1
@@ -385,7 +379,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_stream_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_stream_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -393,9 +387,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire stream id
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 FrameFormatEnd,
                 frame_format_end
@@ -405,9 +398,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first stream id byte
         self.bit_data32b = (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameStreamId2,
             frame_stream_id2
@@ -415,15 +407,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_stream_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_stream_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b = (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameStreamId3,
             frame_stream_id3
@@ -431,15 +422,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_stream_id3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_stream_id3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b = (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameStreamId4,
             frame_stream_id4
@@ -447,15 +437,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn frame_stream_id4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn frame_stream_id4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             FrameFormatEnd,
             frame_format_end
@@ -543,7 +532,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             self.bit_data32a &= 0xFFFFFF00;
             self.bit_data32b  = 0;
 
-            transition_fast!(self, handler, context);
+            transition!(self, context);
         } else {
             self.bit_data16a  = 0;
             self.bit_data32a &= 0xFFFFFF00;
@@ -583,7 +572,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn data_pad_length(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn data_pad_length(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -591,9 +580,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         dec_payload_length!(self, 1);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             DataData,
             data_data
@@ -618,7 +606,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn go_away_stream_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_stream_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -626,9 +614,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read reserved bit and entire stream id
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 GoAwayErrorCode1,
                 go_away_error_code1
@@ -638,9 +625,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read reserved bit and first stream id byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayStreamId2,
             go_away_stream_id2
@@ -648,15 +634,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_stream_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_stream_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayStreamId3,
             go_away_stream_id3
@@ -664,15 +649,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_stream_id3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_stream_id3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayStreamId3,
             go_away_stream_id3
@@ -680,15 +664,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_stream_id4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_stream_id4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayErrorCode1,
             go_away_error_code1
@@ -696,7 +679,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_error_code1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_error_code1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -705,9 +688,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             read_u16!(context, self.bit_data16a);
             read_u16!(context, self.bit_data16b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 GoAwayCallback,
                 go_away_callback
@@ -717,9 +699,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first stream error code byte
         self.bit_data16a |= (get_u8!(context) as u16) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayErrorCode2,
             go_away_error_code2
@@ -727,15 +708,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_error_code2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_error_code2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data16a |= get_u8!(context) as u16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayErrorCode3,
             go_away_error_code3
@@ -743,15 +723,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_error_code3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_error_code3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data16b |= (get_u8!(context) as u16) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayErrorCode4,
             go_away_error_code4
@@ -759,15 +738,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn go_away_error_code4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn go_away_error_code4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data16b |= get_u8!(context) as u16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             GoAwayCallback,
             go_away_callback
@@ -789,7 +767,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             self.bit_data32b & 0x7FFFFFFF,
             ((self.bit_data16a as u32) << 16 | self.bit_data16b as u32)
         ) {
-            transition_fast!(self, handler, context);
+            transition!(self, context);
         } else {
             exit_callback!(self, context);
         }
@@ -813,7 +791,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn headers_pad_length_with_priority(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_pad_length_with_priority(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -821,9 +799,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         dec_payload_length!(self, 1);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersStreamId1,
             headers_stream_id1
@@ -831,7 +808,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_pad_length_without_priority(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_pad_length_without_priority(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -839,9 +816,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         dec_payload_length!(self, 1);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersCallback,
             headers_callback
@@ -849,7 +825,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_stream_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_stream_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -857,9 +833,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read exclusive bit and entire stream id
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 HeadersWeight,
                 headers_weight
@@ -869,9 +844,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read exclusive bit and first stream id byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersStreamId2,
             headers_stream_id2
@@ -879,15 +853,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_stream_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_stream_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersStreamId3,
             headers_stream_id3
@@ -895,15 +868,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_stream_id3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_stream_id3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersStreamId4,
             headers_stream_id4
@@ -911,15 +883,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_stream_id4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_stream_id4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersWeight,
             headers_weight
@@ -927,7 +898,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn headers_weight(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn headers_weight(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -936,9 +907,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // decrease payload by stream id (4) and weight (1)
         dec_payload_length!(self, 5);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             HeadersCallback,
             headers_callback
@@ -953,9 +923,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             self.bit_data32b & 0x7FFFFFFF,
             (self.bit_data16a >> 8) as u8
         ) {
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 HeadersFragment,
                 headers_fragment
@@ -1005,7 +974,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn priority_stream_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn priority_stream_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1013,9 +982,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read exclusive bit and entire stream id
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 PriorityWeight,
                 priority_weight
@@ -1025,9 +993,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read exclusive bit and first stream id byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PriorityStreamId2,
             priority_stream_id2
@@ -1035,15 +1002,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn priority_stream_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn priority_stream_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PriorityStreamId3,
             priority_stream_id3
@@ -1051,15 +1017,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn priority_stream_id3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn priority_stream_id3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PriorityStreamId4,
             priority_stream_id4
@@ -1067,15 +1032,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn priority_stream_id4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn priority_stream_id4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PriorityWeight,
             priority_weight
@@ -1113,7 +1077,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn push_promise_pad_length(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn push_promise_pad_length(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1121,9 +1085,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         dec_payload_length!(self, 1);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PushPromiseStreamId1,
             push_promise_stream_id1
@@ -1131,7 +1094,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn push_promise_stream_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn push_promise_stream_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1139,9 +1102,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire promised stream id
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 PushPromiseCallback,
                 push_promise_callback
@@ -1151,9 +1113,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first promised stream id byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PushPromiseStreamId2,
             push_promise_stream_id2
@@ -1161,15 +1122,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn push_promise_stream_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn push_promise_stream_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PushPromiseStreamId3,
             push_promise_stream_id3
@@ -1177,15 +1137,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn push_promise_stream_id3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn push_promise_stream_id3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PushPromiseStreamId4,
             push_promise_stream_id4
@@ -1193,15 +1152,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn push_promise_stream_id4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn push_promise_stream_id4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             PushPromiseCallback,
             push_promise_callback
@@ -1238,7 +1196,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn rst_stream_error_code1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn rst_stream_error_code1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1246,9 +1204,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire error code
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 RstStreamCallback,
                 rst_stream_callback
@@ -1258,9 +1215,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first error code byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             RstStreamErrorCode2,
             rst_stream_error_code2
@@ -1268,15 +1224,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn rst_stream_error_code2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn rst_stream_error_code2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             RstStreamErrorCode3,
             rst_stream_error_code3
@@ -1284,15 +1239,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn rst_stream_error_code3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn rst_stream_error_code3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             RstStreamErrorCode4,
             rst_stream_error_code4
@@ -1300,15 +1254,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn rst_stream_error_code4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn rst_stream_error_code4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             RstStreamCallback,
             rst_stream_callback
@@ -1340,7 +1293,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn settings_id1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_id1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1348,9 +1301,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire identifier
             read_u16!(context, self.bit_data16a);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 SettingsValue1,
                 settings_value1
@@ -1360,9 +1312,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first identifier byte
         self.bit_data16a |= (get_u8!(context) as u16) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsId2,
             settings_id2
@@ -1370,15 +1321,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn settings_id2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_id2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data16a |= get_u8!(context) as u16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsValue1,
             settings_value1
@@ -1386,7 +1336,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn settings_value1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_value1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1394,9 +1344,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire value
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 SettingsCallback,
                 settings_callback
@@ -1406,9 +1355,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first value byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsValue2,
             settings_value2
@@ -1416,15 +1364,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn settings_value2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_value2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsValue3,
             settings_value3
@@ -1432,15 +1379,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn settings_value3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_value3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsValue3,
             settings_value3
@@ -1448,15 +1394,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn settings_value4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn settings_value4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             SettingsCallback,
             settings_callback
@@ -1488,7 +1433,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn window_update_increment1(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn window_update_increment1(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1496,9 +1441,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
             // read entire size increment
             read_u32!(context, self.bit_data32b);
 
-            transition_fast!(
+            transition!(
                 self,
-                handler,
                 context,
                 WindowUpdateCallback,
                 window_update_callback
@@ -1508,9 +1452,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
         // read first size increment byte
         self.bit_data32b |= (get_u8!(context) as u32) << 24;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             WindowUpdateIncrement2,
             window_update_increment2
@@ -1518,15 +1461,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn window_update_increment2(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn window_update_increment2(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 16;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             WindowUpdateIncrement3,
             window_update_increment3
@@ -1534,15 +1476,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn window_update_increment3(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn window_update_increment3(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= (get_u8!(context) as u32) << 8;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             WindowUpdateIncrement4,
             window_update_increment4
@@ -1550,15 +1491,14 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     }
 
     #[inline]
-    fn window_update_increment4(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn window_update_increment4(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
         self.bit_data32b |= get_u8!(context) as u32;
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             WindowUpdateCallback,
             window_update_callback
@@ -1590,7 +1530,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
     // ---------------------------------------------------------------------------------------------
 
     #[inline]
-    fn unsupported_pad_length(&mut self, handler: &mut T, context: &mut ByteStream)
+    fn unsupported_pad_length(&mut self, _handler: &mut T, context: &mut ByteStream)
     -> Result<ParserValue, ParserError> {
         exit_if_eos!(self, context);
 
@@ -1598,9 +1538,8 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         dec_payload_length!(self, 1);
 
-        transition_fast!(
+        transition!(
             self,
-            handler,
             context,
             UnsupportedData,
             unsupported_data

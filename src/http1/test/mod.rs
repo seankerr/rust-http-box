@@ -228,7 +228,7 @@ impl HttpHandler for DebugHandler {
         self.chunk_data.extend_from_slice(data);
 
         for byte in data {
-            if !is_visible_7bit!(*byte) {
+            if is_not_visible_7bit!(*byte) && *byte != b' ' {
                 println!("on_chunk_data [{}]: *hidden*", data.len());
                 return true;
             }
@@ -253,7 +253,7 @@ impl HttpHandler for DebugHandler {
         self.chunk_extension_value.extend_from_slice(value);
 
         for byte in value {
-            if !is_visible_7bit!(*byte) {
+            if is_not_visible_7bit!(*byte) && *byte != b' ' {
                 println!("on_chunk_extension_value [{}]: *hidden*", value.len());
                 return true;
             }
@@ -283,7 +283,7 @@ impl HttpHandler for DebugHandler {
         self.header_value.extend_from_slice(value);
 
         for byte in value {
-            if !is_visible_7bit!(*byte) {
+            if is_not_visible_7bit!(*byte) && *byte != b' ' {
                 println!("on_header_value [{}]: *hidden*", value.len());
                 return true;
             }
@@ -320,7 +320,7 @@ impl HttpHandler for DebugHandler {
         self.multipart_data.extend_from_slice(data);
 
         for byte in data {
-            if !is_visible_7bit!(*byte) {
+            if is_not_visible_7bit!(*byte) {
                 println!("on_multipart_data [{}]: *hidden*", data.len());
                 return true;
             }
@@ -334,7 +334,7 @@ impl HttpHandler for DebugHandler {
         self.status.extend_from_slice(status);
 
         for byte in status {
-            if !is_visible_7bit!(*byte) {
+            if is_not_visible_7bit!(*byte) {
                 println!("on_status [{}]: *hidden*", status.len());
                 return true;
             }

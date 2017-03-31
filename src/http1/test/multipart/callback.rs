@@ -18,31 +18,55 @@ use http1::*;
 use http1::test::*;
 
 #[test]
-fn trailers() {
-    let (mut p, mut h) = http1_setup!();
+fn on_multipart_begin() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_multipart_begin(&mut self) -> bool {
+            false
+        }
+    }
 
-    p.init_chunked();
+    let mut h = H;
+    let mut p = Parser::new();
 
-    assert_finished(
+    p.init_multipart();
+    p.set_boundary(b"XTestBoundaryX");
+
+    assert_callback(
         &mut p,
         &mut h,
-        b"0\r\n\
-          Trailer1: value1; value2\r\n\
-          Trailer2: complex=\"value\"\r\n\
-          \r\n",
-        b"0\r\n\
-          Trailer1: value1; value2\r\n\
-          Trailer2: complex=\"value\"\r\n\
-          \r\n".len()
+        b"--XTestBoundaryX\r",
+        ParserState::InitialLf,
+        b"--XTestBoundaryX\r".len()
     );
+}
 
-    assert_eq!(
-        &h.header_name,
-        b"trailer1trailer2"
-    );
+#[test]
+fn on_multipart_data() {
+    struct H;
+    impl HttpHandler for H {
+        fn on_multipart_data(&mut self, _: &[u8]) -> bool {
+            false
+        }
+    }
 
-    assert_eq!(
-        &h.header_value,
-        b"value1; value2complex=\"value\""
+    let mut h = H;
+    let mut p = Parser::new();
+
+    p.init_multipart();
+    p.set_boundary(b"XTestBoundaryX");
+
+    assert_callback(
+        &mut p,
+        &mut h,
+        b"--XTestBoundaryX\r\n\
+         Header: Value\r\n\
+         \r\n\
+         Data",
+        ParserState::MultipartDataByByte,
+        b"--XTestBoundaryX\r\n\
+         Header: Value\r\n\
+         \r\n\
+         Data".len()
     );
 }

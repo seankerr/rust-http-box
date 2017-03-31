@@ -14,7 +14,35 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
-mod callback;
-mod data;
-mod finished;
-mod headers;
+use http1::*;
+use http1::test::*;
+
+#[test]
+fn headers() {
+    let (mut p, mut h) = http1_setup!();
+
+    p.init_multipart();
+    p.set_boundary(b"XTestBoundaryX");
+
+    assert_eos(
+        &mut p,
+        &mut h,
+        b"--XTestBoundaryX\r\n\
+          Header1: Value1\r\n\
+          Header2: Value2\r\n",
+        ParserState::HeaderCr2,
+        b"--XTestBoundaryX\r\n\
+          Header1: Value1\r\n\
+          Header2: Value2\r\n".len()
+    );
+
+    assert_eq!(
+        &h.header_name,
+        b"header1header2"
+    );
+
+    assert_eq!(
+        &h.header_value,
+        b"Value1Value2"
+    );
+}

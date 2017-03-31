@@ -14,7 +14,26 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
-mod callback;
-mod data;
-mod finished;
-mod headers;
+use http1::*;
+use http1::test::*;
+
+#[test]
+fn finished() {
+    let (mut p, mut h) = http1_setup!();
+
+    p.init_multipart();
+    p.set_boundary(b"XTestBoundaryX");
+
+    assert_finished(
+        &mut p,
+        &mut h,
+        b"--XTestBoundaryX\r\n\
+          \r\n\
+          This is the data.\r\n\
+          --XTestBoundaryX--",
+        b"--XTestBoundaryX\r\n\
+          \r\n\
+          This is the data.\r\n\
+          --XTestBoundaryX--".len()
+    );
+}

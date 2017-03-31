@@ -14,7 +14,30 @@
 // | limitations under the License.                                                                |
 // +-----------------------------------------------------------------------------------------------+
 
-mod callback;
-mod data;
-mod finished;
-mod headers;
+use http1::*;
+use http1::test::*;
+
+#[test]
+fn finished() {
+    let (mut p, mut h) = http1_setup!();
+
+    p.init_url_encoded();
+    p.set_length(b"Name+1%21=Value%201%21".len());
+
+    assert_finished(
+        &mut p,
+        &mut h,
+        b"Name+1%21=Value%201%21",
+        b"Name+1%21=Value%201%21".len()
+    );
+
+    assert_eq!(
+        &h.url_encoded_name,
+        b"Name 1!"
+    );
+
+    assert_eq!(
+        &h.url_encoded_value,
+        b"Value 1!"
+    );
+}

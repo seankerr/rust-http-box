@@ -188,18 +188,20 @@ macro_rules! consume_linear_space {
     ($context:expr, $on_eos:expr) => ({
         bs_available!($context) > 0 || $on_eos;
 
-        if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
-            loop {
-                bs_available!($context) > 0 || $on_eos;
+        unsafe {
+            if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
+                loop {
+                    bs_available!($context) > 0 || $on_eos;
 
-                bs_next!($context);
+                    bs_next!($context);
 
-                if !($context.byte == b' ' || $context.byte == b'\t') {
-                    break;
+                    if !($context.byte == b' ' || $context.byte == b'\t') {
+                        break;
+                    }
                 }
+            } else {
+                bs_next!($context);
             }
-        } else {
-            bs_next!($context);
         }
     });
 }
@@ -211,18 +213,20 @@ macro_rules! consume_spaces {
     ($context:expr, $on_eos:expr) => ({
         bs_available!($context) > 0 || $on_eos;
 
-        if bs_starts_with1!($context, b" ") {
-            loop {
-                bs_available!($context) > 0 || $on_eos;
+        unsafe {
+            if bs_starts_with1!($context, b" ") {
+                loop {
+                    bs_available!($context) > 0 || $on_eos;
 
-                bs_next!($context);
+                    bs_next!($context);
 
-                if $context.byte != b' ' {
-                    break;
+                    if $context.byte != b' ' {
+                        break;
+                    }
                 }
+            } else {
+                bs_next!($context);
             }
-        } else {
-            bs_next!($context);
         }
     });
 }

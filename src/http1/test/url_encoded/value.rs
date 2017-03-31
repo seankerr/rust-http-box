@@ -111,31 +111,6 @@ fn entire_iter() {
 }
 
 #[test]
-fn finished() {
-    let (mut p, mut h) = http1_setup!();
-
-    p.init_url_encoded();
-    p.set_length(b"Name+1%21=Value%201%21".len());
-
-    assert_finished(
-        &mut p,
-        &mut h,
-        b"Name+1%21=Value%201%21",
-        b"Name+1%21=Value%201%21".len()
-    );
-
-    assert_eq!(
-        &h.url_encoded_name,
-        b"Name 1!"
-    );
-
-    assert_eq!(
-        &h.url_encoded_value,
-        b"Value 1!"
-    );
-}
-
-#[test]
 fn not_allowed_error() {
     for b in non_visible_7bit_vec().iter() {
         let (mut p, mut h) = setup!();
