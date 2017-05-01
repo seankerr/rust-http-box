@@ -96,7 +96,7 @@ impl fmt::Display for DecodeError {
 /// ```
 pub fn decode(encoded: &[u8]) -> Result<String, DecodeError> {
     macro_rules! submit {
-        ($string:expr, $slice:expr) => (unsafe {
+        ($string:expr, $slice:expr) => (#[allow(unused_unsafe)] unsafe {
             $string.as_mut_vec().extend_from_slice($slice);
         });
     }

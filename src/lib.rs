@@ -27,7 +27,7 @@ mod collect;
 
 pub mod byte;
 pub mod http1;
-pub mod http2;
+// pub mod http2;
 pub mod util;
 
 #[cfg(test)]

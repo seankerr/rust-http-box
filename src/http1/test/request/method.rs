@@ -102,6 +102,10 @@ fn not_allowed_error() {
     for b in (0..0x41).chain(0x5B..0xFF) {
         let (mut p, mut h) = setup!();
 
+        if b"\r\n\t ".contains(&b) {
+            continue;
+        }
+
         assert_error(
             &mut p,
             &mut h,

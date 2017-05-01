@@ -26,7 +26,7 @@ macro_rules! http1_setup {
 }
 
 fn assert_callback<T: HttpHandler>(
-    parser:  &mut Parser<T>,
+    parser:  &mut Parser,
     handler: &mut T,
     stream:  &[u8],
     state:   ParserState,
@@ -42,7 +42,7 @@ fn assert_callback<T: HttpHandler>(
 }
 
 fn assert_eos<T: HttpHandler>(
-    parser:  &mut Parser<T>,
+    parser:  &mut Parser,
     handler: &mut T,
     stream:  &[u8],
     state:   ParserState,
@@ -58,7 +58,7 @@ fn assert_eos<T: HttpHandler>(
 }
 
 fn assert_error<T: HttpHandler>(
-    parser:  &mut Parser<T>,
+    parser:  &mut Parser,
     handler: &mut T,
     stream:  &[u8],
     error:   ParserError
@@ -68,12 +68,12 @@ fn assert_error<T: HttpHandler>(
             assert_eq!(error, error_);
             assert_eq!(ParserState::Dead, parser.state());
         },
-        _ => panic!("assert_error() Err() match failed")
+        res => panic!("assert_error() Err() match failed: {:?}", res)
     }
 }
 
 fn iter_assert_eos<T: HttpHandler>(
-    parser:  &mut Parser<T>,
+    parser:  &mut Parser,
     handler: &mut T,
     details: &[(u8, ParserState)]
 ) {
@@ -94,7 +94,7 @@ fn iter_assert_eos<T: HttpHandler>(
 }
 
 fn assert_finished<T: HttpHandler>(
-    parser:  &mut Parser<T>,
+    parser:  &mut Parser,
     handler: &mut T,
     stream:  &[u8],
     length:  usize
