@@ -188,6 +188,7 @@ macro_rules! consume_linear_space {
     ($context:expr, $on_eos:expr) => ({
         bs_available!($context) > 0 || $on_eos;
 
+        #[allow(unused_unsafe)]
         unsafe {
             if bs_starts_with1!($context, b" ") || bs_starts_with1!($context, b"\t") {
                 loop {

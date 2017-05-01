@@ -16,328 +16,360 @@
 
 //! HTTP 1.x parser states.
 
-/// Parser states.
-#[derive(Clone,Copy,Debug,PartialEq)]
-#[repr(u8)]
-pub enum ParserState {
-    /// An error was returned from a call to `Parser::parse()`.
-    Dead,
+use super::{HttpHandler, Parser, ParserError};
 
-    /// Stripping linear white space before request/response detection.
-    StripDetect,
+use fsm::ParserValue;
 
-    /// Detect request/response byte 1.
-    Detect1,
+use byte_slice::ByteStream;
 
-    /// Detect request/response byte 2.
-    Detect2,
+macro_rules! state_dispatch {
+    (
+        $(#[$state_attr:meta])*
+        pub enum $State:ident {$(
+            #[$var_doc:meta] $Var:ident($func:ident)
+        ),*}
+    ) => {
+        $(#[$state_attr])*
+        pub enum $State {$(
+            #[$var_doc] $Var,
+        )*}
 
-    /// Detect request/response byte 3.
-    Detect3,
 
-    /// Detect request/response byte 4.
-    Detect4,
+        pub fn dispatch<'dispatch, T: HttpHandler>(parser: &mut Parser<'dispatch>,
+                                                   handler: &mut T,
+                                                   context: &mut ByteStream)
+        -> Result<ParserValue, ParserError> {
+            match parser.state {$(
+                $State::$Var => parser.$func(handler, context),
+            )*}
+        }
+    }
+}
 
-    /// Detect request/response byte 5.
-    Detect5,
+state_dispatch! {
+    /// Parser states.
+    #[derive(Clone,Copy,Debug,PartialEq)]
+    #[repr(u8)]
+    pub enum ParserState {
+        /// An error was returned from a call to `Parser::parse()`.
+        Dead(dead),
 
-    // ---------------------------------------------------------------------------------------------
-    // REQUEST
-    // ---------------------------------------------------------------------------------------------
+        /// Stripping linear white space before request/response detection.
+        StripDetect(strip_detect),
 
-    /// Parsing request method.
-    RequestMethod,
+        /// Detect request/response byte 1.
+        Detect1(detect1),
 
-    /// Parsing request URL byte 1.
-    RequestUrl1,
+        /// Detect request/response byte 2.
+        Detect2(detect2),
 
-    /// Parsing request URL byte 2+.
-    RequestUrl2,
+        /// Detect request/response byte 3.
+        Detect3(detect3),
 
-    /// Parsing request HTTP version byte 1.
-    RequestHttp1,
+        /// Detect request/response byte 4.
+        Detect4(detect4),
 
-    /// Parsing request HTTP version byte 2.
-    RequestHttp2,
+        /// Detect request/response byte 5.
+        Detect5(detect5),
 
-    /// Parsing request HTTP version byte 3.
-    RequestHttp3,
+        // ---------------------------------------------------------------------------------------------
+        // REQUEST
+        // ---------------------------------------------------------------------------------------------
 
-    /// Parsing request HTTP version byte 4.
-    RequestHttp4,
+        /// Parsing request method.
+        RequestMethod(request_method),
 
-    /// Parsing request HTTP version byte 5.
-    RequestHttp5,
+        /// Parsing request URL byte 1.
+        RequestUrl1(request_url1),
 
-    /// Parsing request HTTP major version byte 1.
-    RequestVersionMajor1,
+        /// Parsing request URL byte 2+.
+        RequestUrl2(request_url2),
 
-    /// Parsing request HTTP major version byte 2.
-    RequestVersionMajor2,
+        /// Parsing request HTTP version byte 1.
+        RequestHttp1(request_http1),
 
-    /// Parsing request HTTP major version byte 3.
-    RequestVersionMajor3,
+        /// Parsing request HTTP version byte 2.
+        RequestHttp2(request_http2),
 
-    /// Parsing period between HTTP major and minor versions.
-    RequestVersionPeriod,
+        /// Parsing request HTTP version byte 3.
+        RequestHttp3(request_http3),
 
-    /// Parsing request HTTP minor version byte 1.
-    RequestVersionMinor1,
+        /// Parsing request HTTP version byte 4.
+        RequestHttp4(request_http4),
 
-    /// Parsing request HTTP minor version byte 2.
-    RequestVersionMinor2,
+        /// Parsing request HTTP version byte 5.
+        RequestHttp5(request_http5),
 
-    /// Parsing request HTTP minor version byte 3.
-    RequestVersionMinor3,
+        /// Parsing request HTTP major version byte 1.
+        RequestVersionMajor1(request_version_major1),
 
-    /// Parsing carriage return after request HTTP minor version.
-    RequestVersionCr,
+        /// Parsing request HTTP major version byte 2.
+        RequestVersionMajor2(request_version_major2),
 
-    // ---------------------------------------------------------------------------------------------
-    // RESPONSE
-    // ---------------------------------------------------------------------------------------------
+        /// Parsing request HTTP major version byte 3.
+        RequestVersionMajor3(request_version_major3),
 
-    /// Parsing response HTTP major version byte 1.
-    ResponseVersionMajor1,
+        /// Parsing period between HTTP major and minor versions.
+        RequestVersionPeriod(request_version_period),
 
-    /// Parsing response HTTP major version byte 2.
-    ResponseVersionMajor2,
+        /// Parsing request HTTP minor version byte 1.
+        RequestVersionMinor1(request_version_minor1),
 
-    /// Parsing response HTTP major version byte 3.
-    ResponseVersionMajor3,
+        /// Parsing request HTTP minor version byte 2.
+        RequestVersionMinor2(request_version_minor2),
 
-    /// Parsing period between HTTP major and minor versions.
-    ResponseVersionPeriod,
+        /// Parsing request HTTP minor version byte 3.
+        RequestVersionMinor3(request_version_minor3),
 
-    /// Parsing response HTTP minor version byte 1.
-    ResponseVersionMinor1,
+        /// Parsing carriage return after request HTTP minor version.
+        RequestVersionCr(request_version_cr),
 
-    /// Parsing response HTTP minor version byte 2.
-    ResponseVersionMinor2,
+        // ---------------------------------------------------------------------------------------------
+        // RESPONSE
+        // ---------------------------------------------------------------------------------------------
 
-    /// Parsing response HTTP minor version byte 3.
-    ResponseVersionMinor3,
+        /// Parsing response HTTP major version byte 1.
+        ResponseVersionMajor1(response_version_major1),
 
-    /// Parsing space after response HTTP minor version.
-    ResponseVersionSpace,
+        /// Parsing response HTTP major version byte 2.
+        ResponseVersionMajor2(response_version_major2),
 
-    /// Parsing response status code byte 1.
-    ResponseStatusCode1,
+        /// Parsing response HTTP major version byte 3.
+        ResponseVersionMajor3(response_version_major3),
 
-    /// Parsing response status code byte 2.
-    ResponseStatusCode2,
+        /// Parsing period between HTTP major and minor versions.
+        ResponseVersionPeriod(response_version_period),
 
-    /// Parsing response status code byte 3.
-    ResponseStatusCode3,
+        /// Parsing response HTTP minor version byte 1.
+        ResponseVersionMinor1(response_version_minor1),
 
-    /// Parsing space after response status code.
-    ResponseStatusCodeSpace,
+        /// Parsing response HTTP minor version byte 2.
+        ResponseVersionMinor2(response_version_minor2),
 
-    /// Parsing response status byte 1.
-    ResponseStatus1,
+        /// Parsing response HTTP minor version byte 3.
+        ResponseVersionMinor3(response_version_minor3),
 
-    /// Parsing response status byte 2+.
-    ResponseStatus2,
+        /// Parsing space after response HTTP minor version.
+        ResponseVersionSpace(response_version_space),
 
-    // ---------------------------------------------------------------------------------------------
-    // HEADERS
-    // ---------------------------------------------------------------------------------------------
+        /// Parsing response status code byte 1.
+        ResponseStatusCode1(response_status_code1),
 
-    /// Parsing initial request/response line has finished.
-    InitialEnd,
+        /// Parsing response status code byte 2.
+        ResponseStatusCode2(response_status_code2),
 
-    /// Parsing line feed after initial request/response line.
-    InitialLf,
+        /// Parsing response status code byte 3.
+        ResponseStatusCode3(response_status_code3),
 
-    /// Checking header name to see if it starts with a space or tab (multiline value).
-    CheckHeaderName,
+        /// Parsing space after response status code.
+        ResponseStatusCodeSpace(response_status_code_space),
 
-    /// Parsing first byte of header name.
-    FirstHeaderName,
+        /// Parsing response status byte 1.
+        ResponseStatus1(response_status1),
 
-    /// Parsing upper-cased header name.
-    UpperHeaderName,
+        /// Parsing response status byte 2+.
+        ResponseStatus2(response_status2),
 
-    /// Parsing lower-cased header name.
-    LowerHeaderName,
+        // ---------------------------------------------------------------------------------------------
+        // HEADERS
+        // ---------------------------------------------------------------------------------------------
 
-    /// Stripping linear white space before header value.
-    StripHeaderValue,
+        /// Parsing initial request/response line has finished.
+        InitialEnd(initial_end),
 
-    /// Parsing header value.
-    HeaderValue,
+        /// Parsing line feed after initial request/response line.
+        InitialLf(initial_lf),
 
-    /// Parsing quoted header value.
-    HeaderQuotedValue,
+        /// Checking header name to see if it starts with a space or tab (multiline value).
+        CheckHeaderName(check_header_name),
 
-    /// Parsing escaped header value.
-    HeaderEscapedValue,
+        /// Parsing first byte of header name.
+        FirstHeaderName(first_header_name),
 
-    /// Parsing first carriage return after status line or header value.
-    HeaderCr1,
+        /// Parsing upper-cased header name.
+        UpperHeaderName(upper_header_name),
 
-    /// Parsing first line feed after status line or header value.
-    HeaderLf1,
+        /// Parsing lower-cased header name.
+        LowerHeaderName(lower_header_name),
 
-    /// Parsing second carriage return after status line or header value.
-    HeaderCr2,
+        /// Stripping linear white space before header value.
+        StripHeaderValue(strip_header_value),
 
-    /// Parsing second line feed after status line or header value.
-    HeaderLf2,
+        /// Parsing header value.
+        HeaderValue(header_value),
 
-    /// Processing end-of-header flag checks.
-    HeaderEnd,
+        /// Parsing quoted header value.
+        HeaderQuotedValue(header_quoted_value),
 
-    // ---------------------------------------------------------------------------------------------
-    // CHUNKED TRANSFER
-    // ---------------------------------------------------------------------------------------------
+        /// Parsing escaped header value.
+        HeaderEscapedValue(header_escaped_value),
 
-    /// Parsing chunk length byte 1.
-    ChunkLength1,
+        /// Parsing first carriage return after status line or header value.
+        HeaderCr1(header_cr1),
 
-    /// Parsing chunk length byte 2.
-    ChunkLength2,
+        /// Parsing first line feed after status line or header value.
+        HeaderLf1(header_lf1),
 
-    /// Parsing chunk length byte 3.
-    ChunkLength3,
+        /// Parsing second carriage return after status line or header value.
+        HeaderCr2(header_cr2),
 
-    /// Parsing chunk length byte 4.
-    ChunkLength4,
+        /// Parsing second line feed after status line or header value.
+        HeaderLf2(header_lf2),
 
-    /// Parsing chunk length byte 5.
-    ChunkLength5,
+        /// Processing end-of-header flag checks.
+        HeaderEnd(header_end),
 
-    /// Parsing chunk length byte 6.
-    ChunkLength6,
+        // ---------------------------------------------------------------------------------------------
+        // CHUNKED TRANSFER
+        // ---------------------------------------------------------------------------------------------
 
-    /// Parsing chunk length byte 7.
-    ChunkLength7,
+        /// Parsing chunk length byte 1.
+        ChunkLength1(chunk_length1),
 
-    /// Parsing chunk length byte 8.
-    ChunkLength8,
+        /// Parsing chunk length byte 2.
+        ChunkLength2(chunk_length2),
 
-    /// Parsing chunk length carriage return or semi-colon.
-    ChunkLengthCr,
+        /// Parsing chunk length byte 3.
+        ChunkLength3(chunk_length3),
 
-    /// Stripping linear white space before chunk extension name.
-    StripChunkExtensionName,
+        /// Parsing chunk length byte 4.
+        ChunkLength4(chunk_length4),
 
-    /// Parsing upper-cased chunk extension.
-    UpperChunkExtensionName,
+        /// Parsing chunk length byte 5.
+        ChunkLength5(chunk_length5),
 
-    /// Parsing lower-cased chunk extension.
-    LowerChunkExtensionName,
+        /// Parsing chunk length byte 6.
+        ChunkLength6(chunk_length6),
 
-    /// Stripping linear white space before chunk extension value.
-    StripChunkExtensionValue,
+        /// Parsing chunk length byte 7.
+        ChunkLength7(chunk_length7),
 
-    /// Parsing chunk extension value.
-    ChunkExtensionValue,
+        /// Parsing chunk length byte 8.
+        ChunkLength8(chunk_length8),
 
-    /// Parsing quoted chunk extension value.
-    ChunkExtensionQuotedValue,
+        /// Parsing chunk length carriage return or semi-colon.
+        ChunkLengthCr(chunk_length_cr),
 
-    /// Parsing escaped chunk extension value.
-    ChunkExtensionEscapedValue,
+        /// Stripping linear white space before chunk extension name.
+        StripChunkExtensionName(strip_chunk_extension_name),
 
-    /// End of chunk extension.
-    ChunkExtensionFinished,
+        /// Parsing upper-cased chunk extension.
+        UpperChunkExtensionName(upper_chunk_extension_name),
 
-    /// End of all chunk extensions.
-    ChunkExtensionsFinished,
+        /// Parsing lower-cased chunk extension.
+        LowerChunkExtensionName(lower_chunk_extension_name),
 
-    /// Parsing line feed after chunk length.
-    ChunkLengthLf,
+        /// Stripping linear white space before chunk extension value.
+        StripChunkExtensionValue(strip_chunk_extension_value),
 
-    /// Parsing chunk data.
-    ChunkData,
+        /// Parsing chunk extension value.
+        ChunkExtensionValue(chunk_extension_value),
 
-    /// Parsing carriage return after chunk data.
-    ChunkDataCr,
+        /// Parsing quoted chunk extension value.
+        ChunkExtensionQuotedValue(chunk_extension_quoted_value),
 
-    /// Parsing line feed after chunk data.
-    ChunkDataLf,
+        /// Parsing escaped chunk extension value.
+        ChunkExtensionEscapedValue(chunk_extension_escaped_value),
 
-    // ---------------------------------------------------------------------------------------------
-    // MULTIPART
-    // ---------------------------------------------------------------------------------------------
+        /// End of chunk extension.
+        ChunkExtensionFinished(chunk_extension_finished),
 
-    /// Parsing pre boundary hyphen 1.
-    MultipartHyphen1,
+        /// End of all chunk extensions.
+        ChunkExtensionsFinished(chunk_extensions_finished),
 
-    /// Parsing pre boundary hyphen 2.
-    MultipartHyphen2,
+        /// Parsing line feed after chunk length.
+        ChunkLengthLf(chunk_length_lf),
 
-    /// Parsing multipart boundary.
-    MultipartBoundary,
+        /// Parsing chunk data.
+        ChunkData(chunk_data),
 
-    /// Detecting multipart data parsing mechanism.
-    MultipartDetectData,
+        /// Parsing carriage return after chunk data.
+        ChunkDataCr(chunk_data_cr),
 
-    /// Parsing multipart data by byte.
-    MultipartDataByByte,
+        /// Parsing line feed after chunk data.
+        ChunkDataLf(chunk_data_lf),
 
-    /// Parsing multipart data by content length.
-    MultipartDataByLength,
+        // ---------------------------------------------------------------------------------------------
+        // MULTIPART
+        // ---------------------------------------------------------------------------------------------
 
-    /// Parsing carriage return after data by length.
-    MultipartDataByLengthCr,
+        /// Parsing pre boundary hyphen 1.
+        MultipartHyphen1(multipart_hyphen1),
 
-    /// Parsing line feed after data by length.
-    MultipartDataByLengthLf,
+        /// Parsing pre boundary hyphen 2.
+        MultipartHyphen2(multipart_hyphen2),
 
-    /// Parsing potential line feed after data by byte.
-    MultipartDataByByteLf,
+        /// Parsing multipart boundary.
+        MultipartBoundary(multipart_boundary),
 
-    /// Parsing post boundary carriage return or hyphen.
-    MultipartBoundaryCr,
+        /// Detecting multipart data parsing mechanism.
+        MultipartDetectData(multipart_detect_data),
 
-    /// Parsing post boundary line feed.
-    MultipartBoundaryLf,
+        /// Parsing multipart data by byte.
+        MultipartDataByByte(multipart_data_by_byte),
 
-    /// Parsing last boundary second hyphen that indicates end of multipart body.
-    MultipartEnd,
+        /// Parsing multipart data by content length.
+        MultipartDataByLength(multipart_data_by_length),
 
-    // ---------------------------------------------------------------------------------------------
-    // URL ENCODED
-    // ---------------------------------------------------------------------------------------------
+        /// Parsing carriage return after data by length.
+        MultipartDataByLengthCr(multipart_data_by_length_cr),
 
-    /// Parsing first byte of URL encoded name.
-    FirstUrlEncodedName,
+        /// Parsing line feed after data by length.
+        MultipartDataByLengthLf(multipart_data_by_length_lf),
 
-    /// Parsing URL encoded name.
-    UrlEncodedName,
+        /// Parsing potential line feed after data by byte.
+        MultipartDataByByteLf(multipart_data_by_byte_lf),
 
-    /// Parsing URL encoded name hex sequence byte 1.
-    UrlEncodedNameHex1,
+        /// Parsing post boundary carriage return or hyphen.
+        MultipartBoundaryCr(multipart_boundary_cr),
 
-    /// Parsing URL encoded name hex sequence byte 2.
-    UrlEncodedNameHex2,
+        /// Parsing post boundary line feed.
+        MultipartBoundaryLf(multipart_boundary_lf),
 
-    /// Parsing URL encoded name plus sign.
-    UrlEncodedNamePlus,
+        /// Parsing last boundary second hyphen that indicates end of multipart body.
+        MultipartEnd(multipart_end),
 
-    /// Parsing URL encoded value.
-    UrlEncodedValue,
+        // ---------------------------------------------------------------------------------------------
+        // URL ENCODED
+        // ---------------------------------------------------------------------------------------------
 
-    /// Parsing URL encoded value hex sequence byte 1.
-    UrlEncodedValueHex1,
+        /// Parsing first byte of URL encoded name.
+        FirstUrlEncodedName(first_url_encoded_name),
 
-    /// Parsing URL encoded value hex sequence byte 2.
-    UrlEncodedValueHex2,
+        /// Parsing URL encoded name.
+        UrlEncodedName(url_encoded_name),
 
-    /// Parsing URL encoded value plus sign.
-    UrlEncodedValuePlus,
+        /// Parsing URL encoded name hex sequence byte 1.
+        UrlEncodedNameHex1(url_encoded_name_hex1),
 
-    // ---------------------------------------------------------------------------------------------
-    // FINISHED
-    // ---------------------------------------------------------------------------------------------
+        /// Parsing URL encoded name hex sequence byte 2.
+        UrlEncodedNameHex2(url_encoded_name_hex2),
 
-    /// End of body parsing.
-    BodyFinished,
+        /// Parsing URL encoded name plus sign.
+        UrlEncodedNamePlus(url_encoded_name_plus),
 
-    /// Parsing entire message has finished.
-    Finished
+        /// Parsing URL encoded value.
+        UrlEncodedValue(url_encoded_value),
+
+        /// Parsing URL encoded value hex sequence byte 1.
+        UrlEncodedValueHex1(url_encoded_value_hex1),
+
+        /// Parsing URL encoded value hex sequence byte 2.
+        UrlEncodedValueHex2(url_encoded_value_hex2),
+
+        /// Parsing URL encoded value plus sign.
+        UrlEncodedValuePlus(url_encoded_value_plus),
+
+        // ---------------------------------------------------------------------------------------------
+        // FINISHED
+        // ---------------------------------------------------------------------------------------------
+
+        /// End of body parsing.
+        BodyFinished(body_finished),
+
+        /// Parsing entire message has finished.
+        Finished(finished)
+    }
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -54,9 +54,8 @@ macro_rules! callback_eos_expr {
 /// Execute callback `$callback` ignoring the last collected byte. If it returns `true`, transition
 /// to `$state`. Otherwise exit with `Success::Callback`.
 macro_rules! callback_ignore_transition {
-    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $state:ident,
-     $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $state:ident) => ({
+        set_state!($parser, $state);
 
         // compare against 1 instead of 0 because we're ignoring the last slice byte
         if bs_slice_length!($context) > 1 {
@@ -77,17 +76,15 @@ macro_rules! callback_ignore_transition {
 /// This macro exists to enforce the design decision that after each callback, state must either
 /// change, or the parser must exit with `Success::Callback`.
 macro_rules! callback_transition {
-    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $data:expr, $state:ident,
-     $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $data:expr, $state:ident) => ({
+        set_state!($parser, $state);
         callback!($parser, $handler, $context, $callback, $data, {
             transition!($parser, $context);
         });
     });
 
-    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $state:ident,
-     $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $handler:expr, $context:expr, $callback:ident, $state:ident) => ({
+        set_state!($parser, $state);
         callback!($parser, $handler, $context, $callback, {
             transition!($parser, $context);
         });
@@ -96,8 +93,8 @@ macro_rules! callback_transition {
 
 /// Exit parser with `Success::Callback`.
 macro_rules! exit_callback {
-    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $context:expr, $state:ident) => ({
+        set_state!($parser, $state);
 
         return Ok(ParserValue::Exit(Success::Callback($context.stream_index)));
     });
@@ -148,16 +145,15 @@ macro_rules! get_state {
 
 /// Set state and state function.
 macro_rules! set_state {
-    ($parser:expr, $state:ident, $state_function:ident) => ({
+    ($parser:expr, $state:ident) => ({
         $parser.state          = ParserState::$state;
-        $parser.state_function = Parser::$state_function;
     });
 }
 
 /// Transition to `$state`.
 macro_rules! transition {
-    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $context:expr, $state:ident) => ({
+        set_state!($parser, $state);
 
         bs_mark!($context, $context.stream_index);
 
@@ -175,8 +171,8 @@ macro_rules! transition {
 ///
 /// This will not readjust the mark index.
 macro_rules! transition_no_remark {
-    ($parser:expr, $context:expr, $state:ident, $state_function:ident) => ({
-        set_state!($parser, $state, $state_function);
+    ($parser:expr, $context:expr, $state:ident) => ({
+        set_state!($parser, $state);
 
         return Ok(ParserValue::Continue);
     });
