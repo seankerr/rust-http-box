@@ -765,7 +765,7 @@ impl<'a, T: HttpHandler + 'a> Parser<'a, T> {
 
         if handler.on_go_away(
             self.bit_data32b & 0x7FFFFFFF,
-            ((self.bit_data16a as u32) << 16 | self.bit_data16b as u32)
+            (self.bit_data16a as u32) << 16 | self.bit_data16b as u32
         ) {
             transition!(self, context);
         } else {
